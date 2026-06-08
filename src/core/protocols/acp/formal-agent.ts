@@ -14,6 +14,8 @@ import {
   type ToolCallContent,
 } from '@agentclientprotocol/sdk';
 
+import { isRecord } from '../../utils/serialize.js';
+
 import { text } from '../../../locales/index.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { ResolvedExtensions, ResolvedMcpServer } from '../../extensions/types.js';
@@ -82,8 +84,8 @@ type Facade = {
 };
 
 function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']): string | null {
-  if (!inputRequired || !Array.isArray((inputRequired as any).questions)) return null;
-  const questions = (inputRequired as any).questions as Array<{
+  if (!inputRequired || !isRecord(inputRequired) || !Array.isArray(inputRequired.questions)) return null;
+  const questions = inputRequired.questions as Array<{
     question: string;
     options: Array<{ label: string; description: string }>;
     multiSelect: boolean;
@@ -349,7 +351,7 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         title: event.toolName,
         kind: mapToolKind(event.toolName, { intent: event.toolIntent }),
         content: [],
-        rawInput: event.input as any,
+        rawInput: event.input as Record<string, unknown>,
         locations: extractLocationFromInput(event.input),
       };
     case 'tool.call.end':
@@ -358,7 +360,7 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         toolCallId: event.callId,
         status: event.status === 'ok' ? 'completed' : 'failed',
         content: event.status !== 'ok' ? buildToolCallContent(formatToolCallEnd(event)) : [],
-        rawOutput: event.outputSummary as any,
+        rawOutput: event.outputSummary as unknown as Record<string, unknown>,
       };
     case 'phase.start':
       return null;
@@ -1354,7 +1356,7 @@ export function createAcpFormalAgent(deps: {
           modeId: runtimeState.modeId,
           history: [
             ...current.history,
-            { role: 'user', content: params.prompt as unknown as any[] },
+            { role: 'user', content: params.prompt as unknown as ContentBlock[] },
           ],
         };
       });
@@ -1392,7 +1394,7 @@ export function createAcpFormalAgent(deps: {
             ...current,
             history: [
               ...current.history,
-              { role: 'assistant', content: [buildTextContentBlock(responseText)] as any },
+              { role: 'assistant', content: [buildTextContentBlock(responseText)] as ContentBlock[] },
             ],
           }));
           await sessionPersistence.persist();
@@ -1524,7 +1526,7 @@ export function createAcpFormalAgent(deps: {
         ...current,
         history: [
           ...current.history,
-          { role: 'assistant', content: [buildTextContentBlock(assistantText)] as any },
+          { role: 'assistant', content: [buildTextContentBlock(assistantText)] as ContentBlock[] },
         ],
       }));
       await sessionPersistence.persist();
