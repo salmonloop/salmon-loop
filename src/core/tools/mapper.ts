@@ -41,10 +41,10 @@ const unwrapForSchemaGeneration = unwrapZodSchema;
 
 function zodToOpenApi3(schema: z.ZodTypeAny): JsonSchema {
   const unwrapped = unwrapForSchemaGeneration(schema);
-  const description = (unwrapped as any).description as string | undefined;
+  const description = unwrapped.description;
 
   if (unwrapped instanceof z.ZodObject) {
-    const shape = (unwrapped as any).shape as Record<string, z.ZodTypeAny>;
+    const shape = unwrapped.shape as Record<string, z.ZodTypeAny>;
     const properties: Record<string, JsonSchema> = {};
     const required: string[] = [];
 
@@ -63,20 +63,15 @@ function zodToOpenApi3(schema: z.ZodTypeAny): JsonSchema {
   }
 
   if (unwrapped instanceof z.ZodArray) {
-    const items = zodToOpenApi3((unwrapped as any)._def.type);
+    const items = zodToOpenApi3(unwrapped.element as z.ZodTypeAny);
     const out: JsonSchema = { type: 'array', items };
     if (description) out.description = description;
     return out;
   }
 
   if (unwrapped instanceof z.ZodEnum) {
-    const options = (unwrapped as any).options ?? (unwrapped as any)._def?.values;
-    let values: string[] = [];
-    if (Array.isArray(options)) {
-      values = options.map(String);
-    } else if (options && typeof options === 'object') {
-      values = Object.values(options).map(String);
-    }
+    const options = unwrapped.options;
+    const values: string[] = options.map(String);
 
     const out: JsonSchema =
       values.length > 0 ? { type: 'string', enum: values } : { type: 'string' };
@@ -85,13 +80,13 @@ function zodToOpenApi3(schema: z.ZodTypeAny): JsonSchema {
   }
 
   if (unwrapped instanceof z.ZodLiteral) {
-    const out: JsonSchema = { const: (unwrapped as any)._def.value };
+    const out: JsonSchema = { const: unwrapped.value };
     if (description) out.description = description;
     return out;
   }
 
   if (unwrapped instanceof z.ZodUnion) {
-    const options = (unwrapped as any)._def.options as z.ZodTypeAny[];
+    const options = unwrapped.options as unknown as z.ZodTypeAny[];
     const out: JsonSchema = { oneOf: options.map((o) => zodToOpenApi3(o)) };
     if (description) out.description = description;
     return out;
@@ -110,7 +105,7 @@ function zodToOpenApi3(schema: z.ZodTypeAny): JsonSchema {
   }
 
   if (unwrapped instanceof z.ZodNumber) {
-    const isInt = Boolean((unwrapped as any)._def.checks?.some((c: any) => c.kind === 'int'));
+    const isInt = unwrapped.isInt;
     const out: JsonSchema = { type: isInt ? 'integer' : 'number' };
     if (description) out.description = description;
     return out;

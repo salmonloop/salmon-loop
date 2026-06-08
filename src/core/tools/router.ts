@@ -19,7 +19,14 @@ import { decidePermissionForToolCall } from './permissions/permission-rules.js';
 import { ToolPolicy } from './policy.js';
 import { ToolRegistry } from './registry.js';
 import { ToolSanitizer } from './sanitize.js';
-import { ToolCallEnvelope, ToolResult, ToolSpec } from './types.js';
+import {
+  RiskLevel,
+  SideEffect,
+  ToolCallEnvelope,
+  ToolResult,
+  ToolSource,
+  ToolSpec,
+} from './types.js';
 
 export class ToolRouter {
   private authorizationCache = new Map<string, { expiresAt?: number }>();
@@ -32,10 +39,10 @@ export class ToolRouter {
 
   private buildInputHint(spec: ToolSpec): string | undefined {
     if (!spec.inputSchema) return undefined;
-    const base = this.unwrapForHint(spec.inputSchema as any);
+    const base = this.unwrapForHint(spec.inputSchema as z.ZodTypeAny);
     if (!(base instanceof z.ZodObject)) return undefined;
 
-    const shape = (base as any).shape as Record<string, z.ZodTypeAny>;
+    const shape = base.shape as Record<string, z.ZodTypeAny>;
     const required: string[] = [];
     const parts: string[] = [];
 
@@ -232,7 +239,7 @@ export class ToolRouter {
           spec.executor(normalizedEnvelope.args, {
             ...normalizedEnvelope.ctx,
             phase: normalizedEnvelope.phase,
-          } as any),
+          }),
       });
 
       // 5. Output Validation & Sanitize: Result validation and sensitive summary
@@ -393,10 +400,10 @@ export class ToolRouter {
     const req: ToolAuthorizationRequest = {
       id: normalizedEnvelope.id,
       toolName: spec.name,
-      source: spec.source as any,
+      source: spec.source,
       phase: normalizedEnvelope.phase,
-      riskLevel: spec.riskLevel as any,
-      sideEffects: (spec.sideEffects || []) as any,
+      riskLevel: spec.riskLevel,
+      sideEffects: spec.sideEffects,
       argsSummary,
       argsHash,
       repoRoot: normalizedEnvelope.ctx.repoRoot,
@@ -567,10 +574,10 @@ export class ToolRouter {
     const req = {
       id: envelope.id,
       toolName: spec.name,
-      source: spec.source as any,
+      source: spec.source as ToolSource,
       phase: envelope.phase,
-      riskLevel: spec.riskLevel as any,
-      sideEffects: (spec.sideEffects || []) as any,
+      riskLevel: spec.riskLevel as RiskLevel,
+      sideEffects: (spec.sideEffects ?? []) as SideEffect[],
       argsSummary,
       argsHash,
       repoRoot: envelope.ctx.repoRoot,
@@ -653,7 +660,7 @@ export class ToolRouter {
     // Best-effort only. Avoid hanging authorization prompts on slow IO.
     const TIMEOUT_MS = 1500;
     try {
-      const phaseCtx = { ...envelope.ctx, phase: envelope.phase } as any;
+      const phaseCtx = { ...envelope.ctx, phase: envelope.phase };
       const result = await Promise.race([
         Promise.resolve(summarize(envelope.args, phaseCtx)),
         new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), TIMEOUT_MS)),
