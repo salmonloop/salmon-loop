@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { LIMITS } from '../config/limits.js';
 import { getLogger } from '../observability/logger.js';
+import { isRecord } from '../utils/serialize.js';
 import { unwrapZodSchema } from '../utils/zod.js';
 
 import { ToolAuditLogger } from './audit.js';
@@ -211,7 +212,9 @@ export class ToolRouter {
             },
           );
           // Provide a stable token for challenge-response UIs.
-          (result.error as any).confirmToken = auth.challenge;
+          if (isRecord(result.error)) {
+            (result.error as Record<string, unknown>).confirmToken = auth.challenge;
+          }
           this.audit.onEnd(result);
           return result;
         }
@@ -260,27 +263,16 @@ export class ToolRouter {
 
       if (e instanceof Error) {
         errorMessage = e.message;
-        if ('code' in e && typeof (e as { code?: unknown }).code === 'string') {
-          errorCode = (e as { code: string }).code;
+      }
+      const errObj = isRecord(e) ? e : null;
+      if (errObj) {
+        if (typeof errObj.message === 'string') errorMessage = errObj.message;
+        if (typeof errObj.code === 'string') errorCode = errObj.code;
+        if ('interrupt' in errObj) {
+          errorMeta = { ...(errorMeta ?? {}), interrupt: errObj.interrupt };
         }
-        if ('interrupt' in e) {
-          errorMeta = { ...(errorMeta ?? {}), interrupt: (e as any).interrupt };
-        }
-        if ('inputRequired' in e) {
-          errorMeta = { ...(errorMeta ?? {}), inputRequired: (e as any).inputRequired };
-        }
-      } else if (e && typeof e === 'object') {
-        if ('message' in e && typeof (e as { message: unknown }).message === 'string') {
-          errorMessage = (e as { message: string }).message;
-        }
-        if ('code' in e && typeof (e as { code?: unknown }).code === 'string') {
-          errorCode = (e as { code: string }).code;
-        }
-        if ('interrupt' in e) {
-          errorMeta = { ...(errorMeta ?? {}), interrupt: (e as any).interrupt };
-        }
-        if ('inputRequired' in e) {
-          errorMeta = { ...(errorMeta ?? {}), inputRequired: (e as any).inputRequired };
+        if ('inputRequired' in errObj) {
+          errorMeta = { ...(errorMeta ?? {}), inputRequired: errObj.inputRequired };
         }
       }
 
@@ -430,7 +422,9 @@ export class ToolRouter {
           },
         },
       );
-      (toolResult.error as any).confirmToken = deferred.challenge;
+      if (isRecord(toolResult.error)) {
+        (toolResult.error as Record<string, unknown>).confirmToken = deferred.challenge;
+      }
 
       return {
         kind: 'pending',
@@ -568,7 +562,7 @@ export class ToolRouter {
       return { kind: 'allow' };
     }
 
-    const argsSummary = await this.getAuthorizationArgsSummary(envelope, spec as any);
+    const argsSummary = await this.getAuthorizationArgsSummary(envelope, spec);
     const argsHash = this.hashArgs(envelope.args);
     const req = {
       id: envelope.id,
@@ -653,7 +647,7 @@ export class ToolRouter {
     spec: { name: string; source?: string; summarizeArgsForAuthorization?: any },
   ): Promise<string | undefined> {
     const fallback = this.summarizeArgs(envelope.args);
-    const summarize = (spec as any)?.summarizeArgsForAuthorization;
+    const summarize = spec.summarizeArgsForAuthorization;
     if (typeof summarize !== 'function') return fallback;
 
     // Best-effort only. Avoid hanging authorization prompts on slow IO.
