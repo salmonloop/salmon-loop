@@ -8,6 +8,7 @@ import { TokenTracker } from '../token-tracker.js';
 
 import { isCircuitBreakerTripped, onCompactionFailure, onCompactionSuccess } from './tracking.js';
 import type { CompactionTracking, CompactionResult, AutocompactConfig } from './types.js';
+import { isRecord } from '../../utils/serialize.js';
 import { DEFAULT_AUTOCOMPACT_CONFIG } from './types.js';
 
 function isContextOverflowLike(error: unknown): boolean {
@@ -18,8 +19,8 @@ function isContextOverflowLike(error: unknown): boolean {
   const message =
     error instanceof Error
       ? error.message
-      : error && typeof error === 'object' && typeof (error as any).message === 'string'
-        ? String((error as any).message)
+      : isRecord(error) && typeof error.message === 'string'
+        ? error.message
         : '';
   if (!message) return false;
   const lower = message.toLowerCase();
@@ -155,7 +156,7 @@ export async function autocompact(params: {
     const updatedSummary = sessionManager.getSummaryState();
 
     getLogger().audit(
-      `COMPACTION_${trigger.toUpperCase()}COMPACT` as any,
+      `COMPACTION_${trigger.toUpperCase()}COMPACT`,
       {
         trigger,
         modelId: modelId ?? 'unknown',
@@ -177,7 +178,7 @@ export async function autocompact(params: {
       performed: true,
       tracking: onCompactionSuccess(tracking),
       preTokens: totalTokens,
-      trigger: trigger as any,
+      trigger,
     };
   } catch (error) {
     const newTracking = onCompactionFailure(tracking);

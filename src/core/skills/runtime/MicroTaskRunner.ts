@@ -83,7 +83,7 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
           cmd,
           output: output as string,
         })),
-        injectedPrompt: injectAction?.params?.prompt || '',
+        injectedPrompt: String(injectAction?.params?.prompt ?? ''),
         status: plan.shouldAbort ? 'FAILURE' : 'SUCCESS',
       };
     }

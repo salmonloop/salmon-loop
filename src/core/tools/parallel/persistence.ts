@@ -1,6 +1,7 @@
 import path from 'path';
 
 import { syncFs as fs } from '../../adapters/fs/node-fs.js';
+import { isRecord } from '../../utils/serialize.js';
 import type { ToolRuntimeCtx } from '../types.js';
 
 import { ExecutionPlan, PlanRunResult } from './plan.js';
@@ -79,7 +80,7 @@ export class PlanPersistence {
       const content = await fs.readFile(filePath, 'utf8');
       return JSON.parse(content) as PersistedPlanState;
     } catch (_error) {
-      if ((_error as any).code === 'ENOENT') {
+      if (isRecord(_error) && _error.code === 'ENOENT') {
         return null;
       }
       throw _error;
@@ -108,7 +109,7 @@ export class PlanPersistence {
       }
       return states;
     } catch (_error) {
-      if ((_error as any).code === 'ENOENT') {
+      if (isRecord(_error) && _error.code === 'ENOENT') {
         return [];
       }
       throw _error;
@@ -160,7 +161,7 @@ export class PlanPersistence {
     try {
       await fs.unlink(filePath);
     } catch (_error) {
-      if ((_error as any).code !== 'ENOENT') {
+      if (isRecord(_error) && _error.code !== 'ENOENT') {
         throw _error;
       }
     }

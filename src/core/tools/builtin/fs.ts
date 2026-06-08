@@ -8,6 +8,7 @@ import { text } from '../../../locales/index.js';
 import { AtomicFileWriter } from '../../adapters/fs/atomic-file-writer.js';
 import { mkdir, readFile, readdir, stat } from '../../adapters/fs/node-fs.js';
 import { Phase } from '../../types/runtime.js';
+import { isRecord } from '../../utils/serialize.js';
 import { normalizeRepoRelativePath } from '../../utils/path.js';
 import { pathPrefixResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
@@ -296,7 +297,7 @@ export async function executeFsListDirectory(
   input: z.infer<typeof fsListDirectorySpec.inputSchema>,
   ctx: ToolRuntimeCtx,
 ) {
-  return executeFsList(input as any, ctx);
+  return executeFsList(input as z.infer<typeof fsListSpec.inputSchema>, ctx);
 }
 
 /**
@@ -384,12 +385,13 @@ export const fsWriteFileSpec: Omit<ToolSpec, 'executor'> = {
     bytesWritten: z.number().int().nonnegative(),
   }),
   summarizeArgsForAuthorization: async (args) => {
-    const encoding = (args as any)?.encoding || 'utf-8';
-    const content = String((args as any)?.content ?? '');
+    const a = isRecord(args) ? args : {};
+    const encoding = typeof a.encoding === 'string' ? a.encoding : 'utf-8';
+    const content = String(a.content ?? '');
     const bytes = Buffer.byteLength(content, 'utf8');
     const sha256 = createHash('sha256').update(content, 'utf8').digest('hex');
     return JSON.stringify({
-      file: (args as any)?.file,
+      file: typeof a.file === 'string' ? a.file : undefined,
       encoding,
       bytes,
       sha256,
@@ -447,8 +449,10 @@ export const fsCreateDirectorySpec: Omit<ToolSpec, 'executor'> = {
     ok: z.boolean(),
     path: z.string(),
   }),
-  summarizeArgsForAuthorization: async (args) =>
-    JSON.stringify({ path: (args as any)?.path, recursive: (args as any)?.recursive }),
+  summarizeArgsForAuthorization: async (args) => {
+    const a = isRecord(args) ? args : {};
+    return JSON.stringify({ path: a.path, recursive: a.recursive });
+  },
 };
 
 export async function executeFsCreateDirectory(
@@ -495,8 +499,10 @@ export const fsDeleteFileSpec: Omit<ToolSpec, 'executor'> = {
     path: z.string(),
     deleted: z.boolean(),
   }),
-  summarizeArgsForAuthorization: async (args) =>
-    JSON.stringify({ file: (args as any)?.file, missingOk: (args as any)?.missingOk }),
+  summarizeArgsForAuthorization: async (args) => {
+    const a = isRecord(args) ? args : {};
+    return JSON.stringify({ file: a.file, missingOk: a.missingOk });
+  },
 };
 
 export async function executeFsDeleteFile(
@@ -513,7 +519,7 @@ export async function executeFsDeleteFile(
   try {
     await stat(absolutePath);
   } catch (e: unknown) {
-    const code = e && typeof e === 'object' && 'code' in e ? (e as any).code : undefined;
+    const code = isRecord(e) && typeof e.code === 'string' ? e.code : undefined;
     if (code === 'ENOENT') exists = false;
     else throw e;
   }

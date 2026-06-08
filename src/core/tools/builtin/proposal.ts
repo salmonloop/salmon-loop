@@ -16,6 +16,7 @@ import { getRejectionsDir } from '../../runtime/paths.js';
 import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import { Phase } from '../../types/runtime.js';
+import { isRecord } from '../../utils/serialize.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 function bootstrapRegistry(): void {
@@ -52,7 +53,7 @@ export const proposalApplySpec: Omit<ToolSpec, 'executor'> = {
   // challenge-response authorization without violating the execution contract.
   allowedPhases: [Phase.VERIFY],
   summarizeArgsForAuthorization: async (args, _ctx) => {
-    const handle = (args as any)?.handle as string | undefined;
+    const handle = isRecord(args) && typeof args.handle === 'string' ? args.handle : undefined;
     if (!handle) return undefined;
 
     const read = await ArtifactStore.readText(handle);
@@ -116,7 +117,15 @@ export async function executeProposalApply(
   for (const op of operations) {
     const fileState = stateMap.get(op.path);
     const fileInfo = fileState
-      ? { ...fileState, hasConflict: fileState.status === FileStatus.CONFLICT }
+      ? {
+          path: fileState.path,
+          status: fileState.status,
+          isBinary: fileState.isBinary,
+          isSymlink: fileState.isSymlink,
+          isIgnored: fileState.isIgnored,
+          hasConflict: fileState.status === FileStatus.CONFLICT,
+          size: fileState.size,
+        }
       : {
           path: op.path,
           status: FileStatus.CLEAN,
@@ -129,8 +138,8 @@ export async function executeProposalApply(
 
     const dslCtx: DslContext = {
       repoRoot: activePath,
-      file: fileInfo as any,
-      operation: op as any,
+      file: fileInfo,
+      operation: op,
       options: {
         force: false,
         allowMM: true,

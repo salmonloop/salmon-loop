@@ -10,14 +10,15 @@ function planToDecision(
 ): SlashDispatchDecision {
   const action = plan.actions[0];
   if (!action) return { kind: 'consumed' };
+  const p = action.params ?? {};
 
   if (action.type === 'FORWARD_TEXT') {
-    const next = String((action.params as any)?.input ?? '');
+    const next = String(p.input ?? '');
     return { kind: 'forward', input: next };
   }
 
   if (action.type === 'UNKNOWN_SLASH') {
-    const cmd = String((action.params as any)?.commandName ?? '');
+    const cmd = String(p.commandName ?? '');
     if (options.unknownSlashPolicy === 'forward_as_text') {
       return { kind: 'forward', input: cmd };
     }
@@ -46,11 +47,12 @@ export function buildSlashExecuteStep(options: SlashRouterOptions, meta?: unknow
       return { ...context, data: { ...data, __decision: decision } };
     }
 
-    const commandName = String((action.params as any)?.commandName ?? '');
+    const p = action.params ?? {};
+    const commandName = String(p.commandName ?? '');
     const spec = options.registry.find(commandName);
     if (!spec) {
       const decision = planToDecision(
-        { ...plan, actions: [{ type: 'UNKNOWN_SLASH', params: { commandName } }] } as any,
+        { ...plan, actions: [{ type: 'UNKNOWN_SLASH', params: { commandName } }] },
         { unknownSlashPolicy: options.unknownSlashPolicy },
       );
       return { ...context, data: { ...data, __decision: decision } };
@@ -70,8 +72,8 @@ export function buildSlashExecuteStep(options: SlashRouterOptions, meta?: unknow
     const req: SlashHandlerRequest = {
       rawInput: context.input.raw,
       command: spec,
-      argsText: String((action.params as any)?.argsText ?? ''),
-      tokens: Array.isArray((action.params as any)?.tokens) ? (action.params as any).tokens : [],
+      argsText: String(p.argsText ?? ''),
+      tokens: Array.isArray(p.tokens) ? p.tokens : [],
       meta,
     };
 

@@ -6,7 +6,7 @@ export interface ExecutionPlan {
   shouldAbort: boolean;
   abortReason?: string;
   workerId?: string;
-  actions: Array<{ type: string; params?: any }>;
+  actions: Array<{ type: string; params?: Record<string, unknown> }>;
   decisionTree: string[];
 }
 
@@ -42,7 +42,7 @@ export class PlanBuilder<C extends BaseDslContext = DslContext> {
     return Boolean(this.plan.workerId);
   }
 
-  addAction(type: string, params?: any): this {
+  addAction(type: string, params?: Record<string, unknown>): this {
     this.plan.actions.push({ type, params });
     return this;
   }

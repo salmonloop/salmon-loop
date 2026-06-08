@@ -3,7 +3,7 @@ import type { ToolIntent } from '../../tools/types.js';
 export interface AuditEntry {
   toolName: string;
   toolIntent?: ToolIntent;
-  toolResultStatus: string;
+  toolResultStatus?: string;
 }
 
 export class ContextValidator {

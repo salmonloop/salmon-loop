@@ -208,7 +208,7 @@ export async function appendAuditTrailToAuditFile(
         meta.secondaryFailures = nextSecondaryFailures;
         metaChanged = true;
       }
-      (data as any).meta = meta;
+      data.meta = meta;
     }
 
     const context =
@@ -216,7 +216,7 @@ export async function appendAuditTrailToAuditFile(
         ? (data.context as Record<string, unknown>)
         : {};
 
-    const eventsRef = (context as any).eventsRef as AuditEventsRef | undefined;
+    const eventsRef = context.eventsRef as AuditEventsRef | undefined;
     if (!eventsRef?.path) {
       throw new Error('Invalid audit file: context.eventsRef.path is required');
     }
@@ -233,13 +233,13 @@ export async function appendAuditTrailToAuditFile(
     const eventsPath = resolveEventsPath(eventsRef.path, auditPath);
     await appendFile(eventsPath, buildEventsPayload(delta), 'utf8');
 
-    (context as any).eventsRef = {
+    context.eventsRef = {
       ...eventsRef,
       count: existingCount + delta.length,
       firstTs: eventsRef.firstTs ?? delta[0]?.timestamp,
       lastTs: delta[delta.length - 1]?.timestamp ?? eventsRef.lastTs,
     };
-    (data as any).context = context;
+    data.context = context;
 
     await writeJsonAtomic(auditPath, data);
     return auditPath;

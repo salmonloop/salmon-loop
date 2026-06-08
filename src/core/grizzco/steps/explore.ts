@@ -1,6 +1,8 @@
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
+import { isRecord } from '../../utils/serialize.js';
+import type { AuditEntry } from '../validation/ContextValidator.js';
 import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
@@ -116,7 +118,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
           // Intercept tools with READ intent
           if (intent === 'READ' && result.status === 'ok') {
             const output = result.output;
-            const content = typeof output === 'string' ? output : (output as any)?.content;
+            const content = typeof output === 'string' ? output : isRecord(output) && typeof output.content === 'string' ? output.content : undefined;
 
             if (typeof content === 'string') {
               try {
@@ -145,7 +147,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     router: proxiedRouter,
   };
 
-  const localAudit: any[] = [];
+  const localAudit: AuditEntry[] = [];
   const toolVisibility = buildToolVisibilityRuntime(ctx);
   const requestEnvelope = await buildPhaseRequestEnvelope({
     phase: Phase.EXPLORE,
@@ -224,9 +226,11 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   }
 
   // Validation: Check for exploration consistency using ContextValidator on LOCAL audit
-  const validation = ContextValidator.validateExploration(localAudit as any, capturedFiles.size);
+  const validation = ContextValidator.validateExploration(localAudit, capturedFiles.size);
   if (!validation.isValid) {
-    const msg = (text.grizzco.validation as any)[validation.errorCode!] || validation.errorCode;
+    const validationMessages = text.grizzco.validation as Record<string, string | ((n: number) => string)>;
+    const raw = validation.errorCode ? validationMessages[validation.errorCode] : undefined;
+    const msg = typeof raw === 'string' ? raw : validation.errorCode ?? 'unknown';
     ctx.emit({
       type: 'log',
       level: 'error',

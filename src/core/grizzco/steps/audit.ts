@@ -8,11 +8,13 @@ import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail
 import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import { getLogger } from '../../observability/logger.js';
 import { errorMessage } from '../../utils/error.js';
+import { isRecord } from '../../utils/serialize.js';
 import { getAuditDir } from '../../runtime/paths.js';
 import { SalmonError } from '../../types/errors.js';
 import type { LoopOptions } from '../../types/runtime.js';
 import { FlowReport } from '../engine/pipeline/pipeline.js';
 import type { ShrinkCtx } from '../engine/pipeline/types.js';
+import type { ToolCallingAuditEntry } from '../../llm/audit.js';
 
 type AuditContext = Partial<ShrinkCtx>;
 
@@ -90,12 +92,12 @@ export async function saveAudit(
                 : errorInfo?.code || errorInfo?.llmCode,
           }
         : report.error
-          ? { name: 'UnknownError', message: String(report.error), stack: undefined }
+          ? { name: 'UnknownError', message: String(report.error), stack: undefined, code: undefined }
           : undefined;
     const mappedErrorMeta = replaceRedactedTokens(errorMeta) as typeof errorMeta;
     const errorDisplay = mapErrorForDisplay({
       message: mappedErrorMeta?.message,
-      code: (mappedErrorMeta as any)?.code,
+      code: mappedErrorMeta?.code,
     });
 
     const toolAuditLogs = ctx?.toolAuditLogger?.getLogs?.() || [];
@@ -128,7 +130,7 @@ export async function saveAudit(
         // Keep a stable, human-friendly message for backwards compatibility.
         error: errorDisplay.message,
         errorName: mappedErrorMeta?.name,
-        errorCode: (mappedErrorMeta as any)?.code,
+        errorCode: mappedErrorMeta?.code,
         errorStack: mappedErrorMeta?.stack,
         errorRedacted: errorDisplay.redacted || undefined,
       },
@@ -230,8 +232,8 @@ async function externalizeVerifyOutput(args: {
   const { auditDir, timestamp, sanitizedContext } = args;
   if (!sanitizedContext) return;
 
-  const verifyResult = sanitizedContext.verifyResult as any;
-  if (!verifyResult || typeof verifyResult !== 'object') return;
+  const verifyResult = sanitizedContext.verifyResult;
+  if (!isRecord(verifyResult)) return;
 
   const output = verifyResult.output;
   if (typeof output !== 'string') return;
@@ -263,7 +265,7 @@ async function externalizeToolAuditTextFields(args: {
   const { auditDir, timestamp, sanitizedContext } = args;
   if (!sanitizedContext) return;
 
-  const toolAuditLogs = sanitizedContext.toolAuditLogs as any;
+  const toolAuditLogs = sanitizedContext.toolAuditLogs;
   if (!Array.isArray(toolAuditLogs) || toolAuditLogs.length === 0) return;
 
   const blobDir = path.join(auditDir, 'blobs');
@@ -351,19 +353,14 @@ function sanitizeContext(ctx: unknown): Record<string, unknown> | null {
   if (typed.applyBackResult) safe.applyBackResult = typed.applyBackResult;
 
   if (typed.toolCallingAudit && Array.isArray(typed.toolCallingAudit)) {
+    const KEYS_TO_STRIP = new Set(['rawArgsPreview', 'parsedArgsPreview', 'toolResultErrorMessage']);
     safe.toolCallingAudit = typed.toolCallingAudit.map((entry) => {
-      if (!entry || typeof entry !== 'object') return entry as any;
-      const typedEntry = entry as unknown as Record<string, unknown>;
-      const keepArgsPreview = typedEntry.toolResultErrorCode === 'INVALID_INPUT';
+      if (!entry || typeof entry !== 'object') return entry as unknown as ToolCallingAuditEntry;
+      const keepArgsPreview = (entry as ToolCallingAuditEntry).toolResultErrorCode === 'INVALID_INPUT';
       if (keepArgsPreview) return entry;
-
-      const {
-        rawArgsPreview: _rawArgsPreview,
-        parsedArgsPreview: _parsedArgsPreview,
-        toolResultErrorMessage: _toolResultErrorMessage,
-        ...rest
-      } = typedEntry as Record<string, unknown>;
-      return rest;
+      return Object.fromEntries(
+        Object.entries(entry).filter(([k]) => !KEYS_TO_STRIP.has(k)),
+      ) as unknown as ToolCallingAuditEntry;
     });
   }
 

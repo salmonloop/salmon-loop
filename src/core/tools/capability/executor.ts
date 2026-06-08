@@ -119,9 +119,9 @@ export async function runWithFallback<I, O>(
 }
 
 function createBackendError(backendId: string, fail: BackendFail, meta: ExecutorRunMeta): Error {
-  const error = new Error(`Backend ${backendId} failed: [${fail.code}] ${fail.message}`);
-  (error as any).backendId = backendId;
-  (error as any).failCode = fail.code;
-  (error as any).meta = meta;
-  return error;
+  return Object.assign(new Error(`Backend ${backendId} failed: [${fail.code}] ${fail.message}`), {
+    backendId,
+    failCode: fail.code,
+    meta,
+  });
 }

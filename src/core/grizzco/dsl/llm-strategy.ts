@@ -98,7 +98,7 @@ export function resolveLlmToolCallingPolicy(phase: ExecutionPhase, llm: LLM): Ll
     return { enabled: false, maxRounds };
   }
 
-  const actions = result.plan.actions as LlmPolicyAction[];
+  const actions = result.plan.actions as unknown as LlmPolicyAction[];
   const lastPolicy = [...actions].reverse().find((a) => a.type === 'SET_TOOL_CALLING_POLICY');
   return lastPolicy?.params || { enabled: false, maxRounds };
 }

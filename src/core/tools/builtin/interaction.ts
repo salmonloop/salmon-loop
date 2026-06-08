@@ -81,30 +81,28 @@ export const askUserSpec: ToolSpec<AskUserInput, AskUserOutput> = {
   outputSchema: askUserOutputSchema,
   executor: async (input, ctx: ToolRuntimeCtx) => {
     if (ctx.agentKind === 'subagent') {
-      const err = new Error(text.tools.askUserSubagentBlocked);
-      (err as any).code = 'ASK_USER_SUBAGENT_BLOCKED';
-      throw err;
+      throw Object.assign(new Error(text.tools.askUserSubagentBlocked), {
+        code: 'ASK_USER_SUBAGENT_BLOCKED',
+      });
     }
 
     if (!ctx.userInputProvider) {
-      const err = new Error(text.tools.askUserRequired);
       const inputRequired = buildInputRequired(input);
-      (err as any).code = 'INTERRUPT_REQUIRED';
-      (err as any).interrupt = {
-        type: 'awaiting_input',
-        reason: inputRequired.reason ?? 'clarification',
-        prompt: inputRequired.prompt,
-        data: { inputRequired },
-      };
-      throw err;
+      throw Object.assign(new Error(text.tools.askUserRequired), {
+        code: 'INTERRUPT_REQUIRED',
+        interrupt: {
+          type: 'awaiting_input',
+          reason: inputRequired.reason ?? 'clarification',
+          prompt: inputRequired.prompt,
+          data: { inputRequired },
+        },
+      });
     }
 
     const output = await ctx.userInputProvider.askUser(input, { signal: ctx.signal });
     const validationError = validateAnswers(input, output.answers);
     if (validationError) {
-      const err = new Error(validationError);
-      (err as any).code = 'INVALID_OUTPUT';
-      throw err;
+      throw Object.assign(new Error(validationError), { code: 'INVALID_OUTPUT' });
     }
     return { questions: input.questions, answers: output.answers };
   },

@@ -156,7 +156,7 @@ export function redactSensitiveValue<T>(
 
   if (typeof value === 'string') {
     const result = redactSensitiveString(value, options);
-    return { value: result.value as any, redacted: result.redacted };
+    return { value: result.value as T, redacted: result.redacted };
   }
 
   if (typeof value !== 'object') {
@@ -174,14 +174,14 @@ export function redactSensitiveValue<T>(
   if (Array.isArray(value)) {
     let redacted = false;
     const next = value.map((item) => {
-      const result = redactSensitiveValue(item as any, options, {
+      const result = redactSensitiveValue(item, options, {
         depth: state.depth + 1,
         seen: state.seen,
       });
       redacted = redacted || result.redacted;
       return result.value;
     });
-    return { value: next as any, redacted };
+    return { value: next as unknown as T, redacted };
   }
 
   let redacted = false;
@@ -193,7 +193,7 @@ export function redactSensitiveValue<T>(
       out[key] = options.mark ?? currentConfig.mark;
       continue;
     }
-    const result = redactSensitiveValue(val as any, options, {
+    const result = redactSensitiveValue(val, options, {
       depth: state.depth + 1,
       seen: state.seen,
     });
@@ -205,5 +205,5 @@ export function redactSensitiveValue<T>(
     redactionCount += 1;
   }
 
-  return { value: out as any, redacted };
+  return { value: out as unknown as T, redacted };
 }
