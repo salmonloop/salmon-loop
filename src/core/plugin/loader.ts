@@ -3,6 +3,7 @@ import { join } from 'path';
 import { typescriptPlugin, tsxPlugin, javascriptPlugin } from '../../languages/typescript/index.js';
 import { readdir } from '../adapters/fs/node-fs.js';
 import { getLogger } from '../observability/logger.js';
+import { errorMessage } from '../utils/error.js';
 
 import { LanguagePlugin } from './interface.js';
 import type { PluginRegistry } from './registry.js';
@@ -43,12 +44,12 @@ export class PluginLoader {
     } catch (error) {
       // In test environment, we want to know why it failed
       if (process.env.NODE_ENV === 'test') {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+        const errorMsg = errorMessage(error);
         getLogger().error(`CRITICAL: Failed to load plugins: ${errorMsg}`);
         throw error;
       }
       getLogger().error(
-        `Failed to load plugins: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to load plugins: ${errorMessage(error)}`,
       );
     }
   }
@@ -91,7 +92,7 @@ export class PluginLoader {
         } catch (err: unknown) {
           if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
             getLogger().warn(
-              `Failed to load user plugin from ${dirName}: ${err instanceof Error ? (err instanceof Error ? err.message : String(err)) : String(err)}`,
+              `Failed to load user plugin from ${dirName}: ${errorMessage(err)}`,
             );
           }
         }
@@ -100,7 +101,7 @@ export class PluginLoader {
       // Ignore if directory doesn't exist
       if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
         getLogger().debug(
-          `Error scanning for user plugins: ${err instanceof Error ? err.message : String(err)}`,
+          `Error scanning for user plugins: ${errorMessage(err)}`,
         );
       }
     }

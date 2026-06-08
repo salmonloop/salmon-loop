@@ -7,6 +7,7 @@ import { access, readdir, realpath, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { getLogger } from '../../observability/logger.js';
 import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';
+import { errorMessage } from '../../utils/error.js';
 import { isPathWithinDirectory, normalizePath } from '../../utils/path.js';
 
 import { detectDependencyPaths } from './shadow-driver/strategy.js';
@@ -90,7 +91,7 @@ async function removeProjectedWorktreeEntries(workPath: string): Promise<void> {
     worktreeRealPath = await realpath(workPath);
   } catch (error) {
     throw new Error(
-      `Failed to resolve worktree path before git cleanup (${workPath}): ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to resolve worktree path before git cleanup (${workPath}): ${errorMessage(error)}`,
     );
   }
 
@@ -99,7 +100,7 @@ async function removeProjectedWorktreeEntries(workPath: string): Promise<void> {
     entries = (await readdir(workPath, { withFileTypes: true })) as Array<{ name: string }>;
   } catch (error) {
     throw new Error(
-      `Failed to enumerate worktree entries before git cleanup (${workPath}): ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to enumerate worktree entries before git cleanup (${workPath}): ${errorMessage(error)}`,
     );
   }
 
@@ -144,7 +145,7 @@ async function pruneWorktreeDependencyRoots(
       );
     } catch (error) {
       getLogger().debug(
-        `Failed to prune dependency root before worktree cleanup (${dependencyRoot}): ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to prune dependency root before worktree cleanup (${dependencyRoot}): ${errorMessage(error)}`,
       );
     }
   }
@@ -321,12 +322,7 @@ export class WorkspaceManager {
         });
       }
     } catch (error) {
-      const msg =
-        error instanceof Error
-          ? error instanceof Error
-            ? error.message
-            : String(error)
-          : String(error);
+      const msg = errorMessage(error);
       onEvent?.({
         type: 'action.fallback',
         tool: 'git',

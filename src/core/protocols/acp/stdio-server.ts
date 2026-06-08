@@ -3,6 +3,7 @@ import { Readable, Writable } from 'node:stream';
 import { AgentSideConnection, type Agent, type AnyMessage } from '@agentclientprotocol/sdk';
 
 import { tryGetLogger } from '../../observability/logger.js';
+import { errorMessage } from '../../utils/error.js';
 import { isRecord } from '../../utils/serialize.js';
 
 const INVALID_REQUEST = {
@@ -63,9 +64,9 @@ function createNdjsonWriter(output: WritableStream<Uint8Array>): NdjsonWriter {
         .catch(() => undefined)
         .then(() => writer.write(data))
         .catch((error) => {
-          const detail = error instanceof Error ? error.message : String(error);
+          const detail = errorMessage(error);
           safeWarn(`ACP stdio failed to write NDJSON line. reason="${detail}"`);
-          lastError = error instanceof Error ? new Error(detail) : new Error(detail);
+          lastError = new Error(detail);
         });
 
       await tail;
@@ -105,7 +106,7 @@ async function processStdioLine(
 
     controller.enqueue(parsed as AnyMessage);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = errorMessage(error);
     safeWarn(`ACP stdio failed to parse JSON line. reason="${detail}"`);
     await ndjson.write(PARSE_ERROR);
   }

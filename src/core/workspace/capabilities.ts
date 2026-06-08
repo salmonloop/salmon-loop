@@ -1,6 +1,7 @@
 import { access, constants } from '../adapters/fs/node-fs.js';
 import { GitAdapter } from '../adapters/git/git-adapter.js';
 import { LIMITS } from '../config/limits.js';
+import { errorMessage } from '../utils/error.js';
 import type { CheckpointStrategy, WorkspaceCapabilities } from '../types/loop.js';
 import type { FlowMode } from '../types/runtime.js';
 
@@ -30,7 +31,7 @@ async function detectFileSystemCapability(
     return {
       readable: false,
       writable: false,
-      reason: error instanceof Error ? error.message : String(error),
+      reason: errorMessage(error),
     };
   }
 
@@ -41,7 +42,7 @@ async function detectFileSystemCapability(
     return {
       readable: true,
       writable: false,
-      reason: error instanceof Error ? error.message : String(error),
+      reason: errorMessage(error),
     };
   }
 }

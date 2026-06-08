@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { text } from '../../locales/index.js';
 import { tryGetLogger } from '../observability/logger.js';
+import { errorMessage } from '../utils/error.js';
 
 import { Skill, SkillCatalogEntry, SkillFrontmatter } from './types.js';
 
@@ -147,7 +148,7 @@ export class SkillParser {
     try {
       parsed = parseYaml(yamlRaw);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
+      const reason = errorMessage(error);
       const msg = text.skills.yamlParseError(filePath, reason);
       safeLogger().error(msg);
       throw new Error(msg);
@@ -217,7 +218,7 @@ export class SkillParser {
     try {
       parsed = parseYaml(yamlRaw);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
+      const reason = errorMessage(error);
       const msg = text.skills.yamlParseError(filePath, reason);
       safeLogger().error(msg);
       throw new Error(msg);

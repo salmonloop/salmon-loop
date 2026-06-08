@@ -7,6 +7,7 @@ import { truncateOutput } from '../../context/truncation/index.js';
 import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail.js';
 import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import { getLogger } from '../../observability/logger.js';
+import { errorMessage } from '../../utils/error.js';
 import { getAuditDir } from '../../runtime/paths.js';
 import { SalmonError } from '../../types/errors.js';
 import type { LoopOptions } from '../../types/runtime.js';
@@ -52,7 +53,7 @@ export async function saveAudit(
         sanitizedContext: mappedData,
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = errorMessage(error);
       getLogger().warn(`[Audit] Failed to externalize verify output: ${msg}`);
       recordAuditEvent(
         'audit.blob.externalize.failed',
@@ -67,7 +68,7 @@ export async function saveAudit(
         sanitizedContext: mappedData,
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = errorMessage(error);
       getLogger().warn(`[Audit] Failed to externalize tool audit summaries: ${msg}`);
       recordAuditEvent(
         'audit.blob.externalize.failed',
@@ -154,7 +155,7 @@ export async function saveAudit(
     getLogger().debug(`[Audit] Saved structured audit log to ${filename}`);
     return `${auditDir}/${filename}`;
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
+    const msg = errorMessage(error);
     getLogger().error(`[Audit] Failed to save audit log: ${msg}`);
     return undefined;
   }
@@ -204,7 +205,7 @@ async function writeBlobBestEffort(args: {
     await fs.writeFile(blobPath, content, 'utf8');
     return { path: path.join('blobs', blobName), sha256, chars: content.length };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
+    const msg = errorMessage(error);
     getLogger().warn(`[Audit] Failed to write blob ${blobName}: ${msg}`);
     recordAuditEvent(
       'audit.blob.write.failed',

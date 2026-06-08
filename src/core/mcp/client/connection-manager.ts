@@ -13,6 +13,7 @@ import {
 
 import { LIMITS } from '../../config/limits.js';
 import { getLogger } from '../../observability/logger.js';
+import { errorMessage } from '../../utils/error.js';
 import { PACKAGE_VERSION } from '../../version.js';
 import { discoverMcpCatalog } from '../catalog/discovery.js';
 import { McpNotificationRouter } from '../catalog/notification-router.js';
@@ -134,7 +135,7 @@ export class McpConnectionManager {
       entry.staleKinds.clear();
     } catch (error) {
       entry.status = 'degraded';
-      entry.error = error instanceof Error ? error.message : String(error);
+      entry.error = errorMessage(error);
       getLogger().warn(`Failed to connect MCP server ${server.name}: ${entry.error}`);
     }
 
@@ -241,7 +242,7 @@ export class McpConnectionManager {
       await entry.client.subscribeResource({ uri }, { timeout: LIMITS.defaultToolTimeoutMs });
       entry.subscribedResources.add(uri);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       getLogger().warn(
         `MCP server ${entry.server.name} resource subscription failed for ${uri}: ${message}`,
       );

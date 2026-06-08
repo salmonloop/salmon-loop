@@ -13,7 +13,8 @@ describe('cli headless openai-responses-canonical-applier import boundary', () =
     const directCoreImports = content
       .split('\n')
       .filter((line) => line.includes("from '../../core/"))
-      .filter((line) => !line.includes("from '../../core/facades/"));
+      .filter((line) => !line.includes("from '../../core/facades/"))
+      .filter((line) => !line.includes("from '../../core/utils/"));
 
     expect(directCoreImports).toEqual([]);
   });

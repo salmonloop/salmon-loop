@@ -8,7 +8,7 @@ import { ToolRegistry } from '../../../src/core/tools/registry.js';
 const CANONICAL_TOOL_NAME =
   /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*)?$/;
 
-const GRANDFATHERED_BUILTIN_TOOL_NAMES = new Set(['agent_dispatch', 'update_knowledge']);
+const GRANDFATHERED_BUILTIN_TOOL_NAMES = new Set(['agent_dispatch', 'agent_await', 'agent_team', 'update_knowledge']);
 const APPROVED_BENCHMARK_QUALITY_TOOLS = [
   'git.diff_check',
   'git.apply_check',

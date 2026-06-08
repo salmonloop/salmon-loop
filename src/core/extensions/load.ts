@@ -1,6 +1,7 @@
 import { ZodSchema } from 'zod';
 
 import { syncFs as fs } from '../adapters/fs/node-fs.js';
+import { errorMessage } from '../utils/error.js';
 
 export interface LoadResult<T> {
   path: string;
@@ -33,7 +34,7 @@ export async function tryLoadJsonFile(
     }
     throw new ExtensionConfigError(
       path,
-      (error instanceof Error ? error.message : String(error)) || 'Unable to read file',
+      errorMessage(error) || 'Unable to read file',
     );
   }
 }
@@ -50,7 +51,7 @@ export async function loadConfig<T>(
   } catch (error: unknown) {
     throw new ExtensionConfigError(
       path,
-      (error instanceof Error ? error.message : String(error)) || 'Schema validation failed',
+      errorMessage(error) || 'Schema validation failed',
     );
   }
 }

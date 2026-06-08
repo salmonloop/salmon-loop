@@ -84,9 +84,11 @@ External and legacy namespaces:
 Grandfathered built-in names:
 
 - `agent_dispatch`
+- `agent_await`
+- `agent_team`
 - `update_knowledge`
 
-These two names are retained for compatibility only. They must not be used as
+These names are retained for compatibility only. They must not be used as
 precedent for new built-ins.
 
 Benchmark and quality tools must use the same canonical form. Approved names

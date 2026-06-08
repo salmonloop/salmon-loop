@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { syncFs as fs } from '../../adapters/fs/node-fs.js';
 import type { ResolvedToolPlugin } from '../../extensions/types.js';
 import { getLogger } from '../../observability/logger.js';
+import { errorMessage } from '../../utils/error.js';
 import { Phase } from '../../types/runtime.js';
 import type { ExecutionPhase } from '../../types/runtime.js';
 import { ToolRegistry } from '../registry.js';
@@ -32,9 +33,7 @@ export async function registerPluginTools(registry: ToolRegistry, plugins: Resol
       }
     } catch (error: unknown) {
       getLogger().warn(
-        `Plugin ${plugin.id} path ${entryPoint} is not accessible: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Plugin ${plugin.id} path ${entryPoint} is not accessible: ${errorMessage(error)}`,
       );
       continue;
     }
@@ -46,9 +45,7 @@ export async function registerPluginTools(registry: ToolRegistry, plugins: Resol
       manifest = (mod.default ?? mod) as { register?: unknown; pluginId?: unknown };
     } catch (error: unknown) {
       getLogger().error(
-        `Failed to import plugin ${plugin.id} from ${entryPoint}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Failed to import plugin ${plugin.id} from ${entryPoint}: ${errorMessage(error)}`,
       );
       continue;
     }
@@ -71,7 +68,7 @@ export async function registerPluginTools(registry: ToolRegistry, plugins: Resol
       tools = await registerFn();
     } catch (error: unknown) {
       getLogger().error(
-        `Plugin ${pluginId} register() failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Plugin ${pluginId} register() failed: ${errorMessage(error)}`,
       );
       continue;
     }

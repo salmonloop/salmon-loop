@@ -18,6 +18,7 @@ import { ArtifactStore } from '../artifacts/store.js';
 import { cloneSubAgentContextSnapshot } from '../context-snapshot.js';
 import type { SubAgentControllerPort } from '../controller.js';
 import { isReadOnlySubAgentContext, resolveSubAgentDryRun } from '../dispatch-policy.js';
+import { errorMessage } from '../../utils/error.js';
 import { validateSharedPrefixConsistency } from '../prefix-consistency.js';
 import type { SubAgentRegistry } from '../registry.js';
 import { getSubAgentRegistry } from '../registry.js';
@@ -220,7 +221,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       .catch((error) => {
         const failResult = this.fail(
           profile.id,
-          error instanceof Error ? error.message : String(error),
+          errorMessage(error),
           'LOOP_CRASH',
         );
         const entry = this.activeAgents.get(agentId);
@@ -380,20 +381,20 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       } catch (error: unknown) {
         this.controller.appendLog(
           agentId,
-          `Execution failed: ${(error instanceof Error ? error.message : undefined) ?? error}`,
+          `Execution failed: ${errorMessage(error)}`,
         );
         getLogger().error(
-          `[SubAgentManager] Smallfry ${agentId} crashed: ${error instanceof Error ? error.message : String(error)}`,
+          `[SubAgentManager] Smallfry ${agentId} crashed: ${errorMessage(error)}`,
         );
         // Crashes are not retryable
         return {
           agent_ref: profile.id,
           success: false,
           summary: text.smallfry.errors.missionFailedWithReason(
-            error instanceof Error ? error.message : String(error),
+            errorMessage(error),
           ),
           tokenUsage: 0,
-          reason: error instanceof Error ? error.message : String(error),
+          reason: errorMessage(error),
           reasonCode: 'LOOP_CRASH',
           attempts: attempt,
           logs: [],
@@ -540,7 +541,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         await env.teardown();
       } catch (teardownError) {
         getLogger().warn(
-          `[SubAgentManager] Failed to teardown isolated environment after setup error: ${teardownError instanceof Error ? teardownError.message : String(teardownError)}`,
+          `[SubAgentManager] Failed to teardown isolated environment after setup error: ${errorMessage(teardownError)}`,
         );
       }
       throw error;

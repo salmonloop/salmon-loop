@@ -19,6 +19,7 @@ import {
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { getLogger } from '../../observability/logger.js';
+import { errorMessage } from '../../utils/error.js';
 import { getMonitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types/index.js';
 import { isCanonicalPathWithinDirectory } from '../../utils/path.js';
@@ -192,7 +193,7 @@ export class WorkspaceSynchronizer {
       detectedDependencyPaths = await detectDependencyPaths(repoPath);
     } catch (error) {
       getLogger().debug(
-        `[checkpoint] Failed to detect dependency paths: ${error instanceof Error ? error.message : String(error)}`,
+        `[checkpoint] Failed to detect dependency paths: ${errorMessage(error)}`,
       );
     }
 
@@ -607,7 +608,7 @@ export class WorkspaceSynchronizer {
       });
     } catch (error) {
       throw new Error(
-        `Apply-back completed with conflicts (Atomic Patch). Rejection files (.rej) have been generated. Original error: ${error instanceof Error ? error.message : String(error)}`,
+        `Apply-back completed with conflicts (Atomic Patch). Rejection files (.rej) have been generated. Original error: ${errorMessage(error)}`,
       );
     }
   }
@@ -911,7 +912,7 @@ export class WorkspaceSynchronizer {
         throw applyError;
       }
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = error instanceof Error ? error : new Error(errorMessage(error));
       if (telemetry) {
         telemetry.error = err.message;
       }
@@ -984,7 +985,7 @@ export class WorkspaceSynchronizer {
               );
             } catch (e) {
               getLogger().error(
-                `[applyBack] Failed to restore tracked file ${file}: ${e instanceof Error ? e.message : String(e)}`,
+                `[applyBack] Failed to restore tracked file ${file}: ${errorMessage(e)}`,
               );
             }
           }
@@ -1020,7 +1021,7 @@ export class WorkspaceSynchronizer {
               telemetry.stagedRestoreError = undefined;
             }
           } catch (e) {
-            const patchError = e instanceof Error ? e.message : String(e);
+            const patchError = errorMessage(e);
             getLogger().error(
               `[applyBack] Failed to restore staged state from patch. ${patchError}. ` +
                 `Falling back to read-tree restore.`,
@@ -1032,8 +1033,7 @@ export class WorkspaceSynchronizer {
                 telemetry.stagedRestoreError = undefined;
               }
             } catch (fallbackError) {
-              const fallbackMessage =
-                fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+              const fallbackMessage = errorMessage(fallbackError);
               if (telemetry) {
                 telemetry.stagedRestoreSucceeded = false;
                 telemetry.stagedRestoreError = `${patchError}; fallback read-tree failed: ${fallbackMessage}`;
@@ -1063,7 +1063,7 @@ export class WorkspaceSynchronizer {
           getLogger().error(
             `[applyBack] Snapshot restore failed during clean rollback. ` +
               `baseRef=${checkpointRef.baseRef}; ` +
-              `error=${snapshotRestoreError instanceof Error ? snapshotRestoreError.message : String(snapshotRestoreError)}. ` +
+              `error=${errorMessage(snapshotRestoreError)}. ` +
               `Falling back to clean reset.`,
           );
         }
@@ -1087,7 +1087,7 @@ export class WorkspaceSynchronizer {
           await rm(dirtyBackup.dir, { recursive: true, force: true });
         } catch (cleanupError) {
           getLogger().debug(
-            `[applyBack] Failed to cleanup dirty backup ${dirtyBackup.dir}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+            `[applyBack] Failed to cleanup dirty backup ${dirtyBackup.dir}: ${errorMessage(cleanupError)}`,
           );
         }
       }
