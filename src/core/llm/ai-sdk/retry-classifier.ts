@@ -1,3 +1,5 @@
+import { isRecord } from '../../utils/serialize.js';
+
 function unwrapRetryError(err: unknown): unknown {
   if (!err || typeof err !== 'object') return err;
   const candidate = err as Record<string, unknown>;
@@ -13,8 +15,8 @@ function findStatusCode(err: unknown): number | undefined {
   if (typeof direct === 'number' && Number.isFinite(direct)) return direct;
 
   const response = obj.response;
-  if (response && typeof response === 'object') {
-    const status = (response as any).status;
+  if (isRecord(response)) {
+    const status = response.status;
     if (typeof status === 'number' && Number.isFinite(status)) return status;
   }
 
@@ -29,9 +31,9 @@ function findNetworkCode(err: unknown): string | undefined {
   const code = obj.code;
   if (typeof code === 'string') return code;
 
-  const cause = (obj as any).cause;
-  if (cause && typeof cause === 'object' && typeof (cause as any).code === 'string') {
-    return (cause as any).code;
+  const cause = obj.cause;
+  if (isRecord(cause) && typeof cause.code === 'string') {
+    return cause.code;
   }
 
   return undefined;
@@ -40,7 +42,7 @@ function findNetworkCode(err: unknown): string | undefined {
 function isAbortLikeError(err: unknown): boolean {
   const unwrapped = unwrapRetryError(err);
   const name = unwrapped instanceof Error ? unwrapped.name : '';
-  const msg = String((unwrapped as any)?.message ?? unwrapped).toLowerCase();
+  const msg = String((isRecord(unwrapped) ? unwrapped.message : undefined) ?? unwrapped).toLowerCase();
   return name === 'AbortError' || msg.includes('aborted');
 }
 
@@ -54,7 +56,8 @@ export function classifyRetryableApiError(err: unknown): {
 
   const statusCode = findStatusCode(err);
   const networkCode = findNetworkCode(err);
-  const msg = String((unwrapRetryError(err) as any)?.message ?? err).toLowerCase();
+  const unwrapped = unwrapRetryError(err);
+  const msg = String((isRecord(unwrapped) ? unwrapped.message : undefined) ?? err).toLowerCase();
 
   if (statusCode === 408) return { retryable: true, reason: 'timeout', statusCode, networkCode };
   if (statusCode === 429) return { retryable: true, reason: 'rate_limit', statusCode, networkCode };
