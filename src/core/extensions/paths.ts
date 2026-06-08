@@ -49,6 +49,14 @@ export function getUserSkillConfigPath(): string {
   return path.join(USER_CONFIG_DIR, 'skills-user.json');
 }
 
+export function getRepoAgentsConfigPath(repoRoot: string): string {
+  return path.join(repoRoot, REPO_CONFIG_DIR, 'agents.json');
+}
+
+export function getUserAgentsConfigPath(): string {
+  return path.join(USER_CONFIG_DIR, 'agents-user.json');
+}
+
 /**
  * Check whether a candidate path resides within (or equals) a given root directory.
  *

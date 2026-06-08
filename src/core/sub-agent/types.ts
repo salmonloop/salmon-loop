@@ -35,6 +35,21 @@ export interface SubAgentProfile {
 
   // Strategy Configuration
   stratagem: 'investigator' | 'surgeon' | 'janitor';
+
+  // Tool Inheritance
+  toolInheritance?: 'none' | 'safe' | 'all';
+  permissionMode?: 'default' | 'plan' | 'bypassPermissions';
+  systemPrompt?: string;
+}
+
+/**
+ * Handle returned by async agent_dispatch.
+ * Used by agent_await to collect the result.
+ */
+export interface SubAgentHandle {
+  agentId: string;
+  status: SubAgentStatus;
+  taskId: string;
 }
 
 /**
@@ -50,6 +65,7 @@ export interface SubAgentRequest {
   timeout_seconds?: number;
   contextSnapshot?: SubAgentContextSnapshot;
   expected_output?: 'diagnosis' | 'patch' | 'review';
+  async?: boolean; // If true, return handle immediately without waiting
 
   // Overrides
   budgetOverride?: {
@@ -192,6 +208,11 @@ export const SubAgentRequestSchema = z.object({
     .enum(['diagnosis', 'patch', 'review'])
     .optional()
     .describe('Expected deliverable. Use patch for coder-style implementation proposals.'),
+  async: z
+    .boolean()
+    .default(false)
+    .optional()
+    .describe('If true, return a handle immediately and let the caller await the result.'),
   contextSnapshot: z
     .object({
       version: z.literal(SUB_AGENT_CONTEXT_SNAPSHOT_VERSION).optional().default(1),

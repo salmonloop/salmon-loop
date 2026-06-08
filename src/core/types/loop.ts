@@ -506,6 +506,11 @@ export interface LoopOptions {
     includeToolOutput?: boolean;
     includeAuthorizationDecisions?: boolean;
   };
+  /**
+   * Optional custom system prompt injected by sub-agent profiles.
+   * Appended to the standard system prompt when building LLM requests.
+   */
+  subAgentSystemPrompt?: string;
 }
 
 export interface ExecutionWorkspace {

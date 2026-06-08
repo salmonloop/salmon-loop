@@ -35,6 +35,7 @@ describe('salmon task executor', () => {
       mcpServers: [],
       toolPlugins: [],
       skillDiscovery: { paths: [], scope: 'repo' as const },
+      agentProfiles: [],
     };
     const executor = createSalmonTaskExecutor({
       runLoop: async (options) => {
@@ -111,6 +112,7 @@ describe('salmon task executor', () => {
         },
       ],
       skillDiscovery: { paths: ['/workspace/.salmonloop/skills'], scope: 'repo' as const },
+      agentProfiles: [],
     };
     const executor = createSalmonTaskExecutor({
       runLoop: async (options) => {

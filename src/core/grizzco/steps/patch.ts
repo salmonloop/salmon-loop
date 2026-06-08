@@ -119,6 +119,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     artifactHints: ctx.artifactHints,
     replacementState: ctx.replacementState,
     toolCallingAudit: ctx.toolCallingAudit,
+    subAgentSystemPrompt: ctx.options.subAgentSystemPrompt,
   });
   const { cacheSurface, envelope, baseMessages } = patchPromptInput;
   const supportsStreaming = supportsLlmStreaming(ctx.options.llm, Phase.PATCH);

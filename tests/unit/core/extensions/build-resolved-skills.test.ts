@@ -50,6 +50,8 @@ mock.module('../../../../src/core/extensions/paths.js', () => ({
   getUserMcpConfigPath: () => '/mock-home/.salmonloop/config/mcp-user.json',
   getUserToolConfigPath: () => '/mock-home/.salmonloop/config/tools-user.json',
   getUserSkillConfigPath: () => '/mock-home/.salmonloop/config/skills-user.json',
+  getRepoAgentsConfigPath: (root: string) => root + '/.salmonloop/config/agents.json',
+  getUserAgentsConfigPath: () => '/mock-home/.salmonloop/config/agents-user.json',
   REPO_CONFIG_DIR: '.salmonloop/config',
   USER_CONFIG_DIR: '/mock-home/.salmonloop/config',
 }));

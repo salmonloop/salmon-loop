@@ -7,12 +7,22 @@ export class SubAgentRegistry {
     this.profiles.set(profile.id, profile);
   }
 
+  registerMany(profiles: SubAgentProfile[]): void {
+    for (const profile of profiles) {
+      this.profiles.set(profile.id, profile);
+    }
+  }
+
   get(id: string): SubAgentProfile | undefined {
     return this.profiles.get(id);
   }
 
   getAll(): SubAgentProfile[] {
     return Array.from(this.profiles.values());
+  }
+
+  has(id: string): boolean {
+    return this.profiles.has(id);
   }
 
   clear(): void {

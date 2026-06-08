@@ -87,8 +87,8 @@ describe('SubAgentManager setup cleanup', () => {
       task: 'fix bug',
     } as any);
 
-    expect(result.success).toBe(false);
-    expect(result.reasonCode).toBe('LOOP_CRASH');
+    expect((result as any).success).toBe(false);
+    expect((result as any).reasonCode).toBe('LOOP_CRASH');
     expect(teardownMock).toHaveBeenCalledTimes(1);
     expect(infoMock).not.toHaveBeenCalled();
     expect(debugMock).toHaveBeenCalledWith(expect.stringContaining('[SubAgentManager]'));

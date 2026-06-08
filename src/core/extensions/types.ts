@@ -50,6 +50,7 @@ export interface ResolvedExtensions {
   mcpServers: ResolvedMcpServer[];
   toolPlugins: ResolvedToolPlugin[];
   skillDiscovery: ResolvedSkillDiscovery;
+  agentProfiles: ResolvedAgentProfile[];
 }
 
 export type McpServerEntry = RawMcpServerEntryV2;
@@ -72,4 +73,45 @@ export interface RawSkillConfig {
   discovery: {
     paths?: string[];
   };
+}
+
+export interface RawAgentProfileConfig {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  allowedTools?: string[];
+  toolInheritance?: 'none' | 'safe' | 'all';
+  permissionMode?: 'default' | 'plan' | 'bypassPermissions';
+  systemPrompt?: string;
+  readOnly?: boolean;
+  stratagem?: 'investigator' | 'surgeon' | 'janitor';
+  maxTokens?: number;
+  maxAttempts?: number;
+  timeoutMs?: number;
+  model?: string;
+  enabled?: boolean;
+}
+
+export interface RawAgentsConfig {
+  version: 1;
+  agents: RawAgentProfileConfig[];
+}
+
+export interface ResolvedAgentProfile {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  allowedTools: string[];
+  readOnly: boolean;
+  stratagem: 'investigator' | 'surgeon' | 'janitor';
+  toolInheritance?: 'none' | 'safe' | 'all';
+  permissionMode?: 'default' | 'plan' | 'bypassPermissions';
+  systemPrompt?: string;
+  maxTokens?: number;
+  maxAttempts?: number;
+  timeoutMs?: number;
+  model?: string;
+  scope: ExtensionScope;
 }

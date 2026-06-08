@@ -690,6 +690,7 @@ function acpMcpServersToExtensions(
     mcpServers: resolvedServers,
     toolPlugins: [],
     skillDiscovery: { paths: [], scope: 'repo' },
+    agentProfiles: [],
   };
 }
 

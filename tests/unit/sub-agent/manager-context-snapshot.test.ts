@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
 
 const loopExecuteMock = mock(async (_initCtx: any) => ({
   agent_ref: 'surgeon',
@@ -25,6 +26,16 @@ describe('SubAgentManager context snapshot', () => {
   beforeEach(() => {
     mock.clearAllMocks();
     clearAuditTrail();
+    setLogger({
+      info: mock(),
+      debug: mock(),
+      error: mock(),
+      warn: mock(),
+    } as any);
+  });
+
+  afterAll(() => {
+    clearLogger();
   });
 
   it('passes contextSnapshot fields into the spawned init context', async () => {

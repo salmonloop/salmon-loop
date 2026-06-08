@@ -1,3 +1,4 @@
+import { agentAwaitTaskSpec } from '../../sub-agent/tools/task-await.js';
 import { subAgentTaskSpec } from '../../sub-agent/tools/task-spawn.js';
 import { ToolRegistry } from '../registry.js';
 
@@ -52,8 +53,9 @@ import { workspaceInfoSpec, executeWorkspaceInfo } from './workspace.js';
  * Registers all builtin tools into the provided registry
  */
 export function registerAllBuiltins(registry: ToolRegistry): void {
-  // Register sub-agent tool
+  // Register sub-agent tools
   registry.register(subAgentTaskSpec);
+  registry.register(agentAwaitTaskSpec);
   registry.register({
     ...artifactReadSpec,
     executor: executeArtifactRead as any,

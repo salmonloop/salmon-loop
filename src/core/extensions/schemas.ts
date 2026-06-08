@@ -27,3 +27,26 @@ export const SkillsConfigSchema = z
     discovery: skillDiscoverySchema.optional().default({}),
   })
   .strict();
+
+export const AgentProfileConfigSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  role: z.string().min(1),
+  description: z.string(),
+  allowedTools: z.array(z.string()).optional(),
+  toolInheritance: z.enum(['none', 'safe', 'all']).optional(),
+  permissionMode: z.enum(['default', 'plan', 'bypassPermissions']).optional(),
+  systemPrompt: z.string().optional(),
+  readOnly: z.boolean().optional(),
+  stratagem: z.enum(['investigator', 'surgeon', 'janitor']).optional(),
+  maxTokens: z.number().positive().optional(),
+  maxAttempts: z.number().positive().optional(),
+  timeoutMs: z.number().positive().optional(),
+  model: z.string().optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const AgentsConfigSchema = z.object({
+  version: z.literal(1),
+  agents: z.array(AgentProfileConfigSchema),
+});

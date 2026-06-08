@@ -56,5 +56,6 @@ export function mergeResolvedExtensions(
           : base.skillDiscovery.scope,
       paths: [...base.skillDiscovery.paths, ...overlay.skillDiscovery.paths],
     },
+    agentProfiles: [...base.agentProfiles, ...overlay.agentProfiles],
   };
 }

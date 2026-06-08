@@ -42,11 +42,12 @@ export interface BuildPatchPromptInputArgs {
     flowMode?: FlowMode;
   };
   onCacheMismatch?: (mismatch: CacheSharingMismatch) => void;
+  subAgentSystemPrompt?: string;
 }
 
 export interface PatchPromptInput {
   planStr: string;
-  systemPrompt: string;
+  systemPrompt: string | string[];
   envelope: RequestEnvelope;
   baseMessages: LLMMessage[];
   cacheSurface: CacheSharingSurface;
@@ -56,9 +57,12 @@ export async function buildPatchPromptInput(
   args: BuildPatchPromptInputArgs,
 ): Promise<PatchPromptInput> {
   const planStr = JSON.stringify(args.plan, null, 2);
-  const systemPrompt = await getPatchSystemPrompt(args.promptVisibleTools, {
+  const baseSystemPrompt = await getPatchSystemPrompt(args.promptVisibleTools, {
     plan: args.planRuntime,
   });
+  const systemPrompt = args.subAgentSystemPrompt
+    ? [baseSystemPrompt, args.subAgentSystemPrompt]
+    : baseSystemPrompt;
   const requestEnvelope = await buildPhaseRequestEnvelope({
     phase: args.phase ?? Phase.PATCH,
     defaultNamespace: 'patch',

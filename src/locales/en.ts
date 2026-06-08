@@ -949,7 +949,9 @@ Please return the patch in PURE unified diff format:`;
     },
     ui: {
       spawnToolDescription:
-        'Delegate a concrete sub-task to a specialized sub-agent. This is not a no-argument action: always provide agent_ref and task. Use agent_ref="explorer" for read-only investigation, "reviewer" for audit, "surgeon" for implementation proposals, or "cleaner" for lint/format cleanup. Keep task self-contained with relevant files and the exact deliverable. Omit session_target unless shared context is explicitly required.',
+        'Delegate a concrete sub-task to a specialized sub-agent. This is not a no-argument action: always provide agent_ref and task. Use agent_ref="explorer" for read-only investigation, "reviewer" for audit, "surgeon" for implementation proposals, or "cleaner" for lint/format cleanup. Keep task self-contained with relevant files and the exact deliverable. Omit session_target unless shared context is explicitly required. Set async=true to get a handle immediately and use agent_await to collect the result later.',
+      awaitToolDescription:
+        'Wait for an async sub-agent (spawned with agent_dispatch async=true) to complete and return its result. Pass the agentId from the dispatch handle.',
       progressTitle: (id: string) => `[Smallfry: ${id}]`,
     },
   },

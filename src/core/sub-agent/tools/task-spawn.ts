@@ -9,9 +9,17 @@ import { mergeSubAgentContextSnapshot } from '../context-snapshot.js';
 import { createSubAgentController } from '../controller.js';
 import { SubAgentManager } from '../core/manager.js';
 import { validateSharedPrefixConsistency } from '../prefix-consistency.js';
-import { SubAgentRequestSchema, type SubAgentRequest, type SubAgentResult } from '../types.js';
+import {
+  SubAgentRequestSchema,
+  type SubAgentHandle,
+  type SubAgentRequest,
+  type SubAgentResult,
+} from '../types.js';
 
-function normalizeDispatchRequest(input: SubAgentRequest, ctx: ToolRuntimeCtx): SubAgentRequest {
+export function normalizeDispatchRequest(
+  input: SubAgentRequest,
+  ctx: ToolRuntimeCtx,
+): SubAgentRequest {
   const requested: SubAgentRequest = {
     ...input,
     session_target: input.session_target ?? 'isolated',
@@ -65,6 +73,7 @@ function normalizeDispatchRequest(input: SubAgentRequest, ctx: ToolRuntimeCtx): 
 /**
  * agent_dispatch (Internal: Smallfry Dispatcher)
  * The primary tool for spawning autonomous sub-agents to handle specialized sub-tasks.
+ * Supports async mode: set async=true to get a handle immediately, then use agent_await.
  */
 export const subAgentTaskSpec: ToolSpec = {
   name: 'agent_dispatch',
@@ -81,7 +90,7 @@ export const subAgentTaskSpec: ToolSpec = {
   allowedPhases: [Phase.PLAN, Phase.CONTEXT, Phase.AUTOPILOT],
 
   inputSchema: SubAgentRequestSchema,
-  outputSchema: z.any(), // Maps to SubAgentResult
+  outputSchema: z.any(), // Maps to SubAgentResult | SubAgentHandle
   examples: [
     {
       description: 'Ask a read-only explorer to inspect failing tests before editing',
@@ -110,13 +119,28 @@ export const subAgentTaskSpec: ToolSpec = {
         summary: '<review findings>',
       },
     },
+    {
+      description: 'Async dispatch: spawn an explorer and continue working',
+      input: {
+        agent_ref: 'explorer',
+        task: 'Scan src/utils/ for unused exports.',
+        async: true,
+      },
+      output: {
+        agentId: 'smallfry-a1b2c3d4',
+        status: 'working',
+        taskId: 'smallfry-a1b2c3d4',
+      },
+    },
   ],
 
-  executor: async (input: any, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
+  executor: async (
+    input: any,
+    ctx: ToolRuntimeCtx,
+  ): Promise<SubAgentResult | SubAgentHandle> => {
     const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());
     const request = normalizeDispatchRequest(input as SubAgentRequest, ctx);
 
-    // Launch the Smallfry via the manager
     return await manager.execute(request);
   },
 };

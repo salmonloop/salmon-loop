@@ -174,7 +174,10 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     runtime: toolVisibility,
   });
 
-  const systemPrompt = await getPlanSystemPrompt(promptVisibleTools, toolVisibility);
+  const baseSystemPrompt = await getPlanSystemPrompt(promptVisibleTools, toolVisibility);
+  const systemPrompt = ctx.options.subAgentSystemPrompt
+    ? [baseSystemPrompt, ctx.options.subAgentSystemPrompt]
+    : baseSystemPrompt;
   const requestEnvelope = await buildPhaseRequestEnvelope({
     phase: Phase.PLAN,
     defaultNamespace: 'plan',

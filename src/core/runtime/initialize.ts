@@ -1,4 +1,11 @@
+import { readFileSync } from '../adapters/fs/node-fs.js';
 import { initializeDefaultCalculator } from '../context/policies/pack-until-full.js';
+import {
+  getRepoAgentsConfigPath,
+  getUserAgentsConfigPath,
+} from '../extensions/paths.js';
+import { AgentsConfigSchema } from '../extensions/schemas.js';
+import type { RawAgentsConfig } from '../extensions/types.js';
 import { createLogger, getLogger, setLogger, tryGetLogger } from '../observability/logger.js';
 import { createMonitor, setMonitor, tryGetMonitor } from '../observability/monitor.js';
 import { registerDefaultSubAgentProfiles } from '../sub-agent/registry-defaults.js';
@@ -7,6 +14,7 @@ import {
   setSubAgentRegistry,
   tryGetSubAgentRegistry,
 } from '../sub-agent/registry.js';
+import type { SubAgentProfile } from '../sub-agent/types.js';
 
 /**
  * Initializes the Core safety runtime.
@@ -41,6 +49,7 @@ export function initializeRuntime() {
   if (!tryGetSubAgentRegistry()) {
     const registry = createSubAgentRegistry();
     registerDefaultSubAgentProfiles(registry);
+    loadUserAgentProfiles(registry);
     setSubAgentRegistry(registry);
   }
 
@@ -146,4 +155,66 @@ export function initializeRuntime() {
   });
 
   (globalThis as any).__SALMON_RUNTIME_INITIALIZED__ = true;
+}
+
+function loadUserAgentProfiles(registry: ReturnType<typeof createSubAgentRegistry>): void {
+  const tryLoadSync = (filePath: string): RawAgentsConfig | null => {
+    try {
+      const content = readFileSync(filePath, 'utf-8');
+      return AgentsConfigSchema.parse(JSON.parse(content));
+    } catch {
+      return null;
+    }
+  };
+
+  // Load from repo and user scopes; repo takes priority
+  const repoRoot = process.cwd();
+  const userConfig = tryLoadSync(getUserAgentsConfigPath());
+  const repoConfig = tryLoadSync(getRepoAgentsConfigPath(repoRoot));
+
+  const toProfile = (raw: RawAgentsConfig['agents'][number]): SubAgentProfile => ({
+    id: raw.id,
+    name: raw.name,
+    role: raw.role,
+    description: raw.description,
+    allowedTools: raw.allowedTools ?? ['code.search', 'fs.read'],
+    readOnly: raw.readOnly ?? false,
+    stratagem: raw.stratagem ?? 'investigator',
+    toolInheritance: raw.toolInheritance,
+    permissionMode: raw.permissionMode,
+    systemPrompt: raw.systemPrompt,
+    maxTokens: raw.maxTokens,
+    maxAttempts: raw.maxAttempts,
+    timeoutMs: raw.timeoutMs,
+  });
+
+  // User profiles first (lower priority)
+  if (userConfig) {
+    for (const agent of userConfig.agents) {
+      if (agent.enabled === false) continue;
+      // Don't override built-in profiles
+      if (registry.has(agent.id)) {
+        tryGetLogger()?.debug(
+          `[initializeRuntime] Skipping user agent '${agent.id}': conflicts with built-in profile`,
+        );
+        continue;
+      }
+      registry.register(toProfile(agent));
+    }
+  }
+
+  // Repo profiles override user (higher priority)
+  if (repoConfig) {
+    for (const agent of repoConfig.agents) {
+      if (agent.enabled === false) continue;
+      // Don't override built-in profiles
+      if (registry.has(agent.id)) {
+        tryGetLogger()?.debug(
+          `[initializeRuntime] Skipping repo agent '${agent.id}': conflicts with built-in profile`,
+        );
+        continue;
+      }
+      registry.register(toProfile(agent));
+    }
+  }
 }

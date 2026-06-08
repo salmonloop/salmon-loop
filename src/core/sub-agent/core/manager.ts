@@ -5,6 +5,7 @@ import { createFileSystemAdapter } from '../../adapters/fs/index.js';
 import * as fs from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { InitCtx } from '../../grizzco/engine/pipeline/types.js';
+import { createTaskEventBus, type TaskEventBus } from '../../interaction/events/bus.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getLogger } from '../../observability/logger.js';
 import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
@@ -23,6 +24,7 @@ import { getSubAgentRegistry } from '../registry.js';
 import type {
   IExecutable,
   SubAgentContextSnapshot,
+  SubAgentHandle,
   SubAgentProfile,
   SubAgentRequest,
   SubAgentResult,
@@ -47,14 +49,18 @@ export type SubAgentManagerDeps = {
   registry: Pick<SubAgentRegistry, 'get'>;
   createRuntimeEnvironment: CreateSubAgentRuntimeEnvironment;
   artifactStore: Pick<typeof ArtifactStore, 'saveText'>;
+  eventBus: TaskEventBus;
 };
 
 /**
  * SubAgentManager coordinates the lifecycle of Smallfrys.
  * It handles profile resolution, budget monitoring, and result aggregation.
  */
-export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentResult> {
-  private activeAgents = new Map<string, { profile: SubAgentProfile; status: SubAgentStatus }>();
+export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentResult | SubAgentHandle> {
+  private activeAgents = new Map<
+    string,
+    { profile: SubAgentProfile; status: SubAgentStatus; result?: SubAgentResult }
+  >();
   private readonly deps: SubAgentManagerDeps;
 
   constructor(
@@ -68,45 +74,16 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         deps?.createRuntimeEnvironment ??
         ((options, emit) => new RuntimeEnvironment(options, emit)),
       artifactStore: deps?.artifactStore ?? ArtifactStore,
+      eventBus: deps?.eventBus ?? createTaskEventBus(),
     };
   }
 
   /**
-   * Spawns a new sub-agent and monitors its execution.
+   * Spawns a new sub-agent. When request.async is true, returns a handle immediately;
+   * otherwise blocks until the sub-agent completes.
    */
-  async execute(request: SubAgentRequest): Promise<SubAgentResult> {
-    const normalizedRequest =
-      request.session_target === 'shared'
-        ? (() => {
-            const consistency = validateSharedPrefixConsistency({
-              requestSnapshot: request.contextSnapshot,
-              runtimeSnapshot: this.ctx.contextSnapshot,
-            });
-            if (consistency.compatible) return request;
-
-            recordAuditEvent(
-              'sub_agent.shared.prefix_consistency_failed',
-              {
-                metric: 'shared_fallback_rate',
-                fallbackMode: 'isolated',
-                reason: consistency.reason,
-                expected: consistency.expected,
-                actual: consistency.actual,
-              },
-              {
-                source: 'smallfry',
-                severity: 'medium',
-                scope: 'session',
-                phase: this.ctx.phase,
-              },
-            );
-            return {
-              ...request,
-              session_target: 'isolated',
-              contextSnapshot: undefined,
-            } as SubAgentRequest;
-          })()
-        : request;
+  async execute(request: SubAgentRequest): Promise<SubAgentResult | SubAgentHandle> {
+    const normalizedRequest = this.normalizeRequest(request);
     const profile = this.deps.registry.get(normalizedRequest.agent_ref);
 
     if (!profile) {
@@ -118,7 +95,173 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     }
 
     const agentId = `smallfry-${randomBytes(4).toString('hex')}`;
-    const currentDepth = normalizedRequest.recursionDepth || 0;
+
+    if (normalizedRequest.async) {
+      return this.executeAsync(normalizedRequest, profile, agentId);
+    }
+    return this.executeSync(normalizedRequest, profile, agentId);
+  }
+
+  /**
+   * Waits for an async sub-agent to complete and returns its result.
+   */
+  async awaitResult(handle: SubAgentHandle): Promise<SubAgentResult> {
+    // Check if already completed
+    const entry = this.activeAgents.get(handle.agentId);
+    if (entry?.result) {
+      return entry.result;
+    }
+
+    // Check historical events
+    const historical = this.deps.eventBus.list(handle.taskId, { limit: 10 });
+    const terminalEvent = historical.find(
+      (e) => e.type === 'subagent.completed' || e.type === 'subagent.failed',
+    );
+    if (terminalEvent) {
+      return terminalEvent.state === 'completed'
+        ? (terminalEvent as any).result
+        : this.fail(
+            handle.agentId,
+            (terminalEvent as any).reason ?? 'Sub-agent failed',
+            'LOOP_FAILED',
+          );
+    }
+
+    // Subscribe and wait for terminal event
+    return new Promise<SubAgentResult>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        unsub();
+        reject(new Error(`Timed out waiting for sub-agent ${handle.agentId}`));
+      }, 300_000);
+
+      const unsub = this.deps.eventBus.subscribe((event) => {
+        if (event.taskId !== handle.taskId) return;
+        if (event.type === 'subagent.completed' || event.type === 'subagent.failed') {
+          clearTimeout(timeout);
+          unsub();
+          if (event.type === 'subagent.completed') {
+            resolve((event as any).result);
+          } else {
+            resolve(
+              this.fail(
+                handle.agentId,
+                (event as any).reason ?? 'Sub-agent failed',
+                'LOOP_FAILED',
+              ),
+            );
+          }
+        }
+      });
+    });
+  }
+
+  private normalizeRequest(request: SubAgentRequest): SubAgentRequest {
+    if (request.session_target !== 'shared') return request;
+
+    const consistency = validateSharedPrefixConsistency({
+      requestSnapshot: request.contextSnapshot,
+      runtimeSnapshot: this.ctx.contextSnapshot,
+    });
+    if (consistency.compatible) return request;
+
+    recordAuditEvent(
+      'sub_agent.shared.prefix_consistency_failed',
+      {
+        metric: 'shared_fallback_rate',
+        fallbackMode: 'isolated',
+        reason: consistency.reason,
+        expected: consistency.expected,
+        actual: consistency.actual,
+      },
+      {
+        source: 'smallfry',
+        severity: 'medium',
+        scope: 'session',
+        phase: this.ctx.phase,
+      },
+    );
+    return {
+      ...request,
+      session_target: 'isolated',
+      contextSnapshot: undefined,
+    };
+  }
+
+  /**
+   * Async dispatch: fire-and-forget, publish events, return handle.
+   */
+  private executeAsync(
+    request: SubAgentRequest,
+    profile: SubAgentProfile,
+    agentId: string,
+  ): SubAgentHandle {
+    const taskId = agentId;
+
+    this.activeAgents.set(agentId, { profile, status: 'hiring' });
+    this.controller.registerAgent(agentId, profile, 'hiring');
+
+    this.deps.eventBus.publish({
+      type: 'subagent.accepted',
+      taskId,
+      state: 'accepted',
+    });
+
+    // Fire-and-forget: executeCore runs in the background
+    this.executeCore(request, profile, agentId)
+      .then((result) => {
+        const entry = this.activeAgents.get(agentId);
+        if (entry) entry.result = result;
+        this.deps.eventBus.publish({
+          type: result.success ? 'subagent.completed' : 'subagent.failed',
+          taskId,
+          state: result.success ? 'completed' : 'failed',
+        } as any);
+      })
+      .catch((error) => {
+        const failResult = this.fail(
+          profile.id,
+          error instanceof Error ? error.message : String(error),
+          'LOOP_CRASH',
+        );
+        const entry = this.activeAgents.get(agentId);
+        if (entry) entry.result = failResult;
+        this.deps.eventBus.publish({
+          type: 'subagent.failed',
+          taskId,
+          state: 'failed',
+        } as any);
+      })
+      .finally(() => {
+        const entry = this.activeAgents.get(agentId);
+        if (!entry?.result) {
+          this.activeAgents.delete(agentId);
+        }
+      });
+
+    return { agentId, status: 'working', taskId };
+  }
+
+  /**
+   * Synchronous dispatch: blocks until the sub-agent completes.
+   */
+  private async executeSync(
+    request: SubAgentRequest,
+    profile: SubAgentProfile,
+    agentId: string,
+  ): Promise<SubAgentResult> {
+    return this.executeCore(request, profile, agentId);
+  }
+
+  /**
+   * Core execution logic shared by async and sync paths.
+   * Retries up to profile.maxAttempts on LOOP_FAILED (not LOOP_CRASH).
+   */
+  private async executeCore(
+    request: SubAgentRequest,
+    profile: SubAgentProfile,
+    agentId: string,
+  ): Promise<SubAgentResult> {
+    const currentDepth = request.recursionDepth || 0;
     const MAX_RECURSION_DEPTH = 2;
 
     if (currentDepth >= MAX_RECURSION_DEPTH) {
@@ -141,107 +284,143 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       return this.fail(profile.id, msg, 'LOOP_CRASH');
     }
 
-    try {
-      this.updateStatus(agentId, 'working');
-      if (this.controller.isStopRequested(agentId)) {
-        throw new Error('Stop requested before launching Smallfry');
-      }
+    const maxAttempts = profile.maxAttempts ?? 1;
+    let lastResult: SubAgentResult | undefined;
+    let lastError: string | undefined;
 
-      const effectiveDryRun = resolveSubAgentDryRun({
-        parentDryRun: this.ctx.dryRun,
-        flowMode: this.ctx.flowMode,
-        phase: this.ctx.phase,
-      });
-      const runtimeEnv = await this.setupIsolatedEnvironment(
-        normalizedRequest,
-        llm,
-        agentId,
-        effectiveDryRun,
-      );
-
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const workspace = runtimeEnv.workspace!;
+        this.updateStatus(agentId, 'working');
+        if (this.controller.isStopRequested(agentId)) {
+          throw new Error('Stop requested before launching Smallfry');
+        }
 
-        const activePath = workspace.workPath;
-
-        const git = new GitAdapter(activePath);
-        const resolver = new FileStateResolver(git, activePath);
-        const flowMode = 'patch' as const;
-        const fsAdapter = createFileSystemAdapter(flowMode);
-
-        // 2. Construct InitCtx for the smallfry
-        const initCtx = this.applyContextSnapshot(normalizedRequest.contextSnapshot, {
-          workspace: {
-            workPath: activePath,
-            baseRepoPath: workspace.baseRepoPath,
-            strategy: workspace.strategy,
-          },
-          options: {
-            instruction: normalizedRequest.task,
-            repoPath: activePath,
-            dryRun: effectiveDryRun,
-            contextFiles: normalizedRequest.contextFiles || [],
-            llm,
-            recursionDepth: currentDepth + 1, // Increment depth for child
-            allowedToolNames: this.filterAllowedTools(profile.allowedTools, this.ctx.phase),
-            timeoutMs: normalizedRequest.timeout_seconds
-              ? normalizedRequest.timeout_seconds * 1000
-              : profile.timeoutMs,
-          },
-          mode: flowMode,
-          fs: fsAdapter,
-          emit: (event) => {
-            // Bridge status to parent/UI
-            if (event.type === 'phase.start') {
-              this.updateStatus(agentId, 'working');
-            }
-            if (event.type === 'log') {
-              getLogger().debug(`[Smallfry:${agentId}] ${event.level}: ${event.message}`);
-            } else {
-              getLogger().debug(`[Smallfry:${agentId}] ${event.type}`);
-            }
-          },
-          fileStateResolver: resolver,
-          shadowInitialRef: runtimeEnv?.initialSnapshotHash || 'HEAD',
+        const effectiveDryRun = resolveSubAgentDryRun({
+          parentDryRun: this.ctx.dryRun,
+          flowMode: this.ctx.flowMode,
+          phase: this.ctx.phase,
         });
+        const runtimeEnv = await this.setupIsolatedEnvironment(
+          request,
+          llm,
+          agentId,
+          effectiveDryRun,
+        );
 
-        // 3. Launch the "Little Fry"
-        const subLoop = new SmallfryLoop(profile);
-        const result = await subLoop.execute(initCtx);
+        try {
+          const workspace = runtimeEnv.workspace!;
 
-        return await this.persistArtifacts(agentId, result);
-      } finally {
-        await runtimeEnv.teardown();
+          const activePath = workspace.workPath;
+
+          const git = new GitAdapter(activePath);
+          const resolver = new FileStateResolver(git, activePath);
+          const flowMode = 'patch' as const;
+          const fsAdapter = createFileSystemAdapter(flowMode);
+
+          const initCtx = this.applyContextSnapshot(request.contextSnapshot, {
+            workspace: {
+              workPath: activePath,
+              baseRepoPath: workspace.baseRepoPath,
+              strategy: workspace.strategy,
+            },
+            options: {
+              instruction: request.task,
+              repoPath: activePath,
+              dryRun: effectiveDryRun,
+              contextFiles: request.contextFiles || [],
+              llm,
+              recursionDepth: currentDepth + 1,
+              allowedToolNames: this.filterAllowedTools(
+                profile.allowedTools,
+                this.ctx.phase,
+                profile.toolInheritance,
+              ),
+              timeoutMs: request.timeout_seconds
+                ? request.timeout_seconds * 1000
+                : profile.timeoutMs,
+              subAgentSystemPrompt: profile.systemPrompt,
+            },
+            lastError,
+            mode: flowMode,
+            fs: fsAdapter,
+            emit: (event) => {
+              if (event.type === 'phase.start') {
+                this.updateStatus(agentId, 'working');
+              }
+              if (event.type === 'log') {
+                getLogger().debug(`[Smallfry:${agentId}] ${event.level}: ${event.message}`);
+              } else {
+                getLogger().debug(`[Smallfry:${agentId}] ${event.type}`);
+              }
+            },
+            fileStateResolver: resolver,
+            shadowInitialRef: runtimeEnv?.initialSnapshotHash || 'HEAD',
+          });
+
+          const subLoop = new SmallfryLoop(profile);
+          const result = await subLoop.execute(initCtx);
+          lastResult = result;
+
+          // Success or non-retryable failure — return immediately
+          if (result.success || result.reasonCode === 'LOOP_CRASH' || attempt >= maxAttempts) {
+            return await this.persistArtifacts(agentId, {
+              ...result,
+              attempts: attempt,
+            });
+          }
+
+          // Retryable failure — log and continue
+          lastError = result.reason || result.summary;
+          getLogger().warn(
+            `[SubAgentManager] Smallfry ${agentId} attempt ${attempt}/${maxAttempts} failed (${result.reasonCode}), retrying...`,
+          );
+        } finally {
+          await runtimeEnv.teardown();
+        }
+      } catch (error: unknown) {
+        this.controller.appendLog(
+          agentId,
+          `Execution failed: ${(error instanceof Error ? error.message : undefined) ?? error}`,
+        );
+        getLogger().error(
+          `[SubAgentManager] Smallfry ${agentId} crashed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        // Crashes are not retryable
+        return {
+          agent_ref: profile.id,
+          success: false,
+          summary: text.smallfry.errors.missionFailedWithReason(
+            error instanceof Error ? error.message : String(error),
+          ),
+          tokenUsage: 0,
+          reason: error instanceof Error ? error.message : String(error),
+          reasonCode: 'LOOP_CRASH',
+          attempts: attempt,
+          logs: [],
+          errorType: ErrorType.UNKNOWN,
+        };
       }
-    } catch (error: unknown) {
-      this.controller.appendLog(
-        agentId,
-        `Execution failed: ${(error instanceof Error ? error.message : undefined) ?? error}`,
-      );
-      getLogger().error(
-        `[SubAgentManager] Smallfry ${agentId} crashed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return {
-        agent_ref: profile.id,
-        success: false,
-        summary: text.smallfry.errors.missionFailedWithReason(
-          error instanceof Error ? error.message : String(error),
-        ),
-        tokenUsage: 0,
-        reason: error instanceof Error ? error.message : String(error),
-        reasonCode: 'LOOP_CRASH',
-        attempts: 1,
-        logs: [],
-        errorType: ErrorType.UNKNOWN,
-      };
-    } finally {
-      this.activeAgents.delete(agentId);
     }
+
+    // Should not reach here, but safety fallback
+    return (
+      lastResult ?? this.fail(profile.id, text.smallfry.errors.missionFailed, 'LOOP_FAILED')
+    );
   }
 
-  // Backward compatibility for internal calls
+  // Backward compatibility for internal calls (always synchronous)
   async spawn(request: SubAgentRequest): Promise<SubAgentResult> {
-    return this.execute(request);
+    const normalizedRequest = this.normalizeRequest(request);
+    const profile = this.deps.registry.get(normalizedRequest.agent_ref);
+    if (!profile) {
+      return this.fail(
+        normalizedRequest.agent_ref,
+        text.smallfry.errors.profileNotFound(normalizedRequest.agent_ref),
+        'LOOP_FAILED',
+      );
+    }
+    const agentId = `smallfry-${randomBytes(4).toString('hex')}`;
+    return this.executeSync(normalizedRequest, profile, agentId);
   }
 
   private applyContextSnapshot(
@@ -380,7 +559,22 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     };
   }
 
-  private filterAllowedTools(allowed: string[], phase: ToolRuntimeCtx['phase']): string[] {
+  private filterAllowedTools(
+    allowed: string[],
+    phase: ToolRuntimeCtx['phase'],
+    toolInheritance?: 'none' | 'safe' | 'all',
+  ): string[] | undefined {
+    const readOnlyPhase = isReadOnlySubAgentContext({
+      flowMode: this.ctx.flowMode,
+      phase,
+    });
+
+    // When toolInheritance is 'safe' or 'all' in non-read-only phase,
+    // return undefined to skip allowlist filtering (inherits parent toolstack)
+    if (!readOnlyPhase && toolInheritance && toolInheritance !== 'none') {
+      return undefined;
+    }
+
     const safeReadOnlyTools = new Set<string>([
       'agent_dispatch',
       'code.search',
@@ -392,10 +586,6 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     ]);
 
     const readOnlyPlanTools = new Set<string>(['plan.init', 'plan.read', 'plan.update']);
-    const readOnlyPhase = isReadOnlySubAgentContext({
-      flowMode: this.ctx.flowMode,
-      phase,
-    });
     if (!readOnlyPhase) {
       return allowed;
     }

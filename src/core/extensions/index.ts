@@ -7,9 +7,11 @@ import { loadConfig } from './load.js';
 import { mergeScopedEntries, ScopedEntry } from './merge.js';
 import {
   expandHome,
+  getRepoAgentsConfigPath,
   getRepoMcpConfigPath,
   getRepoSkillConfigPath,
   getRepoToolConfigPath,
+  getUserAgentsConfigPath,
   getUserMcpConfigPath,
   getUserSkillConfigPath,
   getUserToolConfigPath,
@@ -18,12 +20,20 @@ import {
   resolveUserRelative,
 } from './paths.js';
 import { redactExtensions } from './redact.js';
-import { McpConfigSchema, SkillsConfigSchema, ToolsConfigSchema } from './schemas.js';
+import {
+  AgentsConfigSchema,
+  McpConfigSchema,
+  SkillsConfigSchema,
+  ToolsConfigSchema,
+} from './schemas.js';
 import type {
   ExtensionScope,
+  RawAgentProfileConfig,
+  RawAgentsConfig,
   RawMcpConfig,
   RawSkillConfig,
   RawToolConfig,
+  ResolvedAgentProfile,
   ResolvedExtensions,
   ResolvedSkillDiscovery,
   ResolvedToolPlugin,
@@ -40,6 +50,7 @@ export interface ExtensionResolution {
     mcp: RawMcpConfig | null;
     tools: RawToolConfig | null;
     skills: RawSkillConfig | null;
+    agents: RawAgentsConfig | null;
   };
   redacted: ResolvedExtensions;
 }
@@ -74,6 +85,57 @@ function buildResolvedPlugins(
       scope,
     };
   });
+}
+
+function buildResolvedAgentProfiles(
+  user?: RawAgentsConfig,
+  repo?: RawAgentsConfig,
+): ResolvedAgentProfile[] {
+  const seen = new Map<string, ResolvedAgentProfile>();
+
+  // User profiles first (lower priority)
+  if (user) {
+    for (const agent of user.agents) {
+      if (agent.enabled === false) continue;
+      seen.set(agent.id, toResolvedProfile(agent, 'user'));
+    }
+  }
+
+  // Repo profiles override user profiles (higher priority)
+  if (repo) {
+    for (const agent of repo.agents) {
+      if (agent.enabled === false) {
+        seen.delete(agent.id);
+        continue;
+      }
+      seen.set(agent.id, toResolvedProfile(agent, 'repo'));
+    }
+  }
+
+  return Array.from(seen.values());
+}
+
+function toResolvedProfile(
+  raw: RawAgentProfileConfig,
+  scope: ExtensionScope,
+): ResolvedAgentProfile {
+  return {
+    id: raw.id,
+    name: raw.name,
+    role: raw.role,
+    description: raw.description,
+    allowedTools: raw.allowedTools ?? ['code.search', 'fs.read'],
+    readOnly: raw.readOnly ?? false,
+    stratagem: raw.stratagem ?? 'investigator',
+    toolInheritance: raw.toolInheritance,
+    permissionMode: raw.permissionMode,
+    systemPrompt: raw.systemPrompt,
+    maxTokens: raw.maxTokens,
+    maxAttempts: raw.maxAttempts,
+    timeoutMs: raw.timeoutMs,
+    model: raw.model,
+    scope,
+  };
 }
 
 function buildResolvedSkills(
@@ -138,14 +200,17 @@ export async function resolveExtensions(
   options: ResolveExtensionsOptions,
 ): Promise<ExtensionResolution> {
   const { repoRoot } = options;
-  const [userMcp, repoMcp, userTools, repoTools, userSkills, repoSkills] = await Promise.all([
-    loadConfig<RawMcpConfig>(getUserMcpConfigPath(), McpConfigSchema),
-    loadConfig<RawMcpConfig>(getRepoMcpConfigPath(repoRoot), McpConfigSchema),
-    loadConfig<RawToolConfig>(getUserToolConfigPath(), ToolsConfigSchema),
-    loadConfig<RawToolConfig>(getRepoToolConfigPath(repoRoot), ToolsConfigSchema),
-    loadConfig<RawSkillConfig>(getUserSkillConfigPath(), SkillsConfigSchema),
-    loadConfig<RawSkillConfig>(getRepoSkillConfigPath(repoRoot), SkillsConfigSchema),
-  ]);
+  const [userMcp, repoMcp, userTools, repoTools, userSkills, repoSkills, userAgents, repoAgents] =
+    await Promise.all([
+      loadConfig<RawMcpConfig>(getUserMcpConfigPath(), McpConfigSchema),
+      loadConfig<RawMcpConfig>(getRepoMcpConfigPath(repoRoot), McpConfigSchema),
+      loadConfig<RawToolConfig>(getUserToolConfigPath(), ToolsConfigSchema),
+      loadConfig<RawToolConfig>(getRepoToolConfigPath(repoRoot), ToolsConfigSchema),
+      loadConfig<RawSkillConfig>(getUserSkillConfigPath(), SkillsConfigSchema),
+      loadConfig<RawSkillConfig>(getRepoSkillConfigPath(repoRoot), SkillsConfigSchema),
+      loadConfig<RawAgentsConfig>(getUserAgentsConfigPath(), AgentsConfigSchema),
+      loadConfig<RawAgentsConfig>(getRepoAgentsConfigPath(repoRoot), AgentsConfigSchema),
+    ]);
 
   const mergedServers = mergeScopedEntries(userMcp?.config.servers, repoMcp?.config.servers);
   const mergedPlugins = mergeScopedEntries(userTools?.config.plugins, repoTools?.config.plugins);
@@ -154,12 +219,14 @@ export async function resolveExtensions(
     mcpServers: buildResolvedMcpServersV2(mergedServers, repoRoot),
     toolPlugins: buildResolvedPlugins(mergedPlugins, repoRoot),
     skillDiscovery: buildResolvedSkills(userSkills?.config, repoSkills?.config, repoRoot),
+    agentProfiles: buildResolvedAgentProfiles(userAgents?.config, repoAgents?.config),
   };
 
   const rawEffective = {
     mcp: repoMcp?.config ?? userMcp?.config ?? null,
     tools: repoTools?.config ?? userTools?.config ?? null,
     skills: repoSkills?.config ?? userSkills?.config ?? null,
+    agents: repoAgents?.config ?? userAgents?.config ?? null,
   };
 
   return {

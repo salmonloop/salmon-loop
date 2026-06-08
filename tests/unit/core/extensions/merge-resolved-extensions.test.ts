@@ -60,6 +60,7 @@ describe('mergeResolvedExtensions', () => {
           paths: ['/repo/.salmonloop/skills'],
           scope: 'repo',
         },
+        agentProfiles: [],
       },
       {
         mcpServers: [
@@ -82,6 +83,7 @@ describe('mergeResolvedExtensions', () => {
           paths: [],
           scope: 'repo',
         },
+        agentProfiles: [],
       },
     );
 
