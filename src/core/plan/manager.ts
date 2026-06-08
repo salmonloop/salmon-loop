@@ -142,7 +142,7 @@ export async function updatePlan(params: {
         sessionId: params.sessionId,
         baseHash: nextHash,
         conflict: {
-          code: res.error as any,
+          code: res.error as 'BASE_HASH_MISMATCH' | 'STEP_NOT_FOUND' | 'MALFORMED_METADATA' | 'WRITE_DENIED',
           message: `Plan update failed: ${res.error}`,
         },
       };

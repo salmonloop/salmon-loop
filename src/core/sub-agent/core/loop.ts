@@ -1,6 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { Pipeline } from '../../grizzco/engine/pipeline/pipeline.js';
 import type { InitCtx, ShrinkCtx } from '../../grizzco/engine/pipeline/types.js';
+import type { ExecutionPhase } from '../../types/runtime.js';
 import { saveAudit } from '../../grizzco/steps/audit.js';
 import { buildContext } from '../../grizzco/steps/context.js';
 import { generatePatch } from '../../grizzco/steps/patch.js';
@@ -90,7 +91,7 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
       reasonCode: finalCtx?.reasonCode || (report.success ? 'SUCCESS' : 'LOOP_FAILED'),
       attempts: finalCtx?.attempt || 1,
       logs: finalCtx?.logs || [],
-      failurePhase: report.lastStep as any,
+      failurePhase: report.lastStep as ExecutionPhase | undefined,
       errorType: finalCtx?.errorType,
       finalPatch: typeof finalCtx?.diff === 'string' ? finalCtx.diff : undefined,
       changedFiles: Array.isArray(finalCtx?.changedFiles) ? finalCtx.changedFiles : [],

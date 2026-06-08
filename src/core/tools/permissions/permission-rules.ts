@@ -1,6 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { normalizeDiff, validateDiff } from '../../patch/diff.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
+import { isRecord } from '../../utils/serialize.js';
 import { normalizeRepoRelativePath } from '../../utils/path.js';
 import type { ToolRuntimeCtx } from '../types.js';
 
@@ -505,8 +506,8 @@ async function matchEditRule(
   filePredicate: (changedFiles: string[], matcher: PathMatcher) => boolean,
 ): Promise<boolean> {
   if (rule.compiled.kind !== 'edit') return false;
-  if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
-  const handle = (args as any).handle;
+  if (!isRecord(args)) return false;
+  const handle = args.handle;
   if (typeof handle !== 'string' || !handle.trim()) return false;
 
   const changedFiles = await loadProposalChangedFiles(handle);

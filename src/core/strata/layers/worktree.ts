@@ -3,6 +3,7 @@ import { tmpdir } from 'os';
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
+import { isRecord } from '../../utils/serialize.js';
 import { access, readdir, realpath, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { getLogger } from '../../observability/logger.js';
@@ -297,7 +298,7 @@ export class WorkspaceManager {
             await access(workspace.workPath);
             return true;
           } catch (error: unknown) {
-            if (error && typeof error === 'object' && (error as any).code === 'ENOENT') {
+            if (isRecord(error) && error.code === 'ENOENT') {
               return false;
             }
             return true;

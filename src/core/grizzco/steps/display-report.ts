@@ -78,7 +78,7 @@ export async function displayReport<T extends ReportDisplayCtx>(ctx: T): Promise
   }
   const outputKinds = ctx.options?.llmOutput?.kinds ?? [];
   if (
-    outputKinds.includes(ctx.report.kind as any) ||
+    (outputKinds as string[]).includes(ctx.report.kind) ||
     (ctx.report.kind === 'answer' && outputKinds.includes('assistant_message'))
   ) {
     return ctx;

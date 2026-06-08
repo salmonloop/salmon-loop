@@ -55,7 +55,6 @@ export class GhostDependencyGatherer {
         mode: 'outline' as const,
         content: `// Ghost Dependency: Shares tokens [${Array.from(data.tokens).join(', ')}]
 `,
-        reason: 'ghost_dependency' as any,
       }));
   }
 }

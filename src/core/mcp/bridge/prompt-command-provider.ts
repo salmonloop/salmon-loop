@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isRecord } from '../../utils/serialize.js';
 
 import type {
   SlashCommandSpec,
@@ -118,11 +119,11 @@ function safeToken(value: string, fallback: string): string {
 
 function isPromptOptions(value: unknown): value is CreateMcpPromptCommandProviderOptions {
   return Boolean(
-    value &&
-    typeof value === 'object' &&
+    isRecord(value) &&
     'serverName' in value &&
     'client' in value &&
-    typeof (value as any).client?.listPrompts === 'function',
+    isRecord(value.client) &&
+    typeof value.client.listPrompts === 'function',
   );
 }
 
