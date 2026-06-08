@@ -1,4 +1,5 @@
 import type { AuthorizationSourceSummary } from '../../../types/runtime.js';
+import { isRecord } from '../../../utils/serialize.js';
 
 export function buildAuthorizationSummary(
   logs: unknown[] | undefined,
@@ -16,8 +17,8 @@ export function buildAuthorizationSummary(
   let hasEntries = false;
 
   for (const entry of logs) {
-    if (!entry || (entry as any).eventType !== 'authorization') continue;
-    const source = (entry as any).authSource;
+    if (!isRecord(entry) || entry.eventType !== 'authorization') continue;
+    const source = entry.authSource;
     if (source === 'auto') {
       summary.auto += 1;
       hasEntries = true;

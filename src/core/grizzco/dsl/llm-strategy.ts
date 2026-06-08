@@ -2,6 +2,7 @@ import { resolveLlmCapabilities } from '../../llm/capabilities.js';
 import type { LLM } from '../../types/llm.js';
 import { Phase, type ExecutionPhase } from '../../types/runtime.js';
 
+import { FileStatus, OpType } from '../domain/grizzco-types.js';
 import { DecisionEngine, type DslContext, PlanBuilder } from './DecisionEngine.js';
 
 export interface LlmToolCallingPolicy {
@@ -34,7 +35,7 @@ export function resolveLlmToolCallingPolicy(phase: ExecutionPhase, llm: LLM): Ll
     repoRoot: '',
     file: {
       path: '',
-      status: 0 as any,
+      status: FileStatus.CLEAN,
       isBinary: false,
       isSymlink: false,
       isIgnored: false,
@@ -42,7 +43,7 @@ export function resolveLlmToolCallingPolicy(phase: ExecutionPhase, llm: LLM): Ll
       size: 0,
     },
     operation: {
-      type: 0 as any,
+      type: OpType.PATCH,
       path: '',
     },
     options: {
