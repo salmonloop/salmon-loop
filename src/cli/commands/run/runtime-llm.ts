@@ -7,8 +7,27 @@ import {
   type ExecutionPhase,
   type LlmFactoryWarningCode,
 } from '../../../core/facades/cli-run-runtime-llm.js';
+import type { ResolvedLlmProvider } from '../../../core/config/types/resolved.js';
 import type { HeadlessWarning } from '../../headless/protocol-metadata.js';
 import { text } from '../../locales/index.js';
+
+interface PhaseRoutingTarget {
+  id?: string;
+  type?: string;
+  clientPackage?: string;
+  api?: {
+    baseUrl?: string;
+    timeoutMs?: number;
+    headers?: Record<string, string>;
+    apiKey?: string;
+    apiKeySource?: string;
+  };
+  model?: {
+    id?: string;
+    slot?: string;
+  };
+  capabilities?: unknown;
+}
 
 function runtimeWarningMessage(
   code: LlmFactoryWarningCode,
@@ -67,24 +86,25 @@ export function createRuntimeLlmAndWarn(params: {
     for (const [phase, target] of Object.entries(phaseToProviderModel)) {
       if (!validPhases.has(phase)) continue;
       if (!target || typeof target !== 'object') continue;
+      const phaseTarget = target as unknown as PhaseRoutingTarget;
       const perPhaseConfig = {
-        id: (target as any).id,
-        type: (target as any).type,
-        clientPackage: (target as any).clientPackage,
+        id: phaseTarget.id,
+        type: phaseTarget.type,
+        clientPackage: phaseTarget.clientPackage,
         api: {
-          baseUrl: (target as any).api?.baseUrl,
-          timeoutMs: (target as any).api?.timeoutMs,
-          headers: (target as any).api?.headers,
-          apiKey: (target as any).api?.apiKey,
-          apiKeySource: (target as any).api?.apiKeySource,
+          baseUrl: phaseTarget.api?.baseUrl,
+          timeoutMs: phaseTarget.api?.timeoutMs,
+          headers: phaseTarget.api?.headers,
+          apiKey: phaseTarget.api?.apiKey,
+          apiKeySource: phaseTarget.api?.apiKeySource,
         },
         models: {
-          selectedModelId: (target as any).model?.id,
-          selectedModelSlot: (target as any).model?.slot || 'default',
+          selectedModelId: phaseTarget.model?.id,
+          selectedModelSlot: phaseTarget.model?.slot || 'default',
         },
-        capabilities: (target as any).capabilities,
+        capabilities: phaseTarget.capabilities,
       };
-      const created = createRuntimeLlm(perPhaseConfig, { langfuseEnabled: params.langfuseEnabled });
+      const created = createRuntimeLlm(perPhaseConfig as unknown as ResolvedLlmProvider, { langfuseEnabled: params.langfuseEnabled });
       warnings.push(...created.warnings);
       phaseLlms[phase as ExecutionPhase] = created.llm;
     }

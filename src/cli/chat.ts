@@ -33,6 +33,7 @@ import {
   reactiveCompact,
 } from '../core/facades/cli-chat.js';
 import { createSubAgentController } from '../core/facades/cli-subagent.js';
+import { isRecord } from '../core/utils/serialize.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { resolveActiveChatFlowMode, resolveChatCheckpointStrategy } from './chat-flow.js';
@@ -140,8 +141,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       const answers: Record<string, string> = {};
       for (const question of input.questions) {
         if (requestOptions?.signal?.aborted) {
-          const err = new Error(text.cli.askUserCancelled);
-          (err as any).code = 'ASK_USER_CANCELLED';
+          const err = Object.assign(new Error(text.cli.askUserCancelled), { code: 'ASK_USER_CANCELLED' });
           throw err;
         }
 
@@ -160,8 +160,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         });
 
         if (!selected || selected.length === 0) {
-          const err = new Error(text.cli.askUserCancelled);
-          (err as any).code = 'ASK_USER_CANCELLED';
+          const err = Object.assign(new Error(text.cli.askUserCancelled), { code: 'ASK_USER_CANCELLED' });
           throw err;
         }
 
@@ -418,16 +417,17 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             const isContextOverflow = (() => {
               if (!error || typeof error !== 'object') return false;
               if (
-                'llmCode' in (error as any) &&
-                (error as any).llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED'
+                isRecord(error) &&
+                'llmCode' in error &&
+                error.llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED'
               ) {
                 return true;
               }
               const message =
                 error instanceof Error
                   ? error.message
-                  : typeof (error as any).message === 'string'
-                    ? String((error as any).message)
+                  : isRecord(error) && typeof error.message === 'string'
+                    ? String(error.message)
                     : '';
               const lower = message.toLowerCase();
               return (

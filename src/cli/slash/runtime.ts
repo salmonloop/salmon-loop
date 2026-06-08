@@ -18,6 +18,7 @@ import { formatHelpRows } from '../commands/help-format.js';
 import { suggestSubcommands } from '../commands/subcommand-suggestions.js';
 import type { Command, CommandContext } from '../commands/types.js';
 import { text } from '../locales/index.js';
+import type { LoopEvent, LoopOptions } from '../../core/types/loop.js';
 
 function isSafeSkillId(id: string): boolean {
   return /^[a-z0-9][a-z0-9-_]*$/i.test(id);
@@ -161,7 +162,7 @@ export async function createCliSlashRuntime(
               toolAuthorization: meta.toolAuthorization,
               getLlmOutputPolicy: meta.getLlmOutputPolicy,
               setLlmOutputPolicy: meta.setLlmOutputPolicy,
-            } as any);
+            } as CommandContext);
             return { kind: 'consumed' };
           },
           getSuggestions: baseGetSuggestions
@@ -176,7 +177,7 @@ export async function createCliSlashRuntime(
                   toolAuthorization: meta.toolAuthorization,
                   getLlmOutputPolicy: meta.getLlmOutputPolicy,
                   setLlmOutputPolicy: meta.setLlmOutputPolicy,
-                } as any);
+                } as CommandContext);
                 return suggestions.map((s) => ({ name: s.name, description: s.description }));
               }
             : undefined,
@@ -192,11 +193,11 @@ export async function createCliSlashRuntime(
             const skill = await skillLoader.activateSkill(catalogEntry.id);
 
             const meta = (req.meta ?? {}) as CommandContext;
-            const signal = (meta as any)?.signal as AbortSignal | undefined;
+            const signal: AbortSignal | undefined = meta.signal;
 
             // Prepare an isolated worktree environment for governed shell execution.
-            const silentEmit = (event: any) => {
-              if (event?.type === 'log' && event?.level === 'error') {
+            const silentEmit = (event: LoopEvent) => {
+              if (event.type === 'log' && event.level === 'error') {
                 options.emit(event);
                 return;
               }
@@ -210,8 +211,8 @@ export async function createCliSlashRuntime(
                 strategy: 'worktree',
                 dryRun: false,
                 verbose: undefined,
-              } as any,
-              silentEmit as any,
+              } as unknown as LoopOptions,
+              silentEmit,
             );
 
             let toolstack: Awaited<ReturnType<typeof createStandardToolstack>> | undefined;
