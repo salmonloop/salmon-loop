@@ -6,6 +6,8 @@ export interface TaskEvent {
   attempt?: number;
   failure?: { category?: string; code?: string };
   requiredAction?: { type: string; reason?: string };
+  result?: unknown;
+  reason?: string;
 }
 
 export interface TaskEventBus {

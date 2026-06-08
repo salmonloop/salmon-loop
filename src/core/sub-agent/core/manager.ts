@@ -120,10 +120,10 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     );
     if (terminalEvent) {
       return terminalEvent.state === 'completed'
-        ? (terminalEvent as any).result
+        ? (terminalEvent.result as SubAgentResult)
         : this.fail(
             handle.agentId,
-            (terminalEvent as any).reason ?? 'Sub-agent failed',
+            terminalEvent.reason ?? 'Sub-agent failed',
             'LOOP_FAILED',
           );
     }
@@ -141,12 +141,12 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           clearTimeout(timeout);
           unsub();
           if (event.type === 'subagent.completed') {
-            resolve((event as any).result);
+            resolve(event.result as SubAgentResult);
           } else {
             resolve(
               this.fail(
                 handle.agentId,
-                (event as any).reason ?? 'Sub-agent failed',
+                event.reason ?? 'Sub-agent failed',
                 'LOOP_FAILED',
               ),
             );
@@ -216,7 +216,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           type: result.success ? 'subagent.completed' : 'subagent.failed',
           taskId,
           state: result.success ? 'completed' : 'failed',
-        } as any);
+        });
       })
       .catch((error) => {
         const failResult = this.fail(
@@ -230,7 +230,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           type: 'subagent.failed',
           taskId,
           state: 'failed',
-        } as any);
+        });
       })
       .finally(() => {
         const entry = this.activeAgents.get(agentId);
@@ -550,7 +550,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
   private async persistArtifacts(agentId: string, result: SubAgentResult): Promise<SubAgentResult> {
     const patch = result.finalPatch;
-    const { finalPatch: _ignored, ...rest } = result as any;
+    const { finalPatch: _ignored, ...rest } = result;
     const auditArtifact = await this.persistAuditArtifact(rest.auditPath);
 
     if (!patch || typeof patch !== 'string') {
