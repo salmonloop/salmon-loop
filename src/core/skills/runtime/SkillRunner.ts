@@ -2,9 +2,10 @@ import * as crypto from 'crypto';
 
 import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
 import { tryGetLogger } from '../../observability/logger.js';
+import { isRecord } from '../../utils/serialize.js';
 import type { ToolRouter } from '../../tools/router.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
-import { Phase } from '../../types/index.js';
+import { Phase, type ExecutionPhase } from '../../types/index.js';
 import { emitSkillAuditEvent, generateSkillTraceId, hashSkillArgs } from '../audit.js';
 import { SkillParser } from '../parser.js';
 import { SkillStrategyDSL, type SkillDslContext } from '../strategy.js';
@@ -198,7 +199,7 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
           .split('\n')
           .filter((line) => !line.trim().startsWith('!'));
         const basePrompt = SkillParser.substituteVariables(promptLines.join('\n').trim(), inputs);
-        const transcript = formatShellTranscript(data.shell_outputs as any);
+        const transcript = formatShellTranscript(data.shell_outputs);
         data.prompt = `${basePrompt}${transcript}`.trim();
 
         SkillStrategyDSL(engine);
@@ -241,7 +242,7 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
         const callId = `slash-sh-${buildStableId([skill.id, command])}`;
         const envelope = {
           id: callId,
-          phase: Phase.SLASH,
+          phase: Phase.SLASH as ExecutionPhase,
           toolName: 'shell.exec',
           args: { command },
           ctx: {
@@ -249,12 +250,12 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
             // Ensure ToolPolicy sees worktree isolation for process execution.
             worktreeRoot: toolCtx.worktreeRoot ?? toolCtx.repoRoot,
           },
-        } as const;
+        };
 
-        let result = await toolRouter.call(envelope as any);
+        let result = await toolRouter.call(envelope);
         if (result.status === 'denied' && result.error?.code === 'AUTH_REQUIRED') {
           await toolRouter.waitForAuthorization(callId, signal);
-          result = await toolRouter.call(envelope as any);
+          result = await toolRouter.call(envelope);
         }
 
         if (result.status !== 'ok') {
@@ -271,7 +272,7 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
               argsHash,
               traceId,
               denyReason: result.error?.code || 'unknown',
-              denySource: (result.meta as any)?.authorization?.source || 'policy',
+              denySource: isRecord(result.meta) && isRecord(result.meta.authorization) ? (result.meta.authorization.source as string) : 'policy',
               durationMs: Date.now() - startedAt,
             });
           }
@@ -280,8 +281,8 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
 
         const output = result.output as { ok: boolean; stdout: string; stderr: string };
         const combined = [output.stdout, output.stderr].filter(Boolean).join('\n').trim();
-        (data.shell_outputs as any)[command] = combined;
-        (data as any)[key] = combined;
+        data.shell_outputs[command] = combined;
+        data[key] = combined;
         return combined;
       },
     });
@@ -312,7 +313,7 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
         cmd,
         output: String(output),
       })),
-      injectedPrompt: String((inject?.params as any)?.prompt ?? ''),
+      injectedPrompt: String((isRecord(inject?.params) ? inject.params.prompt : undefined) ?? ''),
       status,
     };
   } catch (error) {
