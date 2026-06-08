@@ -1,4 +1,5 @@
 import { SalmonError } from '../types/errors.js';
+import { isRecord } from '../utils/serialize.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 export type LlmErrorCode =
@@ -122,10 +123,9 @@ function extractNetworkCode(err: unknown): string | undefined {
   const direct = candidate.code;
   if (typeof direct === 'string' && direct.trim()) return direct;
 
-  const cause = (candidate as any).cause;
-  if (cause && typeof cause === 'object' && typeof (cause as any).code === 'string') {
-    const code = String((cause as any).code);
-    return code.trim() ? code : undefined;
+  const cause = candidate.cause;
+  if (isRecord(cause) && typeof cause.code === 'string') {
+    return cause.code.trim() || undefined;
   }
 
   return undefined;
@@ -172,22 +172,23 @@ export function sanitizeError(err: unknown): string {
 }
 
 export function toLlmError(err: unknown, provider?: string): LlmError {
+  const errObj = isRecord(err) ? err : null;
   let name =
     err instanceof Error
       ? err.name
-      : typeof (err as any)?.name === 'string'
-        ? String((err as any).name)
+      : typeof errObj?.name === 'string'
+        ? errObj.name
         : 'UnknownError';
   let message =
     err instanceof Error
       ? err.message
-      : typeof (err as any)?.message === 'string'
-        ? String((err as any).message)
+      : typeof errObj?.message === 'string'
+        ? errObj.message
         : String(err);
 
   // Unwrap RetryError to get the last error's message if available
-  if (name === 'AI_RetryError' || (err as any)?.lastError) {
-    const lastError = (err as any).lastError;
+  if (name === 'AI_RetryError' || errObj?.lastError) {
+    const lastError = errObj?.lastError;
     // Update the error reference so subsequent checks work on the actual cause
     err = lastError;
     if (lastError instanceof Error) {
@@ -202,7 +203,7 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     name === 'ZodError' ||
     name.includes('TypeValidationError') ||
     message.includes('TypeValidationError') ||
-    (err as any)?.[Symbol.for('vercel.ai.error.AI_TypeValidationError')]
+    (err != null && typeof err === 'object' && Symbol.for('vercel.ai.error.AI_TypeValidationError') in err)
   ) {
     return new LlmError('LLM validation failed', 'LLM_VALIDATION_FAILED', {
       provider,
