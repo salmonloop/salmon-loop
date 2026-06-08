@@ -62,147 +62,35 @@ export class Pipeline<CurrentCtx> {
    * Add a step to the pipeline
    */
   step<NextCtx>(name: string, action: Step<CurrentCtx, NextCtx>): Pipeline<NextCtx> {
-    const nextPromise = this.promise.then(async (ctx) => {
-      const start = Date.now();
-      let phaseStarted = false;
-      let errorStr: string | undefined;
-      let errorMeta: Record<string, unknown> | undefined;
-      let result;
-      const emit = (ctx as { emit?: (event: LoopEvent) => void }).emit;
-      const isPhase = (value: string): value is ExecutionPhase =>
-        (EXECUTION_PHASES as readonly string[]).includes(value);
-      const planRuntime = (ctx as any)?.planRuntime as
-        | { sessionId: string; planPathHint: string }
-        | undefined;
-      const persistenceRoot =
-        (ctx as any)?.workspace?.baseRepoPath || (ctx as any)?.workspace?.workPath;
-      const attempt = (ctx as any)?.attempt ?? 1;
-
-      const tryAppendPlanNote = async (note: string) => {
-        if (!planRuntime || !persistenceRoot) return;
-        try {
-          await appendPlanNote({
-            persistenceRoot,
-            sessionId: planRuntime.sessionId,
-            note,
-          });
-          recordAuditEvent(
-            'plan.runtime.note.append',
-            { note, ok: true },
-            { source: 'plan', severity: 'low', scope: 'session', phase: name },
-          );
-          return true;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          recordAuditEvent(
-            'plan.runtime.note.append.failed',
-            { note, error: msg },
-            { source: 'plan', severity: 'low', scope: 'session', phase: name },
-          );
-          getLogger().debug(`[PlanRuntime] Failed to append note: ${msg}`);
-          return false;
-        }
-      };
-
-      try {
-        this.ctxRef.current = ctx;
-        const signal = (ctx as any)?.options?.signal as AbortSignal | undefined;
-        const strategy = (ctx as any)?.workspace?.strategy ?? (ctx as any)?.options?.strategy;
-        if (signal?.aborted && strategy === 'worktree') {
-          throw new Error('Operation cancelled by user');
-        }
-        setAuditContext({ phase: name });
-        if (emit && isPhase(name)) {
-          emit({ type: 'phase.start', phase: name, timestamp: new Date() });
-          phaseStarted = true;
-          const ok = await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
-          if (planRuntime && ok !== undefined) {
-            emit({
-              type: 'plan.runtime.journal',
-              sessionId: planRuntime.sessionId,
-              phase: name,
-              kind: 'start',
-              attempt,
-              ok,
-              timestamp: new Date(),
-            });
-          }
-        }
-        result = await action(ctx);
-        this.ctxRef.current = result;
-
-        // APPLY_BACK failure is represented as a structured result (not an exception) to preserve context.
-        // The pipeline must still treat it as a phase failure for progress reporting and plan journaling.
-        if (
-          name === 'APPLY_BACK' &&
-          result &&
-          typeof result === 'object' &&
-          (result as any).applyBackResult &&
-          typeof (result as any).applyBackResult === 'object'
-        ) {
-          const applyBackResult = (result as any).applyBackResult as {
-            success?: boolean;
-            skipped?: boolean;
-            safeMessage?: string;
-            error?: string;
-            errorCode?: string;
-          };
-          if (applyBackResult.success === false && !applyBackResult.skipped) {
-            errorStr = applyBackResult.safeMessage || applyBackResult.error || 'Apply-back failed';
-            errorMeta = {
+    const nextPromise = this.executeStep(name, action, async () => {
+      // No recovery for plain steps — check for APPLY_BACK structured failure
+      const result = this.ctxRef.current;
+      if (
+        name === 'APPLY_BACK' &&
+        result &&
+        typeof result === 'object' &&
+        (result as any).applyBackResult &&
+        typeof (result as any).applyBackResult === 'object'
+      ) {
+        const applyBackResult = (result as any).applyBackResult as {
+          success?: boolean;
+          skipped?: boolean;
+          safeMessage?: string;
+          error?: string;
+          errorCode?: string;
+        };
+        if (applyBackResult.success === false && !applyBackResult.skipped) {
+          return {
+            errorStr: applyBackResult.safeMessage || applyBackResult.error || 'Apply-back failed',
+            errorMeta: {
               name: 'ApplyBackFailure',
               code: applyBackResult.errorCode || 'APPLY_BACK_FAILED',
-            };
-          }
+            },
+          };
         }
-        return result;
-      } catch (error) {
-        errorStr = error instanceof Error ? error.message : String(error);
-        errorMeta =
-          typeof error === 'object' && error !== null
-            ? {
-                name: (error as { name?: string }).name,
-                code: (error as { code?: string }).code,
-                llmCode: (error as { llmCode?: string }).llmCode,
-              }
-            : undefined;
-        throw error;
-      } finally {
-        if (emit && isPhase(name) && phaseStarted) {
-          emit({
-            type: 'phase.end',
-            phase: name,
-            success: !errorStr,
-            timestamp: new Date(),
-          });
-          const ok = await tryAppendPlanNote(
-            `Attempt ${attempt}: phase.end ${name} (success=${String(!errorStr)})`,
-          );
-          if (planRuntime && ok !== undefined) {
-            emit({
-              type: 'plan.runtime.journal',
-              sessionId: planRuntime.sessionId,
-              phase: name,
-              kind: 'end',
-              attempt,
-              ok,
-              timestamp: new Date(),
-            });
-          }
-        }
-        setAuditContext({ phase: undefined });
-        const end = Date.now();
-        this.traces.push({
-          name,
-          start,
-          end,
-          duration: end - start,
-          error: errorStr,
-          metadata: errorMeta,
-        });
       }
+      return null;
     });
-
     return new Pipeline(nextPromise, this.startTime, name, this.traces, this.ctxRef);
   }
 
@@ -214,167 +102,167 @@ export class Pipeline<CurrentCtx> {
     action: Step<CurrentCtx, NextCtx>,
     recovery: Step<CurrentCtx, unknown>,
   ): Pipeline<NextCtx> {
-    const nextPromise = this.promise.then(async (ctx) => {
-      const start = Date.now();
-      let phaseStarted = false;
-      let abortedBeforeAction = false;
-      let errorStr: string | undefined;
-      let errorMeta: Record<string, unknown> | undefined;
-      let result;
-      const emit = (ctx as { emit?: (event: LoopEvent) => void }).emit;
-      const isPhase = (value: string): value is ExecutionPhase =>
-        (EXECUTION_PHASES as readonly string[]).includes(value);
-      const planRuntime = (ctx as any)?.planRuntime as
-        | { sessionId: string; planPathHint: string }
-        | undefined;
-      const persistenceRoot =
-        (ctx as any)?.workspace?.baseRepoPath || (ctx as any)?.workspace?.workPath;
-      const attempt = (ctx as any)?.attempt ?? 1;
-
-      const tryAppendPlanNote = async (note: string) => {
-        if (!planRuntime || !persistenceRoot) return;
-        try {
-          await appendPlanNote({
-            persistenceRoot,
-            sessionId: planRuntime.sessionId,
-            note,
-          });
-          recordAuditEvent(
-            'plan.runtime.note.append',
-            { note, ok: true },
-            { source: 'plan', severity: 'low', scope: 'session', phase: name },
-          );
-          return true;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          recordAuditEvent(
-            'plan.runtime.note.append.failed',
-            { note, error: msg },
-            { source: 'plan', severity: 'low', scope: 'session', phase: name },
-          );
-          getLogger().debug(`[PlanRuntime] Failed to append note: ${msg}`);
-          return false;
-        }
-      };
-
+    const nextPromise = this.executeStep(name, action, async (ctx, errorStr) => {
+      const recStart = Date.now();
       try {
-        this.ctxRef.current = ctx;
-        const signal = (ctx as any)?.options?.signal as AbortSignal | undefined;
-        const strategy = (ctx as any)?.workspace?.strategy ?? (ctx as any)?.options?.strategy;
-        if (signal?.aborted && strategy === 'worktree') {
-          abortedBeforeAction = true;
-          throw new Error('Operation cancelled by user');
-        }
-        setAuditContext({ phase: name });
-        if (emit && isPhase(name)) {
-          emit({ type: 'phase.start', phase: name, timestamp: new Date() });
-          phaseStarted = true;
-          const ok = await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
-          if (planRuntime && ok !== undefined) {
-            emit({
-              type: 'plan.runtime.journal',
-              sessionId: planRuntime.sessionId,
-              phase: name,
-              kind: 'start',
-              attempt,
-              ok,
-              timestamp: new Date(),
-            });
-          }
-        }
-        result = await action(ctx);
-        this.ctxRef.current = result;
-        return result;
-      } catch (error) {
-        errorStr = error instanceof Error ? error.message : String(error);
-        errorMeta =
-          typeof error === 'object' && error !== null
-            ? {
-                name: (error as { name?: string }).name,
-                code: (error as { code?: string }).code,
-                llmCode: (error as { llmCode?: string }).llmCode,
-              }
-            : undefined;
+        await recovery(ctx);
+        this.traces.push({
+          name: `${name}:recovery`,
+          start: recStart,
+          end: Date.now(),
+          duration: Date.now() - recStart,
+          metadata: { success: true },
+        });
+      } catch (recError) {
+        const recEnd = Date.now();
+        const errorDetail = recError instanceof Error ? recError.message : String(recError);
+        this.traces.push({
+          name: `${name}:recovery`,
+          start: recStart,
+          end: recEnd,
+          duration: recEnd - recStart,
+          error: errorDetail,
+          metadata: { success: false, phase: 'RECOVERY_FAILURE' },
+        });
+        getLogger().audit(
+          'PIPELINE_RECOVERY_FAILED',
+          { step: name, originalError: errorStr, recoveryError: errorDetail },
+          { source: 'system', severity: 'high', scope: 'session' },
+        );
+      }
+      return null; // Always re-throw original error
+    });
+    return new Pipeline(nextPromise, this.startTime, name, this.traces, this.ctxRef);
+  }
 
-        if (abortedBeforeAction) {
-          throw error;
-        }
+  /**
+   * Core step execution shared by step() and stepWithRecovery().
+   * Handles: abort check, phase events, plan journaling, tracing.
+   * The onError callback runs recovery/post-processing; return non-null to inject error metadata.
+   */
+  private async executeStep<NextCtx>(
+    name: string,
+    action: Step<CurrentCtx, NextCtx>,
+    onError: (
+      ctx: CurrentCtx,
+      errorStr: string,
+    ) => Promise<{ errorStr: string; errorMeta?: Record<string, unknown> } | null>,
+  ): Promise<NextCtx> {
+    const start = Date.now();
+    let phaseStarted = false;
+    let errorStr: string | undefined;
+    let errorMeta: Record<string, unknown> | undefined;
+    let result: NextCtx | undefined;
 
-        // Trigger Recovery
-        const recStart = Date.now();
-        try {
-          await recovery(ctx);
-          this.traces.push({
-            name: `${name}:recovery`,
-            start: recStart,
-            end: Date.now(),
-            duration: Date.now() - recStart,
-            metadata: { success: true },
-          });
-        } catch (recError) {
-          const recEnd = Date.now();
-          const errorDetail = recError instanceof Error ? recError.message : String(recError);
+    const ctx = await this.promise;
+    const emit = (ctx as { emit?: (event: LoopEvent) => void }).emit;
+    const isPhase = (value: string): value is ExecutionPhase =>
+      (EXECUTION_PHASES as readonly string[]).includes(value);
+    const planRuntime = (ctx as any)?.planRuntime as
+      | { sessionId: string; planPathHint: string }
+      | undefined;
+    const persistenceRoot =
+      (ctx as any)?.workspace?.baseRepoPath || (ctx as any)?.workspace?.workPath;
+    const attempt = (ctx as any)?.attempt ?? 1;
 
-          // 1. Record recovery failure to internal traces
-          this.traces.push({
-            name: `${name}:recovery`,
-            start: recStart,
-            end: recEnd,
-            duration: recEnd - recStart,
-            error: errorDetail,
-            metadata: { success: false, phase: 'RECOVERY_FAILURE' },
-          });
+    const tryAppendPlanNote = async (note: string) => {
+      if (!planRuntime || !persistenceRoot) return;
+      try {
+        await appendPlanNote({ persistenceRoot, sessionId: planRuntime.sessionId, note });
+        recordAuditEvent(
+          'plan.runtime.note.append',
+          { note, ok: true },
+          { source: 'plan', severity: 'low', scope: 'session', phase: name },
+        );
+        return true;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        recordAuditEvent(
+          'plan.runtime.note.append.failed',
+          { note, error: msg },
+          { source: 'plan', severity: 'low', scope: 'session', phase: name },
+        );
+        getLogger().debug(`[PlanRuntime] Failed to append note: ${msg}`);
+        return false;
+      }
+    };
 
-          // 2. Force audit log to disk (persistent storage)
-          getLogger().audit(
-            'PIPELINE_RECOVERY_FAILED',
-            {
-              step: name,
-              originalError: errorStr,
-              recoveryError: errorDetail,
-            },
-            { source: 'system', severity: 'high', scope: 'session' },
-          );
-        }
-
-        throw error; // Propagate original error
-      } finally {
-        if (emit && isPhase(name) && phaseStarted) {
+    try {
+      this.ctxRef.current = ctx;
+      const signal = (ctx as any)?.options?.signal as AbortSignal | undefined;
+      const strategy = (ctx as any)?.workspace?.strategy ?? (ctx as any)?.options?.strategy;
+      if (signal?.aborted && strategy === 'worktree') {
+        throw new Error('Operation cancelled by user');
+      }
+      setAuditContext({ phase: name });
+      if (emit && isPhase(name)) {
+        emit({ type: 'phase.start', phase: name, timestamp: new Date() });
+        phaseStarted = true;
+        const ok = await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
+        if (planRuntime && ok !== undefined) {
           emit({
-            type: 'phase.end',
+            type: 'plan.runtime.journal',
+            sessionId: planRuntime.sessionId,
             phase: name,
-            success: !errorStr,
+            kind: 'start',
+            attempt,
+            ok,
             timestamp: new Date(),
           });
-          const ok = await tryAppendPlanNote(
-            `Attempt ${attempt}: phase.end ${name} (success=${String(!errorStr)})`,
-          );
-          if (planRuntime && ok !== undefined) {
-            emit({
-              type: 'plan.runtime.journal',
-              sessionId: planRuntime.sessionId,
-              phase: name,
-              kind: 'end',
-              attempt,
-              ok,
-              timestamp: new Date(),
-            });
-          }
         }
-        setAuditContext({ phase: undefined });
-        const end = Date.now();
-        this.traces.push({
-          name,
-          start,
-          end,
-          duration: end - start,
-          error: errorStr,
-          metadata: errorMeta,
-        });
       }
-    });
+      result = await action(ctx);
+      this.ctxRef.current = result;
 
-    return new Pipeline(nextPromise, this.startTime, name, this.traces, this.ctxRef);
+      // Check for structured failures (e.g., APPLY_BACK)
+      const postResult = await onError(ctx, '');
+      if (postResult) {
+        errorStr = postResult.errorStr;
+        errorMeta = postResult.errorMeta;
+      }
+
+      return result;
+    } catch (error) {
+      errorStr = error instanceof Error ? error.message : String(error);
+      errorMeta =
+        typeof error === 'object' && error !== null
+          ? {
+              name: (error as { name?: string }).name,
+              code: (error as { code?: string }).code,
+              llmCode: (error as { llmCode?: string }).llmCode,
+            }
+          : undefined;
+
+      // Run recovery/post-processing
+      const postResult = await onError(ctx, errorStr);
+      if (postResult?.errorStr) {
+        errorStr = postResult.errorStr;
+        errorMeta = postResult.errorMeta;
+      }
+
+      throw error;
+    } finally {
+      if (emit && isPhase(name) && phaseStarted) {
+        emit({ type: 'phase.end', phase: name, success: !errorStr, timestamp: new Date() });
+        const ok = await tryAppendPlanNote(
+          `Attempt ${attempt}: phase.end ${name} (success=${String(!errorStr)})`,
+        );
+        if (planRuntime && ok !== undefined) {
+          emit({
+            type: 'plan.runtime.journal',
+            sessionId: planRuntime.sessionId,
+            phase: name,
+            kind: 'end',
+            attempt,
+            ok,
+            timestamp: new Date(),
+          });
+        }
+      }
+      setAuditContext({ phase: undefined });
+      const end = Date.now();
+      this.traces.push({ name, start, end, duration: end - start, error: errorStr, metadata: errorMeta });
+    }
   }
 
   /**
