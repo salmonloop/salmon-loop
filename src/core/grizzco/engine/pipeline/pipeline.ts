@@ -1,6 +1,7 @@
 import { recordAuditEvent, setAuditContext } from '../../../observability/audit-trail.js';
 import { getLogger } from '../../../observability/logger.js';
 import { appendPlanNote } from '../../../plan/index.js';
+import { isRecord } from '../../../utils/serialize.js';
 import {
   EXECUTION_PHASES,
   type ExecutionPhase,
@@ -67,12 +68,10 @@ export class Pipeline<CurrentCtx> {
       const result = this.ctxRef.current;
       if (
         name === 'APPLY_BACK' &&
-        result &&
-        typeof result === 'object' &&
-        (result as any).applyBackResult &&
-        typeof (result as any).applyBackResult === 'object'
+        isRecord(result) &&
+        isRecord(result.applyBackResult)
       ) {
-        const applyBackResult = (result as any).applyBackResult as {
+        const applyBackResult = result.applyBackResult as {
           success?: boolean;
           skipped?: boolean;
           safeMessage?: string;
@@ -158,12 +157,15 @@ export class Pipeline<CurrentCtx> {
     const emit = (ctx as { emit?: (event: LoopEvent) => void }).emit;
     const isPhase = (value: string): value is ExecutionPhase =>
       (EXECUTION_PHASES as readonly string[]).includes(value);
-    const planRuntime = (ctx as any)?.planRuntime as
+    const ctxObj = isRecord(ctx) ? ctx : null;
+    const planRuntime = ctxObj?.planRuntime as
       | { sessionId: string; planPathHint: string }
       | undefined;
+    const workspace = isRecord(ctxObj?.workspace) ? ctxObj.workspace : null;
     const persistenceRoot =
-      (ctx as any)?.workspace?.baseRepoPath || (ctx as any)?.workspace?.workPath;
-    const attempt = (ctx as any)?.attempt ?? 1;
+      (typeof workspace?.baseRepoPath === 'string' ? workspace.baseRepoPath : undefined) ||
+      (typeof workspace?.workPath === 'string' ? workspace.workPath : undefined);
+    const attempt = (typeof ctxObj?.attempt === 'number' ? ctxObj.attempt : 1);
 
     const tryAppendPlanNote = async (note: string) => {
       if (!planRuntime || !persistenceRoot) return;
@@ -189,8 +191,9 @@ export class Pipeline<CurrentCtx> {
 
     try {
       this.ctxRef.current = ctx;
-      const signal = (ctx as any)?.options?.signal as AbortSignal | undefined;
-      const strategy = (ctx as any)?.workspace?.strategy ?? (ctx as any)?.options?.strategy;
+      const options = isRecord(ctxObj?.options) ? ctxObj.options : null;
+      const signal = options?.signal as AbortSignal | undefined;
+      const strategy = (workspace?.strategy ?? options?.strategy) as string | undefined;
       if (signal?.aborted && strategy === 'worktree') {
         throw new Error('Operation cancelled by user');
       }
