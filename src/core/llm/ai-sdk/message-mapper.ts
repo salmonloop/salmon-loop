@@ -60,11 +60,11 @@ export function extractUsageFromAiSdkResult(
 ): { promptTokens: number; completionTokens: number } | null {
   if (!isObjectRecord(result)) return null;
 
-  const usage = (result as any).usage;
+  const usage = result.usage;
   if (!isObjectRecord(usage)) return null;
 
-  const promptTokens = (usage as any).promptTokens ?? (usage as any).prompt_tokens;
-  const completionTokens = (usage as any).completionTokens ?? (usage as any).completion_tokens;
+  const promptTokens = usage.promptTokens ?? usage.prompt_tokens;
+  const completionTokens = usage.completionTokens ?? usage.completion_tokens;
 
   if (typeof promptTokens !== 'number' || typeof completionTokens !== 'number') return null;
   if (!Number.isFinite(promptTokens) || !Number.isFinite(completionTokens)) return null;
@@ -176,7 +176,7 @@ export function toAiSdkMessages(messages: LLMMessage[]): any[] {
         };
       }
 
-      const parts: any[] = [];
+      const parts: Record<string, unknown>[] = [];
       if (reasoningContent) {
         parts.push({ type: 'reasoning', text: reasoningContent });
       }
@@ -240,7 +240,7 @@ export function toAiSdkToolSet(
       const outputDesc = formatOutputSchema(spec.outputSchema);
       const description = `${spec.description}\n\nReturns: ${outputDesc}`;
 
-      const openAiDef = toolToOpenAI(spec as any);
+      const openAiDef = toolToOpenAI(spec);
       const parameters = jsonSchema((openAiDef as any).function?.parameters || {});
 
       tools[spec.name] = tool({
