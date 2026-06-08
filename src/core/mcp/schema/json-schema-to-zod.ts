@@ -2,6 +2,8 @@ import { isDeepStrictEqual } from 'node:util';
 
 import { z } from 'zod';
 
+import { isRecord } from '../../utils/serialize.js';
+
 interface JsonSchema {
   type?: string | string[];
   description?: string;
@@ -723,7 +725,7 @@ function propertyNamesToZod(jsonSchema: unknown, rootSchema: unknown): z.ZodType
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return isRecord(value);
 }
 
 function isMultipleOf(value: number, divisor: number): boolean {

@@ -3,6 +3,7 @@ import { Readable, Writable } from 'node:stream';
 import { AgentSideConnection, type Agent, type AnyMessage } from '@agentclientprotocol/sdk';
 
 import { tryGetLogger } from '../../observability/logger.js';
+import { isRecord } from '../../utils/serialize.js';
 
 const INVALID_REQUEST = {
   jsonrpc: '2.0',
@@ -16,9 +17,7 @@ const PARSE_ERROR = {
   error: { code: -32700, message: 'Parse error' },
 } as const;
 
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+const isJsonObject = isRecord;
 
 function hasOwn(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);

@@ -669,9 +669,9 @@ const normalizeA2AExtensionHeadersByVersion: RequestHandler = (req, res, next) =
   next();
 };
 
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+import { isRecord } from '../../../utils/serialize.js';
+
+const isObjectRecord = isRecord;
 
 function looksLikeTask(result: Record<string, unknown>): boolean {
   return typeof result.id === 'string' && 'status' in result;
