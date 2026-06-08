@@ -152,6 +152,7 @@ export class ContextService {
       expectedTargetSetSignature;
     if (recordedTargetSetSignature !== expectedTargetSetSignature) {
       await this.cacheStore.delete(cacheKey);
+      this.deleteUpdater(cacheKey);
       this.cacheMetrics.misses += 1;
       return {
         missReason: 'target_signature_mismatch',
@@ -161,6 +162,7 @@ export class ContextService {
     const nextSignature = await this.computeTrackedFilesSignature(repoPath, entry.trackedFiles);
     if (nextSignature !== entry.signature) {
       await this.cacheStore.delete(cacheKey);
+      this.deleteUpdater(cacheKey);
       this.cacheMetrics.misses += 1;
       return { missReason: 'signature_mismatch', targetSetSignature: expectedTargetSetSignature };
     }
@@ -244,6 +246,7 @@ export class ContextService {
     const last = this.getEntryTimestamp(entry);
     if (!last || Date.now() - last <= this.cacheTtlMs) return false;
     await this.cacheStore.delete(cacheKey);
+    this.deleteUpdater(cacheKey);
     this.cacheMetrics.evictions += 1;
     return true;
   }
@@ -281,6 +284,7 @@ export class ContextService {
       }
       if (victimKey) {
         await this.cacheStore.delete(victimKey);
+        this.deleteUpdater(victimKey);
         this.cacheMetrics.evictions += 1;
       }
     } else {
@@ -294,6 +298,7 @@ export class ContextService {
         await Promise.all(
           chunk.map(async ([key]) => {
             await this.cacheStore.delete(key);
+            this.deleteUpdater(key);
             this.cacheMetrics.evictions += 1;
           }),
         );
@@ -337,6 +342,10 @@ export class ContextService {
       this.updaters.set(key, updater);
     }
     return updater;
+  }
+
+  private deleteUpdater(key: string): void {
+    this.updaters.delete(key);
   }
 
   private logDiff(key: string, diff: ContextDiff): void {
