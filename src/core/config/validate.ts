@@ -117,13 +117,13 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
 
   const cfg: ConfigFileV1 = { version: 1 };
 
-  if ((input as any).mode !== undefined) {
-    if (!isString((input as any).mode)) {
+  if (input.mode !== undefined) {
+    if (!isString(input.mode)) {
       throw new ConfigError('CONFIG_INVALID_MODE', { expected: 'interactive|yolo' });
     }
-    const normalized = normalizePermissionMode((input as any).mode);
+    const normalized = normalizePermissionMode(input.mode);
     if (!normalized) {
-      throw new ConfigError('CONFIG_INVALID_MODE', { mode: String((input as any).mode) });
+      throw new ConfigError('CONFIG_INVALID_MODE', { mode: String(input.mode) });
     }
     cfg.mode = normalized;
   }
@@ -246,8 +246,8 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     }
   }
 
-  if ((input as any).server !== undefined) {
-    const serverRaw = (input as any).server;
+  if (input.server !== undefined) {
+    const serverRaw = input.server;
     if (!isRecord(serverRaw)) {
       throw new ConfigError('CONFIG_INVALID_SERVER', { expected: 'object' });
     }
@@ -353,8 +353,8 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     cfg.server = server;
   }
 
-  if ((input as any).ui !== undefined) {
-    const uiRaw = (input as any).ui;
+  if (input.ui !== undefined) {
+    const uiRaw = input.ui;
     if (!isRecord(uiRaw)) {
       throw new ConfigError('CONFIG_INVALID_UI', { expected: 'object' });
     }
@@ -395,8 +395,8 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     cfg.ui = ui;
   }
 
-  if ((input as any).context !== undefined) {
-    const contextRaw = (input as any).context;
+  if (input.context !== undefined) {
+    const contextRaw = input.context;
     if (!isRecord(contextRaw)) {
       throw new ConfigError('CONFIG_INVALID_CONTEXT', { expected: 'object' });
     }
@@ -567,8 +567,8 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     cfg.verify = { command: input.verify.command as any, timeoutMs: input.verify.timeoutMs as any };
   }
 
-  if ((input as any).astValidation !== undefined) {
-    const astValidationRaw = (input as any).astValidation;
+  if (input.astValidation !== undefined) {
+    const astValidationRaw = input.astValidation;
     if (!isRecord(astValidationRaw)) {
       throw new ConfigError('CONFIG_INVALID_AST_VALIDATION', { expected: 'object' });
     }
@@ -788,8 +788,8 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     }
   }
 
-  if ((input as any).security !== undefined) {
-    const securityRaw = (input as any).security;
+  if (input.security !== undefined) {
+    const securityRaw = input.security;
     if (!isRecord(securityRaw)) {
       throw new ConfigError('CONFIG_INVALID_SECURITY', { expected: 'object' });
     }
