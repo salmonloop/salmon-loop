@@ -1,4 +1,5 @@
 import { text } from '../../../locales/index.js';
+import { isRecord } from '../../utils/serialize.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { writeDebugArtifact } from '../../observability/debug-artifacts.js';
 import { buildErrorEnvelope, toSafeErrorSummary } from '../../observability/error-envelope.js';
@@ -170,7 +171,7 @@ export async function runApplyBackPhase(
           `safeTelemetry=${JSON.stringify(toSafeTelemetry(applyBackTelemetry), null, 2)}`,
           '',
           `errorType=${error instanceof Error ? error.name : typeof error}`,
-          `errorCode=${(error as any)?.code ?? (error as any)?.llmCode ?? ''}`,
+          `errorCode=${isRecord(error) ? (error.code ?? error.llmCode ?? '') : ''}`,
           `errorMessage=${error instanceof Error ? error.message : String(error)}`,
         ].join('\n'),
       });

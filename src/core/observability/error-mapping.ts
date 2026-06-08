@@ -1,4 +1,5 @@
 import { text } from '../../locales/index.js';
+import { isRecord } from '../utils/serialize.js';
 
 import { getAuditTrail, type AuditTrailEvent } from './audit-trail.js';
 import { REDACTED_ERROR_TOKEN } from './error-envelope.js';
@@ -225,7 +226,7 @@ export function mapErrorForAudit(input: ErrorDisplayInput): ErrorAuditOutput {
 }
 
 function buildLangfuseHttpFailed(details: unknown): ErrorAuditOutput | undefined {
-  const status = typeof (details as any)?.status === 'number' ? (details as any).status : undefined;
+  const status = isRecord(details) && typeof details.status === 'number' ? details.status : undefined;
   if (!status) return undefined;
   if (status === 401 || status === 403) {
     return {

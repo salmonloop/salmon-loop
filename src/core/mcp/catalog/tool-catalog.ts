@@ -4,5 +4,5 @@ export function withToolServer(
   serverName: string,
   tools: Array<Record<string, unknown>>,
 ): McpToolDescriptor[] {
-  return tools.map((tool) => ({ ...(tool as any), serverName }) as McpToolDescriptor);
+  return tools.map((tool) => ({ ...tool, serverName }) as McpToolDescriptor);
 }

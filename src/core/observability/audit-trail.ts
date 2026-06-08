@@ -115,7 +115,7 @@ export function getAuditContext(): AuditTrailMeta {
 
 export function clearAuditContext() {
   for (const key of Object.keys(auditContext)) {
-    delete (auditContext as any)[key];
+    delete (auditContext as Record<string, unknown>)[key];
   }
 }
 
