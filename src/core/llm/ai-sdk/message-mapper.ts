@@ -1,5 +1,5 @@
 import { jsonSchema, tool } from 'ai';
-import type { ToolSet } from 'ai';
+import type { ModelMessage, ToolSet } from 'ai';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
@@ -8,22 +8,22 @@ import type { ToolSpec } from '../../tools/types.js';
 import type { LLMMessage } from '../../types/llm.js';
 import { isRecord } from '../../utils/serialize.js';
 
-function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
+function formatOutputSchema(schema: z.ZodType | undefined): string {
   if (!schema) return 'any (dynamic)';
 
-  const def = schema._def as any;
-  if (def?.description) {
+  const def = schema.def as unknown as Record<string, unknown>;
+  if (typeof def?.description === 'string') {
     return def.description;
   }
 
   try {
-    const jsonSchemaObj = zodToJsonSchema(schema as any, {
+    const jsonSchemaObj = zodToJsonSchema(schema as unknown as Parameters<typeof zodToJsonSchema>[0], {
       target: 'openApi3',
       $refStrategy: 'none',
     });
 
     if (jsonSchemaObj && typeof jsonSchemaObj === 'object') {
-      const { $schema: _$schema, ...cleanSchema } = jsonSchemaObj as any;
+      const { $schema: _$schema, ...cleanSchema } = jsonSchemaObj as Record<string, unknown>;
       return JSON.stringify(cleanSchema);
     }
   } catch {
@@ -54,6 +54,25 @@ function deepCloneJson(value: unknown, fallback: unknown): unknown {
 }
 
 const isObjectRecord = isRecord;
+
+interface OpenAIToolDefinition {
+  type?: string;
+  function?: {
+    name?: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+  };
+}
+
+interface ToolCallInput {
+  toolCallId?: string;
+  id?: string;
+  toolName?: string;
+  name?: string;
+  input?: unknown;
+  args?: unknown;
+  providerMetadata?: Record<string, unknown>;
+}
 
 export function extractUsageFromAiSdkResult(
   result: unknown,
@@ -114,8 +133,10 @@ function toAiSdkToolResultOutput(value: unknown): Record<string, unknown> {
   };
 }
 
-export function toAiSdkMessages(messages: LLMMessage[]): any[] {
-  return messages.map((m) => {
+export function toAiSdkMessages(messages: LLMMessage[]): ModelMessage[] {
+  // Each branch returns a structurally valid ModelMessage; the union is too
+  // complex for TS to verify inline, so we assert the array at the end.
+  const result = messages.map((m) => {
     if (m.role === 'tool') {
       const toolCallId = m.tool_call_id || 'unknown';
       const toolName = m.name || 'unknown';
@@ -171,7 +192,7 @@ export function toAiSdkMessages(messages: LLMMessage[]): any[] {
         }
 
         return {
-          role: m.role as any,
+          role: 'assistant',
           content: content as string,
         };
       }
@@ -223,17 +244,18 @@ export function toAiSdkMessages(messages: LLMMessage[]): any[] {
     }
 
     return {
-      role: m.role as any,
+      role: m.role as 'system' | 'user',
       content: content as string,
     };
   });
+  return result as ModelMessage[];
 }
 
 export function toAiSdkToolSet(
-  openAiTools: any[] | undefined,
+  openAiTools: OpenAIToolDefinition[] | undefined,
   toolSpecs?: ToolSpec[],
 ): ToolSet | undefined {
-  const tools: Record<string, any> = {};
+  const tools: Record<string, ToolSet[string] & { outputSchema?: z.ZodTypeAny }> = {};
 
   if (Array.isArray(toolSpecs)) {
     for (const spec of toolSpecs) {
@@ -241,14 +263,15 @@ export function toAiSdkToolSet(
       const description = `${spec.description}\n\nReturns: ${outputDesc}`;
 
       const openAiDef = toolToOpenAI(spec);
-      const parameters = jsonSchema((openAiDef as any).function?.parameters || {});
+      const parameters = jsonSchema(openAiDef.function?.parameters ?? {});
 
-      tools[spec.name] = tool({
-        description,
-        parameters,
-      } as any);
-
-      (tools[spec.name] as any).outputSchema = spec.outputSchema || z.any();
+      tools[spec.name] = {
+        ...tool({
+          description,
+          inputSchema: parameters,
+        }),
+        outputSchema: spec.outputSchema ?? z.any(),
+      } as ToolSet[string] & { outputSchema?: z.ZodTypeAny };
     }
   }
 
@@ -261,19 +284,20 @@ export function toAiSdkToolSet(
       const rawDesc = typeof fn?.description === 'string' ? fn.description : '';
       const description = `${rawDesc}\n\nReturns: any (dynamic)`.trim();
 
-      tools[name] = tool({
-        description,
-        parameters: jsonSchema(fn?.parameters || { type: 'object', properties: {} }),
-      } as any);
-
-      (tools[name] as any).outputSchema = z.any();
+      tools[name] = {
+        ...tool({
+          description,
+          inputSchema: jsonSchema(fn?.parameters ?? { type: 'object', properties: {} }),
+        }),
+        outputSchema: z.any(),
+      } as ToolSet[string] & { outputSchema?: z.ZodTypeAny };
     }
   }
 
-  return Object.keys(tools).length > 0 ? (tools as ToolSet) : undefined;
+  return Object.keys(tools).length > 0 ? (tools as unknown as ToolSet) : undefined;
 }
 
-export function toOpenAiToolCalls(toolCalls: any[] | undefined): any[] | undefined {
+export function toOpenAiToolCalls(toolCalls: ToolCallInput[] | undefined): Record<string, unknown>[] | undefined {
   if (!Array.isArray(toolCalls) || toolCalls.length === 0) return undefined;
 
   const normalizeToolInput = (raw: unknown): unknown => {
