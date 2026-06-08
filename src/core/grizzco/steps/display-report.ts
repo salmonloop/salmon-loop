@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { SalmonError } from '../../types/errors.js';
+import { safeStringify } from '../../utils/serialize.js';
 import type {
   InitCtx,
   ReportableCtx,
@@ -13,13 +14,6 @@ export class ReportContextMissingError extends SalmonError {
   }
 }
 
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
 
 function removeLeadingSpaces(content: string): string {
   const lines = content.split('\n');
@@ -54,7 +48,7 @@ function normalizeSuggestions(
       }
       if (isReviewSuggestion(item)) {
         const type = typeof item.type === 'string' ? item.type : 'note';
-        const content = typeof item.content === 'string' ? item.content : safeStringify(item);
+        const content = typeof item.content === 'string' ? item.content : safeStringify(item, { indent: 2 });
         return { type, content };
       }
       return { type: 'note', content: String(item) };
@@ -67,11 +61,11 @@ function normalizeSuggestions(
 
   if (isReviewSuggestion(input)) {
     const type = typeof input.type === 'string' ? input.type : 'note';
-    const content = typeof input.content === 'string' ? input.content : safeStringify(input);
+    const content = typeof input.content === 'string' ? input.content : safeStringify(input, { indent: 2 });
     return [{ type, content }];
   }
 
-  return [{ type: 'note', content: safeStringify(input) }];
+  return [{ type: 'note', content: safeStringify(input, { indent: 2 }) }];
 }
 
 type ReportDisplayCtx = ReportableCtx & Pick<InitCtx, 'emit' | 'options'>;

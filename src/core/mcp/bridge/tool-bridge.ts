@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { LIMITS } from '../../config/limits.js';
+import { safeStringify } from '../../utils/serialize.js';
 import type {
   ConcurrencyHint,
   RiskLevel,
@@ -446,17 +447,9 @@ function summarizeMcpAuthorization(
         : { kind: 'classified', reason: input.classification.reason },
     args,
   };
-  return safeStringify(payload);
+  return safeStringify(payload, { maxLength: 1200 });
 }
 
-function safeStringify(value: unknown, maxLength = 1200): string {
-  try {
-    const raw = JSON.stringify(value);
-    return raw.length <= maxLength ? raw : `${raw.slice(0, maxLength)}...`;
-  } catch {
-    return '[Unserializable]';
-  }
-}
 
 function coerceRecord(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {

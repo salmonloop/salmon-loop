@@ -1,20 +1,9 @@
 import { Ajv, type ValidateFunction } from 'ajv';
 
+import { safeStringify } from '../utils/serialize.js';
 import type { StructuredOutputValidationResult } from './types.js';
 
 type JsonSchema = Record<string, unknown>;
-
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    try {
-      return String(value);
-    } catch {
-      return '[Unserializable]';
-    }
-  }
-}
 
 function toSchemaKey(schema: unknown): string {
   if (!schema || typeof schema !== 'object') return `non_object:${typeof schema}`;
