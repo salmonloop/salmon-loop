@@ -1,6 +1,8 @@
+import { Phase } from '../../types/runtime.js';
 import { isRecoverableToolInputErrorCode } from '../recoverable-tool-errors.js';
 import { ToolRouter } from '../router.js';
 import { ToolResult, ToolRuntimeCtx, ToolSpec } from '../types.js';
+import { isRecord } from '../../utils/serialize.js';
 
 import { IsolationManager } from './isolation.js';
 import {
@@ -26,8 +28,7 @@ export class ParallelScheduler {
 
   private tryResolveSpec(node: { toolName: string; spec?: ToolSpec }): ToolSpec | undefined {
     if (node.spec) return node.spec;
-    const router: any = this.router as any;
-    const spec = typeof router.getSpec === 'function' ? router.getSpec(node.toolName) : undefined;
+    const spec = this.router.getSpec?.(node.toolName);
     if (!spec) return undefined;
     node.spec = spec;
     return spec;
@@ -53,9 +54,7 @@ export class ParallelScheduler {
     }
 
     const errorCode =
-      typeof error === 'object' && error !== null && 'code' in error
-        ? (error as any).code
-        : undefined;
+      isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
     return isRecoverableToolInputErrorCode(errorCode);
   }
 
@@ -178,7 +177,7 @@ export class ParallelScheduler {
         const spec = this.tryResolveSpec(node);
         if (!spec) {
           const phase =
-            typeof (baseCtx as any).phase === 'string' ? (baseCtx as any).phase : undefined;
+            isRecord(baseCtx) && typeof baseCtx.phase === 'string' ? baseCtx.phase : undefined;
           const toolResult: ToolResult = {
             id: nodeId,
             toolName: node.toolName,
@@ -226,16 +225,14 @@ export class ParallelScheduler {
         const normalizedArgs = this.normalizeArgsForSpec(spec, resolvedArgs);
 
         // 1.5 Deferred authorization preflight (avoid holding locks while waiting for user)
-        const preflight =
-          typeof (this.router as any).preflightDeferredAuthorization === 'function'
-            ? await (this.router as any).preflightDeferredAuthorization({
-                id: nodeId,
-                phase: (baseCtx as any).phase || 'execute',
-                toolName: node.toolName,
-                args: normalizedArgs,
-                ctx: baseCtx,
-              })
-            : null;
+        const phase = isRecord(baseCtx) && typeof baseCtx.phase === 'string' ? baseCtx.phase : Phase.EXPLORE;
+        const preflight = await this.router.preflightDeferredAuthorization?.({
+              id: nodeId,
+              phase,
+              toolName: node.toolName,
+              args: normalizedArgs,
+              ctx: baseCtx,
+            }) ?? null;
         if (preflight?.kind === 'pending') {
           nodeStates.set(nodeId, 'BLOCKED_APPROVAL');
           const approval: ApprovalRequest = {
@@ -297,7 +294,7 @@ export class ParallelScheduler {
           const runStart = Date.now();
           const result = await this.router.call({
             id: nodeId,
-            phase: (baseCtx as any).phase || 'execute',
+            phase,
             toolName: node.toolName,
             args: normalizedArgs,
             ctx: isolatedEnv
@@ -322,7 +319,7 @@ export class ParallelScheduler {
               toolName: node.toolName,
               riskLevel: spec.riskLevel,
               message: result.error.message || 'Approval required',
-              confirmToken: (result.error as any).confirmToken,
+              confirmToken: isRecord(result.error) ? (result.error as Record<string, unknown>).confirmToken as string | undefined : undefined,
             };
             nodeResults[nodeId] = {
               status: 'BLOCKED_APPROVAL',
@@ -351,20 +348,20 @@ export class ParallelScheduler {
         nodeStates.set(nodeId, 'FAILED');
         const error =
           e instanceof Error
-            ? { code: 'EXECUTION_ERROR', message: e.message, stack: e.stack }
-            : { code: 'EXECUTION_ERROR', message: String(e) };
+            ? { code: 'EXECUTION_ERROR', message: e.message, retryable: false as const }
+            : { code: 'EXECUTION_ERROR', message: String(e), retryable: false as const };
 
         const toolResult: ToolResult = {
           id: nodeId,
           toolName: node.toolName,
           source: 'builtin',
           status: 'error',
-          error: error as any,
+          error,
         };
 
         nodeResults[nodeId] = {
           status: 'FAILED',
-          error: error as any,
+          error,
           toolResult,
           timing: { lockWaitMs: 0, runMs: 0 },
         };
