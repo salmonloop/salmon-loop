@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+import { createMockToolRuntimeCtx } from '../../helpers/sub-agent-fixtures.js';
 
 const executeMock = mock(async (request: any) => ({
   agent_ref: request.agent_ref ?? 'surgeon',
@@ -113,12 +114,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
           },
         },
       },
-      {
-        repoRoot: '/repo',
-        attemptId: 1,
-        dryRun: false,
-        contextSnapshot: runtimeSnapshot,
-      } as any,
+      createMockToolRuntimeCtx({ contextSnapshot: runtimeSnapshot }),
     );
 
     expect(executeMock).toHaveBeenCalledTimes(1);
@@ -156,14 +152,11 @@ describe('sub-agent task-spawn context snapshot injection', () => {
           conversationContext: [{ role: 'user', content: 'from request' }],
         },
       },
-      {
-        repoRoot: '/repo',
-        attemptId: 1,
-        dryRun: false,
+      createMockToolRuntimeCtx({
         contextSnapshot: {
           conversationContext: [{ role: 'assistant', content: 'from runtime' }],
         },
-      } as any,
+      }),
     );
 
     expect(executeMock).toHaveBeenCalledTimes(1);
@@ -181,11 +174,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
         agent_ref: 'surgeon',
         task: 'diagnose failing tests and propose a fix',
       },
-      {
-        repoRoot: '/repo',
-        attemptId: 1,
-        dryRun: false,
-      } as any,
+      createMockToolRuntimeCtx(),
     );
 
     expect(executeMock).toHaveBeenCalledTimes(1);
@@ -231,10 +220,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
           },
         },
       },
-      {
-        repoRoot: '/repo',
-        attemptId: 1,
-        dryRun: false,
+      createMockToolRuntimeCtx({
         phase: 'PLAN',
         contextSnapshot: {
           conversationContext: [{ role: 'assistant', content: 'from runtime' }],
@@ -245,7 +231,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
             systemPrefixDigest: 'prefix-runtime',
           },
         },
-      } as any,
+      }),
     );
 
     const forwarded = executeMock.mock.calls[0]?.[0];

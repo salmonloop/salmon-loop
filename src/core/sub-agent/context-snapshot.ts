@@ -61,7 +61,13 @@ function cloneToolCallingAudit(
   entries: ToolCallingAuditEntry[] | undefined,
 ): ToolCallingAuditEntry[] | undefined {
   if (!Array.isArray(entries) || entries.length === 0) return undefined;
-  return entries.map((entry) => ({ ...entry }));
+  return entries.map((entry) => ({
+    ...entry,
+    toolResultPatchArtifact: cloneArtifactHandle(entry.toolResultPatchArtifact),
+    toolResultAuditArtifact: cloneArtifactHandle(entry.toolResultAuditArtifact),
+    toolResultReadArtifact: cloneArtifactHandle(entry.toolResultReadArtifact),
+    toolResultPreviewArtifact: cloneArtifactHandle(entry.toolResultPreviewArtifact),
+  }));
 }
 
 function cloneArtifactHints(
