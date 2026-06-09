@@ -125,7 +125,7 @@ export class ToolRouter {
         const message = hint
           ? `${inputCheck.message} (${hint})`
           : inputCheck.message || 'Invalid input';
-        throw { code: 'INVALID_INPUT', message };
+        throw Object.assign(new Error(message), { code: 'INVALID_INPUT' });
       }
       const normalizedArgs = inputCheck.value ?? envelope.args;
       const normalizedEnvelope =
@@ -245,7 +245,7 @@ export class ToolRouter {
       // 5. Output Validation & Sanitize: Result validation and sensitive summary
       const sanitized = this.sanitizer.sanitizeOutput(spec, rawOutput);
       if (!sanitized.ok) {
-        throw { code: 'INVALID_OUTPUT', message: sanitized.message };
+        throw Object.assign(new Error(sanitized.message), { code: 'INVALID_OUTPUT' });
       }
 
       // 6. Return Standard Result (ok)

@@ -37,10 +37,8 @@ function toolDescriptionForModel(spec: ToolSpec): string {
   return `${spec.description}${formatToolExamplesForDescription(spec)}`;
 }
 
-const unwrapForSchemaGeneration = unwrapZodSchema;
-
 function zodToOpenApi3(schema: z.ZodTypeAny): JsonSchema {
-  const unwrapped = unwrapForSchemaGeneration(schema);
+  const unwrapped = unwrapZodSchema(schema);
   const description = unwrapped.description;
 
   if (unwrapped instanceof z.ZodObject) {

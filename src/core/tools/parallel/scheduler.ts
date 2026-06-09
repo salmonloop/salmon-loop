@@ -45,6 +45,7 @@ export class ParallelScheduler {
     args: unknown,
     error: unknown,
   ): boolean {
+    if (!spec.inputSchema || typeof spec.inputSchema.safeParse !== 'function') return false;
     const parsed = spec.inputSchema.safeParse(args);
     if (parsed.success) return false;
 
