@@ -1,3 +1,4 @@
+import type { ResolvedLlmProvider } from '../../../core/config/types/resolved.js';
 import {
   createPhaseRoutingLlm,
   createRuntimeLlm,
@@ -7,7 +8,6 @@ import {
   type ExecutionPhase,
   type LlmFactoryWarningCode,
 } from '../../../core/facades/cli-run-runtime-llm.js';
-import type { ResolvedLlmProvider } from '../../../core/config/types/resolved.js';
 import type { HeadlessWarning } from '../../headless/protocol-metadata.js';
 import { text } from '../../locales/index.js';
 

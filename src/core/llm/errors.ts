@@ -1,6 +1,6 @@
 import { SalmonError } from '../types/errors.js';
-import { isRecord } from '../utils/serialize.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
+import { isRecord } from '../utils/serialize.js';
 
 export type LlmErrorCode =
   | 'LLM_AUTHENTICATION_FAILED'

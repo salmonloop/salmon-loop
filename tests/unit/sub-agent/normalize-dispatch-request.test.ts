@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
 import { normalizeDispatchRequest } from '../../../src/core/sub-agent/tools/task-spawn.js';
 import type { SubAgentRequest } from '../../../src/core/sub-agent/types.js';
-import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
 import { createMockToolRuntimeCtx } from '../../helpers/sub-agent-fixtures.js';
 
 function makeRequest(overrides?: Partial<SubAgentRequest>): SubAgentRequest {

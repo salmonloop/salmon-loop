@@ -2,13 +2,13 @@ import { getModelRecommendedBudget } from '../../context/token/adaptive-budget.j
 import { LlmError } from '../../llm/errors.js';
 import { getLogger } from '../../observability/logger.js';
 import type { LLM } from '../../types/index.js';
+import { isRecord } from '../../utils/serialize.js';
 import type { ChatSessionManager } from '../manager.js';
 import { refreshSessionSummary } from '../summary-sync.js';
 import { TokenTracker } from '../token-tracker.js';
 
 import { isCircuitBreakerTripped, onCompactionFailure, onCompactionSuccess } from './tracking.js';
 import type { CompactionTracking, CompactionResult, AutocompactConfig } from './types.js';
-import { isRecord } from '../../utils/serialize.js';
 import { DEFAULT_AUTOCOMPACT_CONFIG } from './types.js';
 
 function isContextOverflowLike(error: unknown): boolean {

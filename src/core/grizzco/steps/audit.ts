@@ -4,17 +4,17 @@ import path from 'path';
 import * as fs from '../../adapters/fs/node-fs.js';
 import { LIMITS } from '../../config/limits.js';
 import { truncateOutput } from '../../context/truncation/index.js';
+import type { ToolCallingAuditEntry } from '../../llm/audit.js';
 import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail.js';
 import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import { getLogger } from '../../observability/logger.js';
-import { errorMessage } from '../../utils/error.js';
-import { isRecord } from '../../utils/serialize.js';
 import { getAuditDir } from '../../runtime/paths.js';
 import { SalmonError } from '../../types/errors.js';
 import type { LoopOptions } from '../../types/runtime.js';
+import { errorMessage } from '../../utils/error.js';
+import { isRecord } from '../../utils/serialize.js';
 import { FlowReport } from '../engine/pipeline/pipeline.js';
 import type { ShrinkCtx } from '../engine/pipeline/types.js';
-import type { ToolCallingAuditEntry } from '../../llm/audit.js';
 
 type AuditContext = Partial<ShrinkCtx>;
 

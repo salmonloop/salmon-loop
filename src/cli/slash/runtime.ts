@@ -14,11 +14,11 @@ import {
   SlashHandlerProvider,
   type ToolAuthorizationProvider,
 } from '../../core/facades/cli-slash-runtime.js';
+import type { LoopEvent, LoopOptions } from '../../core/types/loop.js';
 import { formatHelpRows } from '../commands/help-format.js';
 import { suggestSubcommands } from '../commands/subcommand-suggestions.js';
 import type { Command, CommandContext } from '../commands/types.js';
 import { text } from '../locales/index.js';
-import type { LoopEvent, LoopOptions } from '../../core/types/loop.js';
 
 function isSafeSkillId(id: string): boolean {
   return /^[a-z0-9][a-z0-9-_]*$/i.test(id);

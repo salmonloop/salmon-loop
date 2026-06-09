@@ -19,9 +19,9 @@ import {
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { getLogger } from '../../observability/logger.js';
-import { errorMessage } from '../../utils/error.js';
 import { getMonitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types/index.js';
+import { errorMessage } from '../../utils/error.js';
 import { isCanonicalPathWithinDirectory } from '../../utils/path.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { detectDependencyPaths } from '../layers/shadow-driver/strategy.js';

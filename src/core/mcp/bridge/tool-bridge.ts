@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 import { LIMITS } from '../../config/limits.js';
-import { safeStringify } from '../../utils/serialize.js';
 import type {
   ConcurrencyHint,
   RiskLevel,
@@ -10,6 +9,7 @@ import type {
   ToolSpec,
 } from '../../tools/types.js';
 import { Phase, type ExecutionPhase } from '../../types/runtime.js';
+import { safeStringify } from '../../utils/serialize.js';
 import type { McpConnectionManager } from '../client/connection-manager.js';
 import type { McpPolicyEngine } from '../policy/approval-policy.js';
 import { classifyMcpTool } from '../policy/classifier.js';

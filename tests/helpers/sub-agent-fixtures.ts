@@ -4,6 +4,7 @@
  */
 import { mock } from 'bun:test';
 
+import { createTaskEventBus } from '../../src/core/interaction/events/bus.js';
 import type { SubAgentControllerPort } from '../../src/core/sub-agent/controller.js';
 import type {
   SubAgentManagerDeps,
@@ -11,7 +12,6 @@ import type {
 } from '../../src/core/sub-agent/core/manager.js';
 import type { SubAgentProfile, SubAgentContextSnapshot } from '../../src/core/sub-agent/types.js';
 import type { ToolRuntimeCtx } from '../../src/core/tools/types.js';
-import { createTaskEventBus } from '../../src/core/interaction/events/bus.js';
 
 // ─── ToolRuntimeCtx ───────────────────────────────────────────────
 

@@ -1,8 +1,8 @@
 import { Phase } from '../../types/runtime.js';
+import { isRecord } from '../../utils/serialize.js';
 import { isRecoverableToolInputErrorCode } from '../recoverable-tool-errors.js';
 import { ToolRouter } from '../router.js';
 import { ToolResult, ToolRuntimeCtx, ToolSpec } from '../types.js';
-import { isRecord } from '../../utils/serialize.js';
 
 import { IsolationManager } from './isolation.js';
 import {

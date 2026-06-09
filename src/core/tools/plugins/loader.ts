@@ -4,9 +4,9 @@ import { pathToFileURL } from 'node:url';
 import { syncFs as fs } from '../../adapters/fs/node-fs.js';
 import type { ResolvedToolPlugin } from '../../extensions/types.js';
 import { getLogger } from '../../observability/logger.js';
-import { errorMessage } from '../../utils/error.js';
 import { Phase } from '../../types/runtime.js';
 import type { ExecutionPhase } from '../../types/runtime.js';
+import { errorMessage } from '../../utils/error.js';
 import { ToolRegistry } from '../registry.js';
 import type { ToolSpec } from '../types.js';
 

@@ -1,6 +1,7 @@
 import { Ajv, type ValidateFunction } from 'ajv';
 
 import { safeStringify } from '../utils/serialize.js';
+
 import type { StructuredOutputValidationResult } from './types.js';
 
 type JsonSchema = Record<string, unknown>;

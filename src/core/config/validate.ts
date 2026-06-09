@@ -1,5 +1,5 @@
-import type { ConfigFileV1 } from './types.js';
 import { configFileV1Schema, zodIssueToConfigError } from './schema.js';
+import type { ConfigFileV1 } from './types.js';
 
 /**
  * Validate and normalize a raw config file object against the ConfigFileV1 schema.

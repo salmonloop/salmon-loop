@@ -2,10 +2,10 @@ import * as crypto from 'crypto';
 
 import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
 import { tryGetLogger } from '../../observability/logger.js';
-import { isRecord } from '../../utils/serialize.js';
 import type { ToolRouter } from '../../tools/router.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { Phase, type ExecutionPhase } from '../../types/index.js';
+import { isRecord } from '../../utils/serialize.js';
 import { emitSkillAuditEvent, generateSkillTraceId, hashSkillArgs } from '../audit.js';
 import { SkillParser } from '../parser.js';
 import { SkillStrategyDSL, type SkillDslContext } from '../strategy.js';

@@ -8,8 +8,8 @@ import { text } from '../../../locales/index.js';
 import { AtomicFileWriter } from '../../adapters/fs/atomic-file-writer.js';
 import { mkdir, readFile, readdir, stat } from '../../adapters/fs/node-fs.js';
 import { Phase } from '../../types/runtime.js';
-import { isRecord } from '../../utils/serialize.js';
 import { normalizeRepoRelativePath } from '../../utils/path.js';
+import { isRecord } from '../../utils/serialize.js';
 import { pathPrefixResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 

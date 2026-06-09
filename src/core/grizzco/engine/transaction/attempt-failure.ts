@@ -3,7 +3,6 @@ import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
 import { mapErrorForDisplay } from '../../../observability/error-mapping.js';
 import { resolveExecutionProfile } from '../../../runtime/execution-profile.js';
-import { isRecord } from '../../../utils/serialize.js';
 import { isRecoverableToolInputErrorCode } from '../../../tools/recoverable-tool-errors.js';
 import { EXECUTION_PHASES } from '../../../types/runtime.js';
 import type {
@@ -12,6 +11,7 @@ import type {
   LoopInputRequired,
   LoopReasonCode,
 } from '../../../types/runtime.js';
+import { isRecord } from '../../../utils/serialize.js';
 import { classifyError, isRetryable } from '../../../verification/runner.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { AutopilotCtx, ShrinkCtx } from '../pipeline/types.js';

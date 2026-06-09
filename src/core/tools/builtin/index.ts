@@ -1,8 +1,8 @@
 import { agentAwaitTaskSpec } from '../../sub-agent/tools/task-await.js';
 import { subAgentTaskSpec } from '../../sub-agent/tools/task-spawn.js';
 import { agentTeamSpec } from '../../sub-agent/tools/team.js';
-import { defineTool } from '../types.js';
 import { ToolRegistry } from '../registry.js';
+import { defineTool } from '../types.js';
 
 import { artifactReadSpec, executeArtifactRead } from './artifact.js';
 import { astGrepSpec, executeAstGrep } from './ast-grep.js';

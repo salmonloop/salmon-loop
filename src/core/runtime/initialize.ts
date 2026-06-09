@@ -1,6 +1,5 @@
 import { readFileSync } from '../adapters/fs/node-fs.js';
 import { initializeDefaultCalculator } from '../context/policies/pack-until-full.js';
-import { isRecord } from '../utils/serialize.js';
 import { getRepoAgentsConfigPath, getUserAgentsConfigPath } from '../extensions/paths.js';
 import { AgentsConfigSchema } from '../extensions/schemas.js';
 import type { RawAgentsConfig } from '../extensions/types.js';
@@ -13,6 +12,7 @@ import {
   tryGetSubAgentRegistry,
 } from '../sub-agent/registry.js';
 import type { SubAgentProfile } from '../sub-agent/types.js';
+import { isRecord } from '../utils/serialize.js';
 
 /**
  * Initializes the Core safety runtime.

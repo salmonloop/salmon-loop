@@ -1,9 +1,9 @@
 import { LIMITS } from '../../../config/limits.js';
 import { getLogger } from '../../../observability/logger.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';
+import { isRecord } from '../../../utils/serialize.js';
 import { runWithFallback } from '../../capability/executor.js';
 import { CapabilityCtx } from '../../capability/types.js';
-import { isRecord } from '../../../utils/serialize.js';
 import { ToolRuntimeCtx, ExecutionPhase } from '../../types.js';
 
 import { psBackend } from './backends/powershell.js';

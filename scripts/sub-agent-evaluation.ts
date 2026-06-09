@@ -11,12 +11,13 @@
  *   npx tsx scripts/sub-agent-evaluation.ts [--mode=stub|real] [--filter=tag] [--verbose]
  */
 
+import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
-import { spawn } from 'child_process';
 
+import { ToolCallingStubLLM, type StubTurn } from '../src/core/llm/tool-calling-stub.js';
 import { clearLogger, createLogger, setLogger } from '../src/core/observability/logger.js';
 import { clearMonitor, createMonitor, setMonitor } from '../src/core/observability/monitor.js';
 import {
@@ -29,18 +30,17 @@ import {
   createPromptRegistry,
   setPromptRegistry,
 } from '../src/core/prompts/registry.js';
+import { runSalmonLoop } from '../src/core/runtime/loop.js';
+import { createSubAgentController } from '../src/core/sub-agent/controller.js';
+import type { SubAgentControllerPort } from '../src/core/sub-agent/controller.js';
 import { registerDefaultSubAgentProfiles } from '../src/core/sub-agent/registry-defaults.js';
 import {
   clearSubAgentRegistry,
   createSubAgentRegistry,
   setSubAgentRegistry,
 } from '../src/core/sub-agent/registry.js';
-import { createSubAgentController } from '../src/core/sub-agent/controller.js';
-import type { SubAgentControllerPort } from '../src/core/sub-agent/controller.js';
-import { ToolCallingStubLLM, type StubTurn } from '../src/core/llm/tool-calling-stub.js';
-import { runSalmonLoop } from '../src/core/runtime/loop.js';
-import type { LoopResult } from '../src/core/types/loop.js';
 import type { LLM } from '../src/core/types/llm.js';
+import type { LoopResult } from '../src/core/types/loop.js';
 
 // ─── Types ───
 

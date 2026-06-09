@@ -1,13 +1,13 @@
 import { recordAuditEvent, setAuditContext } from '../../../observability/audit-trail.js';
 import { getLogger } from '../../../observability/logger.js';
 import { appendPlanNote } from '../../../plan/index.js';
-import { isRecord } from '../../../utils/serialize.js';
 import {
   EXECUTION_PHASES,
   type ExecutionPhase,
   type LoopEvent,
   type FlowMode,
 } from '../../../types/runtime.js';
+import { isRecord } from '../../../utils/serialize.js';
 
 /**
  * Pipeline Step Definition

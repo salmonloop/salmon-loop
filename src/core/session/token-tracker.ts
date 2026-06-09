@@ -3,8 +3,8 @@ import path from 'path';
 import { FileAdapter } from '../adapters/fs/index.js';
 import { logIgnoredError } from '../observability/ignored-error.js';
 import type { LoopResult } from '../types/index.js';
-import { isRecord } from '../utils/serialize.js';
 import type { TokenUsage } from '../types/usage.js';
+import { isRecord } from '../utils/serialize.js';
 
 import type { ChatSession } from './types.js';
 

@@ -19,6 +19,7 @@ import {
   type CheckpointStrategy,
   type LoopResult,
 } from '../../../core/facades/cli-run-handler.js';
+import { createSubAgentLlmFactory } from '../../../core/llm/sub-agent-factory.js';
 import type { HeadlessWarning } from '../../headless/protocol-metadata.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
@@ -42,7 +43,6 @@ import { parseRunCommandOptions } from './parse-options.js';
 import { persistRunSession } from './persist-session.js';
 import { PreflightPolicy, runPreflight } from './preflight.js';
 import { createRunReporter } from './reporter-factory.js';
-import { createSubAgentLlmFactory } from '../../../core/llm/sub-agent-factory.js';
 import { createRuntimeLlmAndWarn } from './runtime-llm.js';
 import { resolveRunRuntimeOptions } from './runtime-options.js';
 import { initializeSession } from './session.js';

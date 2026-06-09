@@ -1,8 +1,6 @@
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { isRecord } from '../../utils/serialize.js';
-import type { AuditEntry } from '../validation/ContextValidator.js';
 import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
@@ -12,9 +10,11 @@ import { type RelatedFileContext } from '../../types/context.js';
 import { SalmonError } from '../../types/errors.js';
 import { Phase } from '../../types/runtime.js';
 import { ensureInSandbox, isSafeRelativePath, normalizePath } from '../../utils/path.js';
+import { isRecord } from '../../utils/serialize.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, ExploreCtx } from '../engine/pipeline/types.js';
+import type { AuditEntry } from '../validation/ContextValidator.js';
 import { ContextValidator } from '../validation/ContextValidator.js';
 
 import { buildPhaseRequestEnvelope } from './request-assembly.js';

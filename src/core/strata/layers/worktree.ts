@@ -3,13 +3,13 @@ import { tmpdir } from 'os';
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { isRecord } from '../../utils/serialize.js';
 import { access, readdir, realpath, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { getLogger } from '../../observability/logger.js';
 import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';
 import { errorMessage } from '../../utils/error.js';
 import { isPathWithinDirectory, normalizePath } from '../../utils/path.js';
+import { isRecord } from '../../utils/serialize.js';
 
 import { detectDependencyPaths } from './shadow-driver/strategy.js';
 

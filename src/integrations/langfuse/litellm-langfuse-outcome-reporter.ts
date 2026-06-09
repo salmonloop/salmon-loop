@@ -1,12 +1,12 @@
 import { readFile } from '../../core/adapters/fs/node-fs.js';
 import { recordAuditEvent } from '../../core/observability/audit-trail.js';
 import { getLogger } from '../../core/observability/logger.js';
-import { isRecord } from '../../core/utils/serialize.js';
 import type {
   RunOutcomeContext,
   RunOutcomeReport,
   RunOutcomeReporter,
 } from '../../core/observability/run-outcome-reporter.js';
+import { isRecord } from '../../core/utils/serialize.js';
 import { text } from '../../locales/index.js';
 
 type LangfuseIngestionEvent =

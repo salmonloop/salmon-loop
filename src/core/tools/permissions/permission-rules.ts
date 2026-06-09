@@ -1,8 +1,8 @@
 import { text } from '../../../locales/index.js';
 import { normalizeDiff, validateDiff } from '../../patch/diff.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
-import { isRecord } from '../../utils/serialize.js';
 import { normalizeRepoRelativePath } from '../../utils/path.js';
+import { isRecord } from '../../utils/serialize.js';
 import type { ToolRuntimeCtx } from '../types.js';
 
 export type PermissionRuleAliasTool =

@@ -1,13 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { randomUUID } from 'crypto';
+
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { AstParser } from '../../src/core/ast/parser.js';
 import { ToolCallingStubLLM, type StubTurn } from '../../src/core/llm/tool-calling-stub.js';
+import { clearLogger, createLogger, setLogger } from '../../src/core/observability/logger.js';
+import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { createSubAgentController } from '../../src/core/sub-agent/controller.js';
 import type { SubAgentControllerPort } from '../../src/core/sub-agent/controller.js';
-import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import type { LLM } from '../../src/core/types/llm.js';
-import { clearLogger, createLogger, setLogger } from '../../src/core/observability/logger.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 function buildValidDiff(profile: string): string {

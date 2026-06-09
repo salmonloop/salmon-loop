@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { isRecord } from '../../utils/serialize.js';
 
 import type {
   SlashCommandSpec,
@@ -8,6 +7,7 @@ import type {
   SlashHandlerRequest,
   SlashHandlerResult,
 } from '../../slash/types.js';
+import { isRecord } from '../../utils/serialize.js';
 import type { McpConnectionManager } from '../client/connection-manager.js';
 import { jsonSchemaToZod } from '../schema/json-schema-to-zod.js';
 import type { McpPromptDescriptor as CatalogMcpPromptDescriptor } from '../types.js';

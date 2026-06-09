@@ -14,7 +14,6 @@ import {
   type ToolCallContent,
 } from '@agentclientprotocol/sdk';
 
-import { isRecord } from '../../utils/serialize.js';
 
 import { text } from '../../../locales/index.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
@@ -30,6 +29,7 @@ import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
 import { Phase, type FlowMode } from '../../types/runtime.js';
+import { isRecord } from '../../utils/serialize.js';
 import { buildCanonicalExecutionRequest } from '../shared/execution-request.js';
 import { parseAcpFlowMode } from '../shared/flow-mode-mapping.js';
 
