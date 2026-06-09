@@ -1021,7 +1021,7 @@ export async function chatWithTools(
     });
 
     const toolCalls = assistant.tool_calls || [];
-    if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+    if (toolCalls.length === 0) {
       if (session.llmOutput) {
         emitLlmOutput({
           emit: session.emit,
@@ -1873,7 +1873,7 @@ export async function chatWithToolsStreaming(
         messages.push(assistant);
 
         const calls = assistant.tool_calls || [];
-        if (!Array.isArray(calls) || calls.length === 0) {
+        if (calls.length === 0) {
           if (session.llmOutput) {
             emitLlmStreamEnd({
               emit: session.emit,

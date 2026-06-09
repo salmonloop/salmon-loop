@@ -28,6 +28,15 @@ export interface PersistedPlanState {
   updatedAt: string;
 }
 
+function isPersistedPlanState(value: unknown): value is PersistedPlanState {
+  return (
+    isRecord(value) &&
+    isRecord(value.plan) &&
+    isRecord(value.result) &&
+    typeof value.updatedAt === 'string'
+  );
+}
+
 /**
  * Persistence layer for parallel execution plans.
  * Supports saving, loading, and listing plans from the .salmonloop/parallel directory.
@@ -78,7 +87,9 @@ export class PlanPersistence {
     const filePath = path.join(this.getPersistenceDir(repoRoot), `${planId}.json`);
     try {
       const content = await fs.readFile(filePath, 'utf8');
-      return JSON.parse(content) as PersistedPlanState;
+      const parsed: unknown = JSON.parse(content);
+      if (!isPersistedPlanState(parsed)) return null;
+      return parsed;
     } catch (_error) {
       if (isRecord(_error) && _error.code === 'ENOENT') {
         return null;
@@ -101,7 +112,8 @@ export class PlanPersistence {
       for (const file of jsonFiles) {
         try {
           const content = await fs.readFile(path.join(dir, file), 'utf8');
-          states.push(JSON.parse(content));
+          const parsed: unknown = JSON.parse(content);
+          if (isPersistedPlanState(parsed)) states.push(parsed);
         } catch (_error) {
           // Skip malformed or unreadable files
           continue;
