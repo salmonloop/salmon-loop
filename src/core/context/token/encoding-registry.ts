@@ -34,14 +34,14 @@ abstract class TiktokenEncoding implements IEncoding {
   }
 
   encode(text: string): number[] {
-    this.ensureInitialized();
-    return Array.from(this.encoder!.encode(text));
+    const encoder = this.getEncoder();
+    return Array.from(encoder.encode(text));
   }
 
   decode(tokens: number[]): string {
-    this.ensureInitialized();
+    const encoder = this.getEncoder();
     const uint32Tokens = new Uint32Array(tokens);
-    const decoded = this.encoder!.decode(uint32Tokens);
+    const decoded = encoder.decode(uint32Tokens);
     return new TextDecoder().decode(decoded);
   }
 
@@ -57,10 +57,11 @@ abstract class TiktokenEncoding implements IEncoding {
     this.initialized = false;
   }
 
-  private ensureInitialized(): void {
-    if (!this.initialized || !this.encoder) {
+  private getEncoder(): Tiktoken {
+    if (!this.encoder) {
       throw new Error(`Encoding ${this.name} not initialized. Call initialize() first.`);
     }
+    return this.encoder;
   }
 }
 
