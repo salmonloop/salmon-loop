@@ -309,7 +309,10 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         );
 
         try {
-          const workspace = runtimeEnv.workspace!;
+          const workspace = runtimeEnv.workspace;
+          if (!workspace) {
+            throw new Error('Runtime environment setup succeeded but workspace was not initialized');
+          }
 
           const activePath = workspace.workPath;
 
@@ -570,7 +573,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     return {
       ...rest,
       auditPath: auditArtifact?.handle ?? rest.auditPath,
-      auditArtifact: auditArtifact ?? undefined,
+      auditArtifact: auditArtifact,
       patchArtifact: saved,
     };
   }

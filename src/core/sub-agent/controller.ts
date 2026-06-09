@@ -1,4 +1,4 @@
-import { SubAgentProfile, SubAgentStatus } from './types.js';
+import type { SubAgentProfile, SubAgentStatus } from './types.js';
 
 const LOG_HISTORY_LIMIT = 200;
 

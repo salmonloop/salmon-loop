@@ -65,7 +65,13 @@ export class SubAgentTeam {
    * Get all claims for a specific agent.
    */
   getAgentClaims(agentId: string): ClaimEntry[] {
-    return this.listClaims().filter((c) => c.claimedBy === agentId);
+    const claims: ClaimEntry[] = [];
+    for (const [taskKey, entry] of this.board) {
+      if (entry.claimedBy === agentId) {
+        claims.push({ taskKey, claimedBy: entry.claimedBy, claimedAt: entry.claimedAt });
+      }
+    }
+    return claims;
   }
 
   /**

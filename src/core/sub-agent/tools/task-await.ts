@@ -68,8 +68,12 @@ export const agentAwaitTaskSpec: ToolSpec = {
       return {
         success: false,
         agent_ref: parsed.agentId,
+        summary: error instanceof Error ? error.message : String(error),
         reason: error instanceof Error ? error.message : String(error),
         reasonCode: 'AWAIT_FAILED',
+        tokenUsage: 0,
+        attempts: 1,
+        logs: [],
       };
     }
   },

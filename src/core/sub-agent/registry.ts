@@ -1,4 +1,4 @@
-import { SubAgentProfile } from './types.js';
+import type { SubAgentProfile } from './types.js';
 
 export class SubAgentRegistry {
   private readonly profiles = new Map<string, SubAgentProfile>();

@@ -148,8 +148,12 @@ export const subAgentTaskSpec: ToolSpec = {
       return {
         success: false,
         agent_ref: request.agent_ref,
+        summary: error instanceof Error ? error.message : String(error),
         reason: error instanceof Error ? error.message : String(error),
         reasonCode: 'DISPATCH_FAILED',
+        tokenUsage: 0,
+        attempts: 1,
+        logs: [],
       };
     }
   },
