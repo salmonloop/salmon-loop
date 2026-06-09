@@ -84,9 +84,10 @@ export function resolveVisibleToolSpecs(params: {
 }): ToolSpec[] {
   if (!params.toolstack) return [];
 
-  const allowedSpecs = params.toolstack.registry.listAll().filter(
+  const { toolstack } = params;
+  const allowedSpecs = toolstack.registry.listAll().filter(
     (spec) =>
-      params.toolstack!.policy.decide(params.phase, spec, {
+      toolstack.policy.decide(params.phase, spec, {
         worktreeRoot: params.worktreeRoot,
         flowMode: params.flowMode,
       }).allowed,
