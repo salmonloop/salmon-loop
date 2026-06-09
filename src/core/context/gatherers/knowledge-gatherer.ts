@@ -61,7 +61,10 @@ export class KnowledgeGatherer {
             data.deprecated_rules.forEach((r: string) => allDeprecated.add(r));
           }
           if (data.architectural_decisions) {
-            aggregated.architectural_decisions!.push(...data.architectural_decisions);
+            if (!Array.isArray(aggregated.architectural_decisions)) {
+              aggregated.architectural_decisions = [];
+            }
+            aggregated.architectural_decisions.push(...data.architectural_decisions);
           }
           if (data.user_preferences) {
             aggregated.user_preferences = data.user_preferences;
