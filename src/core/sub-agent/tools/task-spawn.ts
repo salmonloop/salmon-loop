@@ -151,10 +151,13 @@ export const subAgentTaskSpec: ToolSpec = {
     ctx: ToolRuntimeCtx,
   ): Promise<SubAgentResult | SubAgentHandle> => {
     const parsed = SubAgentRequestSchema.parse(input) as SubAgentRequest;
-    const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController(), {
-      llmFactory: ctx.llmFactory,
-      onSubAgentComplete: ctx.onSubAgentComplete,
-    });
+    const controller = ctx.subAgentController ?? createSubAgentController();
+    const manager = ctx.subAgentManagerFactory
+      ? ctx.subAgentManagerFactory(ctx, controller)
+      : new SubAgentManager(ctx, controller, {
+          llmFactory: ctx.llmFactory,
+          onSubAgentComplete: ctx.onSubAgentComplete,
+        });
     const request = normalizeDispatchRequest(parsed, ctx);
 
     try {

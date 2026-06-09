@@ -13,28 +13,13 @@ const executeMock = mock(async (request: any) => ({
   logs: [],
 }));
 
-mock.module('../../../src/core/sub-agent/core/manager.js', () => ({
-  SubAgentManager: class {
-    constructor(_ctx: unknown, _controller: unknown) {}
-
+function createMockManagerFactory() {
+  return (_ctx: any, _controller: any) => ({
     execute(request: any) {
       return executeMock(request);
-    }
-  },
-}));
-
-mock.module('../../../src/core/sub-agent/controller.js', () => ({
-  createSubAgentController: () => ({
-    registerAgent: mock(),
-    updateStatus: mock(),
-    appendLog: mock(),
-    listAgents: mock(() => []),
-    getAgent: mock(() => undefined),
-    tailLogs: mock(() => []),
-    requestStop: mock(() => true),
-    isStopRequested: mock(() => false),
-  }),
-}));
+    },
+  });
+}
 
 describe('sub-agent task-spawn context snapshot injection', () => {
   beforeEach(() => {
@@ -115,7 +100,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
           },
         },
       },
-      createMockToolRuntimeCtx({ contextSnapshot: runtimeSnapshot }),
+      createMockToolRuntimeCtx({ contextSnapshot: runtimeSnapshot, subAgentManagerFactory: createMockManagerFactory() }),
     );
 
     expect(executeMock).toHaveBeenCalledTimes(1);
@@ -157,6 +142,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
         contextSnapshot: {
           conversationContext: [{ role: 'assistant', content: 'from runtime' }],
         },
+        subAgentManagerFactory: createMockManagerFactory(),
       }),
     );
 
@@ -175,7 +161,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
         agent_ref: 'surgeon',
         task: 'diagnose failing tests and propose a fix',
       },
-      createMockToolRuntimeCtx(),
+      createMockToolRuntimeCtx({ subAgentManagerFactory: createMockManagerFactory() }),
     );
 
     expect(executeMock).toHaveBeenCalledTimes(1);
@@ -232,6 +218,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
             systemPrefixDigest: 'prefix-runtime',
           },
         },
+        subAgentManagerFactory: createMockManagerFactory(),
       }),
     );
 

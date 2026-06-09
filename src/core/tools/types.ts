@@ -84,6 +84,14 @@ export interface ToolRuntimeCtx {
    * Used for background auto-notify.
    */
   onSubAgentComplete?: (agentId: string, result: unknown) => void;
+  /**
+   * Optional factory for creating SubAgentManager instances.
+   * Used by tests to inject mock managers without module-level mocking.
+   */
+  subAgentManagerFactory?: (
+    ctx: ToolRuntimeCtx,
+    controller: SubAgentControllerPort,
+  ) => { execute(request: any): Promise<any> };
 }
 
 export const TOOL_INTENTS = [
