@@ -69,19 +69,19 @@ export class BudgetGuard {
     const maxRiskAllowed = this.config.maxConcurrentByRisk[params.riskLevel];
 
     if (currentRiskActive >= maxRiskAllowed) {
-      throw {
-        code: 'BUDGET_CONCURRENCY',
-        message: `Too many concurrent ${params.riskLevel}-risk tool calls (limit: ${maxRiskAllowed})`,
-      };
+      throw Object.assign(
+        new Error(`Too many concurrent ${params.riskLevel}-risk tool calls (limit: ${maxRiskAllowed})`),
+        { code: 'BUDGET_CONCURRENCY' },
+      );
     }
 
     // 2. Rate Limit / Count Check per Phase
     const currentCount = this.callCounts.get(params.phase) || 0;
     if (currentCount >= this.config.maxCallsPerPhase) {
-      throw {
-        code: 'BUDGET_RATE_LIMIT',
-        message: `Too many tool calls in phase ${params.phase}`,
-      };
+      throw Object.assign(
+        new Error(`Too many tool calls in phase ${params.phase}`),
+        { code: 'BUDGET_RATE_LIMIT' },
+      );
     }
 
     this.activeCallsByRisk[params.riskLevel]++;
@@ -94,10 +94,10 @@ export class BudgetGuard {
       // 4. Output Size Check (Preliminary)
       const size = this.estimateSize(result);
       if (size > params.maxOutputBytes) {
-        throw {
-          code: 'OUTPUT_TOO_LARGE',
-          message: `Output size ${size} bytes exceeds limit of ${params.maxOutputBytes}`,
-        };
+        throw Object.assign(
+          new Error(`Output size ${size} bytes exceeds limit of ${params.maxOutputBytes}`),
+          { code: 'OUTPUT_TOO_LARGE' },
+        );
       }
 
       return result;

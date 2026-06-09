@@ -37,10 +37,15 @@ export class TokenTracker {
         ? eventsRef.path
         : path.join(path.dirname(result.auditPath), eventsRef.path);
       const eventsRaw = await this.fileAdapter.readFile(eventsPath, 'utf8');
-      const events = eventsRaw
-        .split('\n')
-        .filter((line) => line.trim().length > 0)
-        .map((line) => JSON.parse(line));
+      const events: unknown[] = [];
+      for (const line of eventsRaw.split('\n')) {
+        if (line.trim().length === 0) continue;
+        try {
+          events.push(JSON.parse(line));
+        } catch {
+          // Skip malformed lines
+        }
+      }
 
       let inputTokens = 0;
       let outputTokens = 0;
