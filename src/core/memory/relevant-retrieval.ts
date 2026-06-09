@@ -102,11 +102,12 @@ export function buildRelevantMemoryCandidates(context: Context): RelevantMemoryC
     });
   }
 
-  if (trimToUndefined(knowledge?.user_preferences)) {
+  const userPrefs = trimToUndefined(knowledge?.user_preferences);
+  if (userPrefs) {
     candidates.push({
       path: '.salmonloop/knowledge/user_preferences',
       title: 'User preferences',
-      summary: knowledge!.user_preferences!,
+      summary: userPrefs,
       tags: ['preferences', 'user'],
     });
   }
@@ -122,11 +123,12 @@ export function buildRelevantMemoryCandidates(context: Context): RelevantMemoryC
     });
   }
 
-  if (trimToUndefined(metadata?.aiInstructions)) {
+  const aiInstructions = trimToUndefined(metadata?.aiInstructions);
+  if (aiInstructions) {
     candidates.push({
       path: '.salmonloop/project/ai-instructions',
       title: 'Project AI instructions',
-      summary: metadata!.aiInstructions!,
+      summary: aiInstructions,
       tags: ['instructions', 'project'],
     });
   }
