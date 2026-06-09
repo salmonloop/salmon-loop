@@ -41,6 +41,8 @@ export type LoopReasonCode =
   | 'APPLY_BACK_FAILED'
   | 'LOOP_CRASH'
   | 'AWAITING_INPUT'
+  | 'DISPATCH_FAILED'
+  | 'AWAIT_FAILED'
   | 'SUCCESS';
 
 export type RootCauseCode =
