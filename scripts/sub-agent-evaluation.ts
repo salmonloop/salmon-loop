@@ -471,8 +471,12 @@ async function main(): Promise<void> {
   console.log(`Running ${filtered.length} evaluation tasks (mode=${mode})...\n`);
 
   const results: EvalResult[] = [];
-  for (const task of filtered) {
-    results.push(await runCase(task, verbose, realLlm));
+  for (let i = 0; i < filtered.length; i++) {
+    if (i > 0 && realLlm) {
+      // Rate limit: wait between tasks to avoid 429s
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+    results.push(await runCase(filtered[i], verbose, realLlm));
   }
 
   const report = buildReport(results);
