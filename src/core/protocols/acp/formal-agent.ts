@@ -753,12 +753,13 @@ async function awaitTerminalEvent(params: {
   };
 }): Promise<TaskEvent | null> {
   if (!params.eventBus) return null;
-  const history = params.eventBus.list(params.taskId);
+  const { eventBus } = params;
+  const history = eventBus.list(params.taskId);
   const terminal = history.find(isTerminalTaskEvent);
   if (terminal) return terminal;
 
   return await new Promise((resolve) => {
-    const unsubscribe = params.eventBus!.subscribe((event) => {
+    const unsubscribe = eventBus.subscribe((event) => {
       if (event.taskId !== params.taskId) return;
       if (!isTerminalTaskEvent(event)) return;
       unsubscribe();
