@@ -42,6 +42,7 @@ import { parseRunCommandOptions } from './parse-options.js';
 import { persistRunSession } from './persist-session.js';
 import { PreflightPolicy, runPreflight } from './preflight.js';
 import { createRunReporter } from './reporter-factory.js';
+import { createSubAgentLlmFactory } from '../../../core/llm/sub-agent-factory.js';
 import { createRuntimeLlmAndWarn } from './runtime-llm.js';
 import { resolveRunRuntimeOptions } from './runtime-options.js';
 import { initializeSession } from './session.js';
@@ -388,6 +389,8 @@ export async function handleRunCommand(options: any, command: Command) {
       headlessOutput,
     });
 
+    const llmFactory = createSubAgentLlmFactory(resolvedConfig.llm);
+
     let structuredOutputState: StructuredOutputState = { ok: true, candidate: null };
 
     const reporter = createRunReporter({
@@ -497,6 +500,7 @@ export async function handleRunCommand(options: any, command: Command) {
           ? { allow: allowedToolRules, deny: disallowedToolRules }
           : undefined,
       permissionMode,
+      llmFactory,
     });
 
     const buildAssistantMessage = (result: LoopResult) =>

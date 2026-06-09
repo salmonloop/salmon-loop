@@ -32,6 +32,18 @@ export function normalizeDispatchRequest(
           : 'diagnosis'),
   };
 
+  if (requested.session_target === 'fork') {
+    // Fork mode: inherit parent's conversation context with cache sharing
+    return {
+      ...requested,
+      contextSnapshot: {
+        ...requested.contextSnapshot,
+        conversationContext: ctx.contextSnapshot?.conversationContext,
+        cacheSharing: ctx.contextSnapshot?.cacheSharing,
+      },
+    };
+  }
+
   if (requested.session_target !== 'shared') {
     return requested;
   }
@@ -139,7 +151,10 @@ export const subAgentTaskSpec: ToolSpec = {
     ctx: ToolRuntimeCtx,
   ): Promise<SubAgentResult | SubAgentHandle> => {
     const parsed = SubAgentRequestSchema.parse(input) as SubAgentRequest;
-    const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());
+    const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController(), {
+      llmFactory: ctx.llmFactory,
+      onSubAgentComplete: ctx.onSubAgentComplete,
+    });
     const request = normalizeDispatchRequest(parsed, ctx);
 
     try {

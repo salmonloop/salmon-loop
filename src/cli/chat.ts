@@ -73,6 +73,7 @@ export interface ChatModeOptions {
    */
   langfuseSessionId?: string;
   langfuseUserId?: string;
+  llmFactory?: (modelId: string) => LLM | undefined;
 }
 
 type ChatLoopResult = Awaited<ReturnType<typeof runSalmonLoop>>;
@@ -409,6 +410,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             authorizationMode: 'deferred',
             userInputProvider,
             subAgentController,
+            llmFactory: options.llmFactory,
             permissionMode: options.permissionMode,
           }).catch(async (error) => {
             // Level 2: Reactive Compact
@@ -511,6 +513,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
               authorizationMode: 'deferred',
               userInputProvider,
               subAgentController,
+              llmFactory: options.llmFactory,
               permissionMode: options.permissionMode,
             });
           });

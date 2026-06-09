@@ -54,7 +54,9 @@ export const agentAwaitTaskSpec: ToolSpec = {
 
   executor: async (input: unknown, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
     const parsed = AgentAwaitInputSchema.parse(input);
-    const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());
+    const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController(), {
+      llmFactory: ctx.llmFactory,
+    });
 
     const handle: SubAgentHandle = {
       agentId: parsed.agentId,

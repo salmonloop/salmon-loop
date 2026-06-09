@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ToolCallingAuditEntry } from '../llm/audit.js';
 import type { ToolResultReplacementState } from '../session/replacement-state.js';
 import { LoopResult } from '../types/index.js';
-import type { LLMMessage } from '../types/llm.js';
+import type { LLM, LLMMessage } from '../types/llm.js';
 
 import type { ArtifactHandle } from './artifacts/types.js';
 
@@ -13,6 +13,12 @@ import type { ArtifactHandle } from './artifacts/types.js';
 export interface IExecutable<In, Out> {
   execute(input: In): Promise<Out>;
 }
+
+/**
+ * Factory for creating LLM instances with a specific model.
+ * Used to support per-agent model selection (e.g., 'haiku' for lightweight agents).
+ */
+export type SubAgentLlmFactory = (modelId: string) => LLM | undefined;
 
 /**
  * Sub-Agent Profile defines the capabilities and constraints of a specialized agent.
@@ -28,9 +34,11 @@ export interface SubAgentProfile {
   maxTokens?: number;
   maxAttempts?: number;
   timeoutMs?: number;
+  maxTurns?: number; // Max agentic turns (LLM round-trips) before stopping
 
   // Capability Constraints
-  allowedTools: string[]; // List of tool names
+  allowedTools: string[]; // List of tool names (allowlist)
+  disallowedTools?: string[]; // Tool names to explicitly deny (denylist, subtracted from allowedTools)
   readOnly: boolean; // If true, cannot use mutating tools even if authorized
 
   // Strategy Configuration
@@ -40,6 +48,9 @@ export interface SubAgentProfile {
   toolInheritance?: 'none' | 'safe' | 'all';
   permissionMode?: 'default' | 'plan' | 'bypassPermissions';
   systemPrompt?: string;
+
+  // Model Selection — 'inherit' or undefined uses the parent's model
+  model?: string;
 }
 
 /**
@@ -61,7 +72,7 @@ export interface SubAgentRequest {
   task: string; // The instruction/mission
   contextFiles?: string[];
   recursionDepth?: number;
-  session_target?: 'isolated' | 'shared';
+  session_target?: 'isolated' | 'shared' | 'fork';
   timeout_seconds?: number;
   contextSnapshot?: SubAgentContextSnapshot;
   expected_output?: 'diagnosis' | 'patch' | 'review';
@@ -193,9 +204,11 @@ export const SubAgentRequestSchema = z.object({
     .describe('Optional repo-relative files the sub-agent should inspect first.'),
   recursionDepth: z.number().optional().default(0),
   session_target: z
-    .enum(['isolated', 'shared'])
+    .enum(['isolated', 'shared', 'fork'])
     .default('isolated')
-    .describe('Optional runtime strategy. Omit unless shared context is explicitly needed.'),
+    .describe(
+      'Optional runtime strategy. "fork" inherits parent conversation context with cache sharing. "shared" merges context snapshots. "isolated" (default) uses a clean environment.',
+    ),
   timeout_seconds: z
     .preprocess((value) => {
       if (typeof value !== 'string') return value;

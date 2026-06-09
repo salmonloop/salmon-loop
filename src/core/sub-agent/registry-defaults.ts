@@ -14,6 +14,8 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     maxTokens: 50000,
     maxAttempts: 3,
     timeoutMs: 60_000,
+    maxTurns: 20,
+    model: 'haiku',
   },
   {
     id: 'surgeon',
@@ -27,6 +29,8 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     maxTokens: 100000,
     maxAttempts: 5,
     timeoutMs: 180_000,
+    maxTurns: 50,
+    model: 'inherit',
   },
   {
     id: 'reviewer',
@@ -40,6 +44,8 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     maxTokens: 30000,
     maxAttempts: 2,
     timeoutMs: 60_000,
+    maxTurns: 15,
+    model: 'haiku',
   },
   {
     id: 'cleaner',
@@ -53,6 +59,8 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     maxTokens: 50000,
     maxAttempts: 3,
     timeoutMs: 120_000,
+    maxTurns: 30,
+    model: 'inherit',
   },
 ];
 

@@ -39,6 +39,8 @@ export function buildPhaseToolRuntimeContext(
     agentKind: ctx.options.agentKind ?? 'primary',
     languagePlugins: ctx.options.languagePlugins,
     subAgentController: ctx.options.subAgentController,
+    llmFactory: ctx.options.llmFactory,
+    onSubAgentComplete: ctx.options.onSubAgentComplete,
     agentId: ctx.options.agentId,
     phase,
     contextSnapshot: {

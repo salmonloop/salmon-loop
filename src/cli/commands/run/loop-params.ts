@@ -43,6 +43,7 @@ export function buildRunLoopParams(params: {
   permissionRules?: { allow: string[]; deny: string[] };
   permissionMode: PermissionMode;
   languagePlugins?: PluginRegistry;
+  llmFactory?: (modelId: string) => any;
 }) {
   return {
     instruction: params.instruction,
@@ -79,6 +80,7 @@ export function buildRunLoopParams(params: {
     permissionMode: params.permissionMode,
     extensions: params.extensions,
     permissionRules: params.permissionRules,
+    llmFactory: params.llmFactory,
     eventPayload:
       params.headlessIncludeToolInput ||
       params.headlessIncludeToolOutput ||

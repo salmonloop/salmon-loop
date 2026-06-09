@@ -503,6 +503,17 @@ export interface LoopOptions {
    * If omitted, sub-agent orchestration tools may create a private controller.
    */
   subAgentController?: SubAgentControllerPort;
+  /**
+   * Optional factory for creating model-specific LLM instances for sub-agents.
+   * When a sub-agent profile specifies a model alias (e.g., 'haiku'), this factory
+   * resolves it to a concrete LLM instance.
+   */
+  llmFactory?: (modelId: string) => LLM | undefined;
+  /**
+   * Optional callback fired when an async sub-agent completes.
+   * Used for background auto-notify: inject a system message into the conversation.
+   */
+  onSubAgentComplete?: (agentId: string, result: unknown) => void;
   eventPayload?: {
     includeToolInput?: boolean;
     includeToolOutput?: boolean;

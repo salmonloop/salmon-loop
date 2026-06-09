@@ -15,6 +15,7 @@ import {
   type CheckpointStrategy,
   type FlowMode,
 } from '../../core/facades/cli-command-chat.js';
+import { createSubAgentLlmFactory } from '../../core/llm/sub-agent-factory.js';
 import { getString } from '../../core/utils/serialize.js';
 import { text } from '../locales/index.js';
 import { getOptionValueSourceWithGlobalFallback } from '../utils/command-option-source.js';
@@ -95,6 +96,8 @@ export async function handleChatCommand(options: Record<string, unknown>, comman
     langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
   });
 
+  const llmFactory = createSubAgentLlmFactory(resolvedConfig.llm);
+
   const outcomeReporter = createOutcomeReporter({
     enabled: resolvedConfig.observability.langfuse.outcome,
     endpoint: resolvedConfig.observability.langfuse.endpoint,
@@ -158,6 +161,7 @@ export async function handleChatCommand(options: Record<string, unknown>, comman
       langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
       languagePlugins,
+      llmFactory,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -30,14 +30,35 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
     getLogger().debug(`[SmallfryLoop] ${text.smallfry.status.working} (${this.profile.name})`);
 
     let pipeline: Pipeline<any> = Pipeline.of(initCtx);
+    let turnCount = 0;
+    const maxTurns = this.profile.maxTurns;
 
     // Dynamic Phase Injection based on Stratagem
+    // PREFLIGHT is deterministic (no LLM call), so it doesn't count as a turn
     pipeline = pipeline.step('PREFLIGHT', runPreflight);
-    pipeline = pipeline.step('CONTEXT', buildContext);
-    pipeline = pipeline.step('PLAN', generatePlan);
+
+    // Each subsequent step makes at least one LLM call
+    if (maxTurns !== undefined && turnCount >= maxTurns) {
+      getLogger().warn(`[SmallfryLoop] maxTurns (${maxTurns}) reached before CONTEXT — stopping early`);
+    } else {
+      pipeline = pipeline.step('CONTEXT', buildContext);
+      turnCount++;
+    }
+
+    if (maxTurns !== undefined && turnCount >= maxTurns) {
+      getLogger().warn(`[SmallfryLoop] maxTurns (${maxTurns}) reached before PLAN — stopping early`);
+    } else {
+      pipeline = pipeline.step('PLAN', generatePlan);
+      turnCount++;
+    }
 
     if (this.profile.stratagem === 'surgeon') {
-      pipeline = pipeline.step('PATCH', generatePatch);
+      if (maxTurns !== undefined && turnCount >= maxTurns) {
+        getLogger().warn(`[SmallfryLoop] maxTurns (${maxTurns}) reached before PATCH — stopping early`);
+      } else {
+        pipeline = pipeline.step('PATCH', generatePatch);
+        turnCount++;
+      }
     }
 
     const report = await pipeline.execute();

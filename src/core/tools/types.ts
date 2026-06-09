@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import type { PluginRegistry } from '../plugin/registry.js';
 import type { SubAgentControllerPort } from '../sub-agent/controller.js';
-import type { SubAgentContextSnapshot } from '../sub-agent/types.js';
+import type { SubAgentContextSnapshot, SubAgentLlmFactory } from '../sub-agent/types.js';
 import type { LLM } from '../types/llm.js';
 import type { WorkspaceCapabilities } from '../types/loop.js';
 import type { ExecutionPhase, FlowMode, UserInputProvider } from '../types/runtime.js';
@@ -65,6 +65,12 @@ export interface ToolRuntimeCtx {
    */
   llm?: LLM;
   /**
+   * Optional factory for creating model-specific LLM instances for sub-agents.
+   * When a sub-agent profile specifies a model alias (e.g., 'haiku'), this factory
+   * resolves it to a concrete LLM instance.
+   */
+  llmFactory?: SubAgentLlmFactory;
+  /**
    * Optional host-side context snapshot for sub-agent shared session handoff.
    * This object is carried through tool runtime only and is never exposed to the model directly.
    */
@@ -73,6 +79,11 @@ export interface ToolRuntimeCtx {
    * Optional agent ID for sub-agent coordination (team claims).
    */
   agentId?: string;
+  /**
+   * Optional callback fired when an async sub-agent completes.
+   * Used for background auto-notify.
+   */
+  onSubAgentComplete?: (agentId: string, result: unknown) => void;
 }
 
 export const TOOL_INTENTS = [

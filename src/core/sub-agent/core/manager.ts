@@ -26,6 +26,7 @@ import type {
   IExecutable,
   SubAgentContextSnapshot,
   SubAgentHandle,
+  SubAgentLlmFactory,
   SubAgentProfile,
   SubAgentRequest,
   SubAgentResult,
@@ -51,6 +52,13 @@ export type SubAgentManagerDeps = {
   createRuntimeEnvironment: CreateSubAgentRuntimeEnvironment;
   artifactStore: Pick<typeof ArtifactStore, 'saveText'>;
   eventBus: TaskEventBus;
+  llmFactory?: SubAgentLlmFactory;
+  /**
+   * Optional callback fired when an async sub-agent completes.
+   * Used for background auto-notify: the host can inject a system message
+   * into the conversation when a background agent finishes.
+   */
+  onSubAgentComplete?: (agentId: string, result: unknown) => void;
 };
 
 /**
@@ -157,6 +165,8 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
   }
 
   private normalizeRequest(request: SubAgentRequest): SubAgentRequest {
+    // Fork mode: no prefix consistency validation needed (it's a clone, not a shared session)
+    if (request.session_target === 'fork') return request;
     if (request.session_target !== 'shared') return request;
 
     const consistency = validateSharedPrefixConsistency({
@@ -217,6 +227,9 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           taskId,
           state: result.success ? 'completed' : 'failed',
         });
+
+        // Notify completion listener (for background auto-notify)
+        this.deps.onSubAgentComplete?.(agentId, result);
       })
       .catch((error) => {
         const failResult = this.fail(
@@ -278,9 +291,17 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       `[SubAgentManager] ${text.smallfry.status.spawning} (ID: ${agentId}, Role: ${profile.role})`,
     );
 
-    const llm = this.ctx.llm;
-    if (!llm) {
+    // Resolve LLM: per-profile model override or inherit parent
+    const parentLlm = this.ctx.llm;
+    if (!parentLlm) {
       const msg = text.smallfry.errors.dispatchMissingRuntimeLlm;
+      getLogger().error(`[SubAgentManager] ${msg}`);
+      return this.fail(profile.id, msg, 'LOOP_CRASH');
+    }
+
+    const llm = this.resolveLlm(profile, parentLlm);
+    if (!llm) {
+      const msg = `Failed to resolve LLM for model "${profile.model}"`;
       getLogger().error(`[SubAgentManager] ${msg}`);
       return this.fail(profile.id, msg, 'LOOP_CRASH');
     }
@@ -484,10 +505,50 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       this.ctx.phase,
       profile.toolInheritance,
     );
-    if (!teamId) return base;
+
+    // Apply disallowedTools (denylist) — subtract from resolved tools
+    let resolved = base;
+    if (resolved !== undefined && profile.disallowedTools && profile.disallowedTools.length > 0) {
+      const denied = new Set(profile.disallowedTools);
+      resolved = resolved.filter((name) => !denied.has(name));
+    }
+
+    if (!teamId) return resolved;
     // When a teamId is present, add agent_team to the allowed tools
-    if (base === undefined) return undefined; // Inherited all tools — agent_team already available
-    return [...new Set([...base, 'agent_team'])];
+    if (resolved === undefined) return undefined; // Inherited all tools — agent_team already available
+    return [...new Set([...resolved, 'agent_team'])];
+  }
+
+  /**
+   * Resolve the LLM for a sub-agent based on profile.model.
+   * 'inherit' or undefined → use parent LLM.
+   * Other values → use llmFactory to create a model-specific LLM.
+   */
+  private resolveLlm(profile: SubAgentProfile, parentLlm: LLM): LLM | undefined {
+    const model = profile.model;
+    if (!model || model === 'inherit') {
+      return parentLlm;
+    }
+
+    if (!this.deps.llmFactory) {
+      getLogger().warn(
+        `[SubAgentManager] Profile "${profile.id}" requests model "${model}" but no llmFactory configured. Falling back to parent LLM.`,
+      );
+      return parentLlm;
+    }
+
+    const modelLlm = this.deps.llmFactory(model);
+    if (!modelLlm) {
+      getLogger().warn(
+        `[SubAgentManager] llmFactory returned no LLM for model "${model}". Falling back to parent LLM.`,
+      );
+      return parentLlm;
+    }
+
+    getLogger().debug(
+      `[SubAgentManager] Using model "${model}" for profile "${profile.id}"`,
+    );
+    return modelLlm;
   }
 
   private async setupIsolatedEnvironment(
