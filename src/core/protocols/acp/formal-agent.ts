@@ -14,7 +14,6 @@ import {
   type ToolCallContent,
 } from '@agentclientprotocol/sdk';
 
-
 import { text } from '../../../locales/index.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { ResolvedExtensions, ResolvedMcpServer } from '../../extensions/types.js';
