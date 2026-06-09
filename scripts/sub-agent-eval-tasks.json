@@ -1,0 +1,302 @@
+[
+  {
+    "id": "explorer-001",
+    "profile": "explorer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "List all TypeScript files in src/core/ that export a default function.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 5, "shouldComplete": true },
+    "tags": ["search", "read-only"]
+  },
+  {
+    "id": "explorer-002",
+    "profile": "explorer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Find all usages of the 'z.object' pattern in src/core/sub-agent/types.ts and summarize the schema structure.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 3, "shouldComplete": true },
+    "tags": ["search", "read-only"]
+  },
+  {
+    "id": "explorer-003",
+    "profile": "explorer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Trace the dependency chain from src/core/runtime/loop.ts to the tool execution layer. List all intermediate files and functions.",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 8, "shouldComplete": true },
+    "tags": ["search", "read-only", "architecture"]
+  },
+  {
+    "id": "explorer-004",
+    "profile": "explorer",
+    "sessionTarget": "fork",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Count the number of exported interfaces in src/core/types/llm.ts.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 3, "shouldComplete": true },
+    "tags": ["search", "read-only"]
+  },
+  {
+    "id": "explorer-005",
+    "profile": "explorer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "medium",
+    "task": "Analyze the error handling patterns in src/core/grizzco/steps/ — which steps throw vs return error objects?",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 8, "shouldComplete": true },
+    "tags": ["search", "read-only", "analysis"]
+  },
+  {
+    "id": "explorer-006",
+    "profile": "explorer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Find all files that import from '../sub-agent/controller.js' and list what they import.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 4, "shouldComplete": true },
+    "tags": ["search", "read-only"]
+  },
+  {
+    "id": "explorer-007",
+    "profile": "explorer",
+    "sessionTarget": "shared",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Map the complete tool registration flow: from ToolSpec definition to tool being available in chatWithTools.",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 8, "shouldComplete": true },
+    "tags": ["search", "read-only", "architecture"]
+  },
+  {
+    "id": "explorer-008",
+    "profile": "explorer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "simple",
+    "task": "List all Zod schemas defined in src/core/sub-agent/types.ts with their field names.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 3, "shouldComplete": true },
+    "tags": ["search", "read-only"]
+  },
+  {
+    "id": "surgeon-001",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Add a JSDoc comment to the ToolCallingStubLLM class in src/core/llm/tool-calling-stub.ts explaining its purpose and usage.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 4, "shouldComplete": true },
+    "tags": ["write", "documentation"]
+  },
+  {
+    "id": "surgeon-002",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Create a new file src/core/llm/stub-helpers.ts that exports a helper function createDispatchTurn(agentRef, task) that returns a StubTurn for dispatching a sub-agent.",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 6, "shouldComplete": true },
+    "tags": ["write", "feature"]
+  },
+  {
+    "id": "surgeon-003",
+    "profile": "surgeon",
+    "sessionTarget": "fork",
+    "dispatchMode": "sync",
+    "complexity": "complex",
+    "task": "Refactor the InMemorySubAgentController to extract a BaseAgentController abstract class, keeping InMemorySubAgentController as a concrete implementation.",
+    "expectedBehavior": { "minToolCalls": 3, "maxToolCalls": 10, "shouldComplete": true },
+    "tags": ["write", "refactor"]
+  },
+  {
+    "id": "surgeon-004",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "simple",
+    "task": "Fix the type annotation: change `any[]` to `StubToolCall[]` in the prepareToolCallRequests function signature in src/core/tools/session.ts.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 4, "shouldComplete": true },
+    "tags": ["write", "type-fix"]
+  },
+  {
+    "id": "surgeon-005",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Add a `getStats()` method to SubAgentControllerPort that returns { totalAgents, activeAgents, totalTokenUsage, totalToolCalls }.",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 6, "shouldComplete": true },
+    "tags": ["write", "feature"]
+  },
+  {
+    "id": "surgeon-006",
+    "profile": "surgeon",
+    "sessionTarget": "shared",
+    "dispatchMode": "sync",
+    "complexity": "complex",
+    "task": "Implement a retry mechanism in SubAgentManager.executeAsync that retries up to 2 times on transient failures before giving up.",
+    "expectedBehavior": { "minToolCalls": 3, "maxToolCalls": 10, "shouldComplete": true },
+    "tags": ["write", "feature", "resilience"]
+  },
+  {
+    "id": "surgeon-007",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Add input validation to the ToolCallingStubLLM constructor that throws if the turns array is empty.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 4, "shouldComplete": true },
+    "tags": ["write", "validation"]
+  },
+  {
+    "id": "surgeon-008",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "medium",
+    "task": "Create a utility function in src/core/sub-agent/utils.ts that generates unique agent IDs with the pattern 'smallfry-{profile}-{uuid}'.",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 5, "shouldComplete": true },
+    "tags": ["write", "utility"]
+  },
+  {
+    "id": "reviewer-001",
+    "profile": "reviewer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Review src/core/llm/tool-calling-stub.ts for correctness, edge cases, and adherence to the project's coding standards.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 5, "shouldComplete": true },
+    "tags": ["review", "quality"]
+  },
+  {
+    "id": "reviewer-002",
+    "profile": "reviewer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Audit the SubAgentManager for potential race conditions in concurrent dispatch scenarios.",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 8, "shouldComplete": true },
+    "tags": ["review", "security", "concurrency"]
+  },
+  {
+    "id": "reviewer-003",
+    "profile": "reviewer",
+    "sessionTarget": "fork",
+    "dispatchMode": "sync",
+    "complexity": "complex",
+    "task": "Review the complete sub-agent dispatch pipeline (task-spawn.ts → manager.ts → loop.ts) for error handling completeness and suggest improvements.",
+    "expectedBehavior": { "minToolCalls": 3, "maxToolCalls": 10, "shouldComplete": true },
+    "tags": ["review", "architecture", "error-handling"]
+  },
+  {
+    "id": "reviewer-004",
+    "profile": "reviewer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "simple",
+    "task": "Check if the SubAgentRequestSchema in types.ts covers all fields defined in the SubAgentRequest interface.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 4, "shouldComplete": true },
+    "tags": ["review", "type-safety"]
+  },
+  {
+    "id": "reviewer-005",
+    "profile": "reviewer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Evaluate the token budget enforcement in SmallfryLoop — is it possible for a sub-agent to exceed its maxTokens budget?",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 6, "shouldComplete": true },
+    "tags": ["review", "resource-management"]
+  },
+  {
+    "id": "reviewer-006",
+    "profile": "reviewer",
+    "sessionTarget": "shared",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Review the fork mode implementation in task-spawn.ts — does it correctly inherit parent context without leaking mutations?",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 6, "shouldComplete": true },
+    "tags": ["review", "isolation"]
+  },
+  {
+    "id": "cleaner-001",
+    "profile": "cleaner",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Sort the imports in src/core/llm/tool-calling-stub.ts alphabetically and group them by external vs internal.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 3, "shouldComplete": true },
+    "tags": ["cleanup", "imports"]
+  },
+  {
+    "id": "cleaner-002",
+    "profile": "cleaner",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Remove any unused imports from src/core/sub-agent/tools/task-spawn.ts.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 3, "shouldComplete": true },
+    "tags": ["cleanup", "dead-code"]
+  },
+  {
+    "id": "cleaner-003",
+    "profile": "cleaner",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "medium",
+    "task": "Ensure all files in src/core/sub-agent/tools/ have consistent formatting: semicolons, trailing commas, and single quotes.",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 6, "shouldComplete": true },
+    "tags": ["cleanup", "formatting"]
+  },
+  {
+    "id": "cleaner-004",
+    "profile": "cleaner",
+    "sessionTarget": "fork",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Check src/core/sub-agent/controller.ts for any TODO or FIXME comments and list them.",
+    "expectedBehavior": { "minToolCalls": 1, "maxToolCalls": 3, "shouldComplete": true },
+    "tags": ["cleanup", "audit"]
+  },
+  {
+    "id": "cleaner-005",
+    "profile": "cleaner",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Normalize all console.log/warn/error calls in src/core/sub-agent/ to use the project's getLogger() pattern instead.",
+    "expectedBehavior": { "minToolCalls": 2, "maxToolCalls": 6, "shouldComplete": true },
+    "tags": ["cleanup", "logging"]
+  },
+  {
+    "id": "multi-profile-001",
+    "profile": "explorer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "complex",
+    "task": "First dispatch an explorer to find all test files related to sub-agents, then dispatch a reviewer to assess test coverage gaps.",
+    "expectedBehavior": { "minToolCalls": 3, "maxToolCalls": 12, "shouldComplete": true },
+    "tags": ["multi-profile", "orchestration"]
+  },
+  {
+    "id": "multi-profile-002",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "complex",
+    "task": "Dispatch an explorer to analyze the current code structure, then use the findings to dispatch a surgeon to implement a missing feature.",
+    "expectedBehavior": { "minToolCalls": 3, "maxToolCalls": 12, "shouldComplete": true },
+    "tags": ["multi-profile", "orchestration"]
+  },
+  {
+    "id": "multi-profile-003",
+    "profile": "reviewer",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "complex",
+    "task": "Dispatch a surgeon to create a utility function, then dispatch a reviewer to audit the implementation, then dispatch a cleaner to format the result.",
+    "expectedBehavior": { "minToolCalls": 4, "maxToolCalls": 15, "shouldComplete": true },
+    "tags": ["multi-profile", "pipeline"]
+  }
+]

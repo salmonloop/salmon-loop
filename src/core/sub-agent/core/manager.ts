@@ -84,6 +84,8 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         ((options, emit) => new RuntimeEnvironment(options, emit)),
       artifactStore: deps?.artifactStore ?? ArtifactStore,
       eventBus: deps?.eventBus ?? createTaskEventBus(),
+      llmFactory: deps?.llmFactory,
+      onSubAgentComplete: deps?.onSubAgentComplete,
     };
   }
 
@@ -228,6 +230,8 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       .then((result) => {
         const entry = this.activeAgents.get(agentId);
         if (entry) entry.result = result;
+        this.controller.setResult(agentId, result);
+        this.controller.updateStatus(agentId, 'terminated', result.summary);
         this.deps.eventBus.publish({
           type: result.success ? 'subagent.completed' : 'subagent.failed',
           taskId,
@@ -245,6 +249,8 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         );
         const entry = this.activeAgents.get(agentId);
         if (entry) entry.result = failResult;
+        this.controller.setResult(agentId, failResult);
+        this.controller.updateStatus(agentId, 'terminated', failResult.summary);
         this.deps.eventBus.publish({
           type: 'subagent.failed',
           taskId,
@@ -532,6 +538,21 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
    */
   private resolveLlm(profile: SubAgentProfile, parentLlm: LLM): LLM | undefined {
     const model = profile.model;
+
+    // Try llmFactory first for all models (including 'inherit').
+    // This allows test harnesses to provide isolated LLMs for sub-agents.
+    // In production, factories typically return undefined for 'inherit',
+    // so the fallback to parentLlm is preserved.
+    if (this.deps.llmFactory) {
+      const modelLlm = this.deps.llmFactory(model ?? 'inherit');
+      if (modelLlm) {
+        getLogger().debug(
+          `[SubAgentManager] Using llmFactory LLM for profile "${profile.id}" (model="${model ?? 'inherit'}")`,
+        );
+        return modelLlm;
+      }
+    }
+
     if (!model || model === 'inherit') {
       return parentLlm;
     }

@@ -5,8 +5,7 @@ import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { ToolSpec } from '../../tools/types.js';
 import { Phase } from '../../types/runtime.js';
 import { createSubAgentController } from '../controller.js';
-import { SubAgentManager } from '../core/manager.js';
-import type { SubAgentHandle, SubAgentResult } from '../types.js';
+import type { SubAgentResult } from '../types.js';
 
 const AgentAwaitInputSchema = z.object({
   agentId: z
@@ -23,6 +22,7 @@ const AgentAwaitInputSchema = z.object({
 /**
  * agent_await (Internal: Smallfry Result Collector)
  * Waits for an asynchronously dispatched sub-agent to complete and returns its result.
+ * Polls the shared controller (same instance used by agent_dispatch) for agent status.
  */
 export const agentAwaitTaskSpec: ToolSpec = {
   name: 'agent_await',
@@ -54,20 +54,56 @@ export const agentAwaitTaskSpec: ToolSpec = {
 
   executor: async (input: unknown, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
     const parsed = AgentAwaitInputSchema.parse(input);
-    const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController(), {
-      llmFactory: ctx.llmFactory,
-    });
-
-    const handle: SubAgentHandle = {
-      agentId: parsed.agentId,
-      status: 'working',
-      taskId: parsed.agentId,
-    };
-
-    const timeoutMs = parsed.timeout_seconds ? parsed.timeout_seconds * 1000 : undefined;
+    const controller = ctx.subAgentController ?? createSubAgentController();
+    const timeoutMs = parsed.timeout_seconds ? parsed.timeout_seconds * 1000 : 300_000;
 
     try {
-      return await manager.awaitResult(handle, timeoutMs);
+      // Try awaiting the specific agent ID first (short timeout — if the ID is a
+      // placeholder like '{{handle}}' that no one will resolve, we must fall through
+      // to the scanning fallback quickly).
+      let result = await controller.awaitResult(parsed.agentId, Math.min(timeoutMs, 200));
+
+      // If not found (e.g., LLM used a placeholder), wait for any pending agent.
+      if (!result) {
+        const agents = controller.listAgents();
+        for (const agent of agents) {
+          if (agent.status === 'terminated') {
+            // Already completed — try to get the stored result
+            result = await controller.awaitResult(agent.id, 0);
+            if (result) break;
+          }
+        }
+      }
+
+      // If still no result, wait for the first agent to complete
+      if (!result) {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const agents = controller.listAgents();
+          for (const agent of agents) {
+            if (agent.status === 'terminated') {
+              result = await controller.awaitResult(agent.id, 0);
+              if (result) break;
+            }
+          }
+          if (result) break;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      }
+
+      if (result) return result;
+
+      // Timeout
+      return {
+        success: false,
+        agent_ref: parsed.agentId,
+        summary: `Timed out waiting for agent ${parsed.agentId}`,
+        reason: `Timed out after ${timeoutMs}ms`,
+        reasonCode: 'AWAIT_FAILED',
+        tokenUsage: 0,
+        attempts: 1,
+        logs: [],
+      };
     } catch (error) {
       return {
         success: false,

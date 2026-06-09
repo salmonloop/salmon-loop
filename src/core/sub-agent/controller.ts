@@ -1,4 +1,4 @@
-import type { SubAgentProfile, SubAgentStatus } from './types.js';
+import type { SubAgentProfile, SubAgentResult, SubAgentStatus } from './types.js';
 
 const LOG_HISTORY_LIMIT = 200;
 
@@ -51,11 +51,17 @@ export interface SubAgentControllerPort {
   requestStop(id: string): boolean;
   /** Check if stop has been requested for an agent. */
   isStopRequested(id: string): boolean;
+  /** Store the result of an async agent and resolve any pending awaiters. */
+  setResult(id: string, result: SubAgentResult): void;
+  /** Wait for an async agent's result. Returns undefined if agent not found. */
+  awaitResult(id: string, timeoutMs?: number): Promise<SubAgentResult | undefined>;
 }
 
 export class InMemorySubAgentController implements SubAgentControllerPort {
   private readonly agents = new Map<string, SubAgentView>();
   private readonly toolCallListeners = new Set<ToolCallListener>();
+  private readonly results = new Map<string, SubAgentResult>();
+  private readonly waiters = new Map<string, ((result: SubAgentResult) => void)[]>();
 
   registerAgent(id: string, profile: SubAgentProfile, status: SubAgentStatus) {
     const existing = this.agents.get(id);
@@ -150,6 +156,43 @@ export class InMemorySubAgentController implements SubAgentControllerPort {
 
   isStopRequested(id: string): boolean {
     return this.agents.get(id)?.stopRequested ?? false;
+  }
+
+  setResult(id: string, result: SubAgentResult): void {
+    this.results.set(id, result);
+    const waiters = this.waiters.get(id);
+    if (waiters) {
+      for (const resolve of waiters) {
+        resolve(result);
+      }
+      this.waiters.delete(id);
+    }
+  }
+
+  async awaitResult(id: string, timeoutMs = 300_000): Promise<SubAgentResult | undefined> {
+    // Check if result is already available
+    const existing = this.results.get(id);
+    if (existing) return existing;
+
+    // Wait for the result with timeout
+    return new Promise<SubAgentResult | undefined>((resolve) => {
+      const timer = setTimeout(() => {
+        // Remove this waiter on timeout
+        const waiters = this.waiters.get(id);
+        if (waiters) {
+          const idx = waiters.indexOf(resolve as (result: SubAgentResult) => void);
+          if (idx >= 0) waiters.splice(idx, 1);
+        }
+        resolve(undefined);
+      }, timeoutMs);
+
+      const waiters = this.waiters.get(id) ?? [];
+      waiters.push((result: SubAgentResult) => {
+        clearTimeout(timer);
+        resolve(result);
+      });
+      this.waiters.set(id, waiters);
+    });
   }
 }
 
