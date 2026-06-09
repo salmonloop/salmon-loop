@@ -64,8 +64,10 @@ export const agentAwaitTaskSpec: ToolSpec = {
       taskId: parsed.agentId,
     };
 
+    const timeoutMs = parsed.timeout_seconds ? parsed.timeout_seconds * 1000 : undefined;
+
     try {
-      return await manager.awaitResult(handle);
+      return await manager.awaitResult(handle, timeoutMs);
     } catch (error) {
       return {
         success: false,

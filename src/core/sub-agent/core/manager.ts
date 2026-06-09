@@ -113,8 +113,10 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
   /**
    * Waits for an async sub-agent to complete and returns its result.
+   * @param handle - The sub-agent handle returned by executeAsync
+   * @param timeoutMs - Maximum time to wait in milliseconds. Defaults to 300_000 (5 minutes).
    */
-  async awaitResult(handle: SubAgentHandle): Promise<SubAgentResult> {
+  async awaitResult(handle: SubAgentHandle, timeoutMs?: number): Promise<SubAgentResult> {
     // Check if already completed
     const entry = this.activeAgents.get(handle.agentId);
     if (entry?.result) {
@@ -136,12 +138,16 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           );
     }
 
+    const effectiveTimeout = timeoutMs ?? 300_000;
+
     // Subscribe and wait for terminal event
     return new Promise<SubAgentResult>((resolve, reject) => {
       const timeout = setTimeout(() => {
         unsub();
-        reject(new Error(`Timed out waiting for sub-agent ${handle.agentId}`));
-      }, 300_000);
+        // Request stop on the sub-agent so it can clean up
+        this.controller.requestStop(handle.agentId);
+        reject(new Error(`Timed out waiting for sub-agent ${handle.agentId} after ${effectiveTimeout}ms`));
+      }, effectiveTimeout);
 
       const unsub = this.deps.eventBus.subscribe((event) => {
         if (event.taskId !== handle.taskId) return;

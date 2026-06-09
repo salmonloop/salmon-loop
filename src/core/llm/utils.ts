@@ -24,23 +24,32 @@ export function formatContextForPrompt(context: Context, options: FormatOptions 
 export function parsePlanFromLLMContent(content: string): Plan {
   const trimmed = String(content ?? '').trim();
   if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-    throw new Error(text.llm.planInvalidJson);
+    const preview = trimmed.slice(0, 80);
+    throw new Error(
+      `${text.llm.planInvalidJson} — Content must start with { and end with }. Got: ${preview}${trimmed.length > 80 ? '…' : ''}`,
+    );
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(trimmed);
-  } catch {
-    throw new Error(text.llm.planInvalidJson);
+  } catch (jsonError) {
+    const errorMsg = jsonError instanceof Error ? jsonError.message : String(jsonError);
+    throw new Error(`${text.llm.planInvalidJson} — JSON parse error: ${errorMsg}`);
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error(text.llm.planInvalidJson);
+    throw new Error(`${text.llm.planInvalidJson} — Expected object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}`);
   }
 
   const plan = parsed as Plan;
-  if (!plan.goal || !Array.isArray(plan.files) || !Array.isArray(plan.changes) || !plan.verify) {
-    throw new Error(text.llm.planInvalid);
+  const missingKeys: string[] = [];
+  if (!plan.goal) missingKeys.push('goal');
+  if (!Array.isArray(plan.files)) missingKeys.push('files (must be array)');
+  if (!Array.isArray(plan.changes)) missingKeys.push('changes (must be array)');
+  if (!plan.verify) missingKeys.push('verify');
+  if (missingKeys.length > 0) {
+    throw new Error(`${text.llm.planInvalid} — Missing or invalid keys: ${missingKeys.join(', ')}`);
   }
   return plan;
 }

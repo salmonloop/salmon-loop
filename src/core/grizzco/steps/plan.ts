@@ -245,61 +245,73 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   const content = response.content;
   let finalContent = content || '';
 
-  let plan: Plan;
-  try {
-    if (!finalContent) {
-      throw new Error(text.llm.planEmpty);
-    }
-    plan = parsePlanFromLLMContent(finalContent);
-  } catch (e) {
-    recordPlanRepairAttempt({
-      reason: sanitizeError(e),
-      badContentLength: finalContent.length,
-    });
-    let repaired: { content?: string };
-    try {
-      repaired = await repairToJsonObject({
-        llm: ctx.options.llm,
-        baseMessages,
-        chatOptions: { signal: ctx.options.signal },
-        badContent: finalContent,
-        reason: sanitizeError(e),
-      });
-    } catch (repairError) {
-      recordPlanRepairResult({
-        ok: false,
-        contentLength: 0,
-        error: sanitizeError(repairError).slice(0, 400),
-      });
-      throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(repairError)));
-    }
-    finalContent = repaired.content || '';
+  // Codex-style self-healing: if plan JSON parsing fails, send the error back to the LLM
+  // and let it self-correct. Try up to MAX_REPAIR_ATTEMPTS times.
+  const MAX_REPAIR_ATTEMPTS = 2;
+  let plan: Plan | undefined;
 
-    emitLlmOutput({
-      emit: ctx.emit,
-      policy: ctx.options.llmOutput,
-      kind: 'plan',
-      step: 'PLAN',
-      content: finalContent,
-    });
-
+  for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
     try {
-      if (!finalContent) throw new Error(text.llm.planEmpty);
+      if (!finalContent) {
+        throw new Error(text.llm.planEmpty);
+      }
       plan = parsePlanFromLLMContent(finalContent);
-    } catch (e2) {
-      recordPlanRepairResult({
-        ok: false,
-        contentLength: finalContent.length,
-        error: sanitizeError(e2).slice(0, 400),
-      });
-      throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(e2)));
-    }
+      break; // Success
+    } catch (parseError) {
+      // On last attempt, throw
+      if (attempt >= MAX_REPAIR_ATTEMPTS) {
+        recordPlanRepairResult({
+          ok: false,
+          contentLength: finalContent.length,
+          error: sanitizeError(parseError).slice(0, 400),
+        });
+        throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(parseError)));
+      }
 
-    recordPlanRepairResult({
-      ok: true,
-      contentLength: finalContent.length,
-    });
+      // Repair attempt: send error feedback to LLM and let it self-correct
+      recordPlanRepairAttempt({
+        reason: sanitizeError(parseError),
+        badContentLength: finalContent.length,
+      });
+
+      let repaired: { content?: string };
+      try {
+        repaired = await repairToJsonObject({
+          llm: ctx.options.llm,
+          baseMessages,
+          chatOptions: { signal: ctx.options.signal },
+          badContent: finalContent,
+          reason: sanitizeError(parseError),
+        });
+      } catch (repairError) {
+        recordPlanRepairResult({
+          ok: false,
+          contentLength: 0,
+          error: sanitizeError(repairError).slice(0, 400),
+        });
+        throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(repairError)));
+      }
+
+      finalContent = repaired.content || '';
+
+      emitLlmOutput({
+        emit: ctx.emit,
+        policy: ctx.options.llmOutput,
+        kind: 'plan',
+        step: 'PLAN',
+        content: finalContent,
+      });
+    }
   }
+
+  if (!plan) {
+    throw new Error(text.llm.planParseFailed(finalContent, 'Plan was not parsed successfully'));
+  }
+
+  recordPlanRepairResult({
+    ok: true,
+    contentLength: finalContent.length,
+  });
 
   ctx.emit({
     type: 'log',
