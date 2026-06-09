@@ -232,11 +232,14 @@ export class Pipeline<CurrentCtx> {
             }
           : undefined;
 
-      // Run recovery/post-processing
-      const postResult = await onError(ctx, errorStr);
-      if (postResult?.errorStr) {
-        errorStr = postResult.errorStr;
-        errorMeta = postResult.errorMeta;
+      // Skip recovery on abort - the operation was cancelled, not failed
+      if (errorStr !== 'Operation cancelled by user') {
+        // Run recovery/post-processing
+        const postResult = await onError(ctx, errorStr);
+        if (postResult?.errorStr) {
+          errorStr = postResult.errorStr;
+          errorMeta = postResult.errorMeta;
+        }
       }
 
       throw error;

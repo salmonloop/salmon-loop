@@ -1,6 +1,7 @@
 export { ConfigError, normalizePermissionMode, resolveConfig } from '../config/index.js';
 export { ExtensionConfigError, resolveExtensions } from '../extensions/index.js';
 export { createRuntimeLlm } from '../llm/factory.js';
+export { createSubAgentLlmFactory } from '../llm/sub-agent-factory.js';
 export { getLogger } from '../observability/logger.js';
 export { PluginLoader } from '../plugin/loader.js';
 export { resolveExecutionProfile } from '../runtime/execution-profile.js';
@@ -16,5 +17,6 @@ export {
   setPromptRegistry,
   type PromptRegistry,
 } from '../prompts/registry.js';
+export { getString } from '../utils/serialize.js';
 export type { FlowMode } from '../types/execution.js';
 export type { CheckpointStrategy } from '../types/loop.js';

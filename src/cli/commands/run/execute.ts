@@ -2,11 +2,11 @@ import {
   emitLlmOutput,
   runSalmonLoop,
   type ApplyBackOnDirty,
+  type FlowMode,
   type LoopEvent,
+  type LoopOptions,
   type LoopResult,
 } from '../../../core/facades/cli-run-execute.js';
-import type { FlowMode } from '../../../core/types/execution.js';
-import type { LoopOptions } from '../../../core/types/loop.js';
 import { createCliTaskRunner } from '../../../interfaces/cli/task-runner.js';
 import { createUiAuthorizationProvider } from '../../authorization/provider.js';
 import type { SalmonReporter } from '../../reporters/base.js';

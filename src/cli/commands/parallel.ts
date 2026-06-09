@@ -5,10 +5,10 @@ import {
   ParallelScheduler,
   PlanPersistence,
   resolveExtensions,
+  type ExecutionPhase,
   type PersistedPlanState,
   WorkspaceManager,
 } from '../../core/facades/cli-command-parallel.js';
-import type { ExecutionPhase } from '../../core/types/execution.js';
 import { createUiAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
 import { requestSelection } from '../ui/selection/bus.js';

@@ -1,4 +1,5 @@
 export { normalizePermissionMode } from '../config/index.js';
+export { createSubAgentLlmFactory } from '../llm/sub-agent-factory.js';
 export { getLogger, PlainReporter, SilentReporter } from '../observability/logger.js';
 export {
   createPluginRegistry,

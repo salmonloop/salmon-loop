@@ -33,7 +33,7 @@ import {
   reactiveCompact,
 } from '../core/facades/cli-chat.js';
 import { createSubAgentController } from '../core/facades/cli-subagent.js';
-import { isRecord } from '../core/utils/serialize.js';
+import { isRecord } from '../core/facades/cli-utils-serialize.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { resolveActiveChatFlowMode, resolveChatCheckpointStrategy } from './chat-flow.js';

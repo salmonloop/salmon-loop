@@ -6,6 +6,7 @@ import {
   buildEffectiveConversationContext,
   createPluginRegistry,
   createPromptRegistry,
+  createSubAgentLlmFactory,
   getExitCode,
   getDefaultSessionContextBudgetTokens,
   getLogger,
@@ -19,7 +20,6 @@ import {
   type CheckpointStrategy,
   type LoopResult,
 } from '../../../core/facades/cli-run-handler.js';
-import { createSubAgentLlmFactory } from '../../../core/llm/sub-agent-factory.js';
 import type { HeadlessWarning } from '../../headless/protocol-metadata.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';

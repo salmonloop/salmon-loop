@@ -14,3 +14,4 @@ export type {
 export { RuntimeEnvironment } from '../strata/runtime/environment.js';
 export type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 export { createStandardToolstack } from '../tools/loader.js';
+export type { LoopEvent, LoopOptions } from '../types/loop.js';

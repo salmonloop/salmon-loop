@@ -4,6 +4,8 @@ import {
   createPluginRegistry,
   createPromptRegistry,
   createRuntimeLlm,
+  createSubAgentLlmFactory,
+  getString,
   setPluginRegistry,
   setPromptRegistry,
   ExtensionConfigError,
@@ -15,8 +17,6 @@ import {
   type CheckpointStrategy,
   type FlowMode,
 } from '../../core/facades/cli-command-chat.js';
-import { createSubAgentLlmFactory } from '../../core/llm/sub-agent-factory.js';
-import { getString } from '../../core/utils/serialize.js';
 import { text } from '../locales/index.js';
 import { getOptionValueSourceWithGlobalFallback } from '../utils/command-option-source.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';

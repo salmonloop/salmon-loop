@@ -12,7 +12,7 @@ import {
   getLogger,
   McpConnectionManager,
 } from '../../core/facades/cli-authorization-non-interactive.js';
-import { isRecord } from '../../core/utils/serialize.js';
+import { isRecord } from '../../core/facades/cli-utils-serialize.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z

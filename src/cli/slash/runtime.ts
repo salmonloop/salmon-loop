@@ -13,8 +13,9 @@ import {
   SlashHandler,
   SlashHandlerProvider,
   type ToolAuthorizationProvider,
+  type LoopEvent,
+  type LoopOptions,
 } from '../../core/facades/cli-slash-runtime.js';
-import type { LoopEvent, LoopOptions } from '../../core/types/loop.js';
 import { formatHelpRows } from '../commands/help-format.js';
 import { suggestSubcommands } from '../commands/subcommand-suggestions.js';
 import type { Command, CommandContext } from '../commands/types.js';

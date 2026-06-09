@@ -1,5 +1,4 @@
-import { EXECUTION_PHASES, getLogger } from '../../core/facades/cli-command-allowlist.js';
-import type { ExecutionPhase } from '../../core/types/execution.js';
+import { EXECUTION_PHASES, getLogger, type ExecutionPhase } from '../../core/facades/cli-command-allowlist.js';
 import {
   clearAllowlist,
   clearAllowlistCache,

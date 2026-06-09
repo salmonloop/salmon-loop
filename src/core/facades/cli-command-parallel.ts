@@ -5,3 +5,4 @@ export { createStandardToolstack } from '../tools/loader.js';
 export { InMemoryLockManager } from '../tools/parallel/lock-manager.js';
 export { PlanPersistence, type PersistedPlanState } from '../tools/parallel/persistence.js';
 export { ParallelScheduler } from '../tools/parallel/scheduler.js';
+export type { ExecutionPhase } from '../types/execution.js';
