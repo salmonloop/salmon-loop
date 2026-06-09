@@ -107,13 +107,14 @@ export function createAgentServerRuntime(deps: {
   }
 
   async function close(): Promise<void> {
-    if (!a2aServerInstance) {
+    const instance = a2aServerInstance;
+    if (!instance) {
       started = false;
       return;
     }
 
     await new Promise<void>((resolve, reject) => {
-      a2aServerInstance!.close((error?: Error) => {
+      instance.close((error?: Error) => {
         if (error) {
           reject(error);
           return;
