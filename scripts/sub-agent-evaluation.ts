@@ -17,6 +17,8 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 
+import { resolveConfig } from '../src/core/config/resolve.js';
+import { createRuntimeLlm } from '../src/core/llm/factory.js';
 import { ToolCallingStubLLM, type StubTurn } from '../src/core/llm/tool-calling-stub.js';
 import { clearLogger, createLogger, setLogger } from '../src/core/observability/logger.js';
 import { clearMonitor, createMonitor, setMonitor } from '../src/core/observability/monitor.js';
@@ -236,35 +238,52 @@ function buildStubTurns(task: TaskDefinition): StubTurn[] {
 // ─── Harness ───
 
 const TASK_TIMEOUT_MS = 10_000;
+const TASK_TIMEOUT_REAL_MS = 300_000;
 
-async function runCase(task: TaskDefinition, verbose: boolean): Promise<EvalResult> {
+interface RealLlmConfig {
+  llm: LLM;
+  llmFactory: (modelId: string) => LLM | undefined;
+}
+
+async function runCase(
+  task: TaskDefinition,
+  verbose: boolean,
+  realLlm?: RealLlmConfig,
+): Promise<EvalResult> {
   if (verbose) process.stderr.write(`  [START] ${task.id}\n`);
   const tmpDir = await createTempGitRepo();
   if (verbose) process.stderr.write(`  [REPO] ${task.id} -> ${tmpDir}\n`);
   const controller = createSubAgentController();
-  const stub = new ToolCallingStubLLM(buildStubTurns(task));
   const ac = new AbortController();
+  const timeoutMs = realLlm ? TASK_TIMEOUT_REAL_MS : TASK_TIMEOUT_MS;
 
   const startedAt = Date.now();
 
   try {
+    const llm = realLlm
+      ? realLlm.llm
+      : (new ToolCallingStubLLM(buildStubTurns(task)) as unknown as LLM);
+    const llmFactory = realLlm
+      ? realLlm.llmFactory
+      : () => new ToolCallingStubLLM(buildSubAgentStubTurns(task)) as unknown as LLM;
+
     const result = await Promise.race([
       runSalmonLoop({
         instruction: `Dispatch a ${task.profile} sub-agent to: ${task.task}`,
         repoPath: tmpDir,
-        llm: stub as unknown as LLM,
+        llm,
         mode: 'patch',
-        dryRun: true,
+        dryRun: realLlm ? false : true,
         subAgentController: controller,
         agentKind: 'primary',
         signal: ac.signal,
-        llmFactory: () => new ToolCallingStubLLM(buildSubAgentStubTurns(task)) as unknown as LLM,
+        llmFactory,
       }),
       new Promise<never>((_, reject) => {
         const timer = setTimeout(() => {
           ac.abort();
           reject(new Error('Task timeout'));
-        }, TASK_TIMEOUT_MS);
+        }, timeoutMs);
         // Prevent timer from keeping the process alive
         timer.unref();
       }),
@@ -325,7 +344,7 @@ async function runCase(task: TaskDefinition, verbose: boolean): Promise<EvalResu
 
     return evalResult;
   } finally {
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
   }
 }
 
@@ -417,9 +436,22 @@ async function main(): Promise<void> {
   const filter = args.find((a) => a.startsWith('--filter='))?.split('=')[1];
   const verbose = args.includes('--verbose');
 
+  // Resolve LLM
+  let realLlm: RealLlmConfig | undefined;
   if (mode === 'real') {
-    console.error('Real LLM mode not yet implemented. Use --mode=stub.');
-    process.exit(1);
+    const repoRoot = process.cwd();
+    const config = await resolveConfig({ repoRoot });
+    const resolved = config.llm;
+    const { llm, warnings } = createRuntimeLlm(resolved);
+    if (warnings.includes('API_KEY_MISSING')) {
+      console.error('Error: No API key found. Set SALMONLOOP_API_KEY or S8P_API_KEY.');
+      process.exit(1);
+    }
+    // Use the same LLM for all sub-agents (provider may not support alias models like haiku)
+    const factory = () => llm;
+    realLlm = { llm, llmFactory: factory };
+    const modelId = resolved.models?.selectedModelId ?? 'unknown';
+    process.stderr.write(`[eval] real LLM mode: model=${modelId}, sub-agents inherit same model\n`);
   }
 
   // Load tasks
@@ -440,7 +472,7 @@ async function main(): Promise<void> {
 
   const results: EvalResult[] = [];
   for (const task of filtered) {
-    results.push(await runCase(task, verbose));
+    results.push(await runCase(task, verbose, realLlm));
   }
 
   const report = buildReport(results);
