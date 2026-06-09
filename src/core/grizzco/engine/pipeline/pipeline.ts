@@ -98,6 +98,9 @@ export class Pipeline<CurrentCtx> {
     recovery: Step<CurrentCtx, unknown>,
   ): Pipeline<NextCtx> {
     const nextPromise = this.executeStep(name, action, async (ctx, errorStr) => {
+      // Only run recovery when the step actually failed
+      if (!errorStr) return null;
+
       const recStart = Date.now();
       try {
         await recovery(ctx);
