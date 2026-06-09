@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+import type { SubAgentContextSnapshot } from '../../../src/core/sub-agent/types.js';
 import { createMockToolRuntimeCtx } from '../../helpers/sub-agent-fixtures.js';
 
 const executeMock = mock(async (request: any) => ({
@@ -43,7 +44,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
 
   it('injects runtime contextSnapshot for shared sessions', async () => {
     const { subAgentTaskSpec } = await import('../../../src/core/sub-agent/tools/task-spawn.js');
-    const runtimeSnapshot = {
+    const runtimeSnapshot: SubAgentContextSnapshot = {
       conversationContext: [{ role: 'assistant', content: 'from runtime' }],
       artifactHints: {
         verifyArtifact: {
@@ -67,7 +68,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
       toolCallingAudit: [
         {
           timestamp: new Date().toISOString(),
-          phase: 'PLAN',
+          phase: 'PLAN' as const,
           round: 0,
           callId: 'call-1',
           toolName: 'fs.read',
@@ -131,7 +132,7 @@ describe('sub-agent task-spawn context snapshot injection', () => {
     );
     expect(forwarded.contextSnapshot?.artifactHints).not.toBe(runtimeSnapshot.artifactHints);
     expect(forwarded.contextSnapshot?.artifactHints?.toolResultPreviewArtifacts).not.toBe(
-      runtimeSnapshot.artifactHints.toolResultPreviewArtifacts,
+      runtimeSnapshot.artifactHints!.toolResultPreviewArtifacts,
     );
     expect(forwarded.contextSnapshot?.toolCallingAudit).not.toBe(runtimeSnapshot.toolCallingAudit);
     expect(forwarded.contextSnapshot?.replacementState).toEqual(runtimeSnapshot.replacementState);

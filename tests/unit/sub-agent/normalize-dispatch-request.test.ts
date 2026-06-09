@@ -297,7 +297,7 @@ describe('normalizeDispatchRequest', () => {
       const runtimeAudit = [
         {
           timestamp: 't',
-          phase: 'PLAN',
+          phase: 'PLAN' as const,
           round: 0,
           callId: 'c',
           toolName: 'x',

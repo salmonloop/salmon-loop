@@ -44,6 +44,8 @@ export function createMockController(): SubAgentControllerPort {
     tailLogs: mock(() => []),
     requestStop: mock(() => true),
     isStopRequested: mock(() => false),
+    setResult: mock(),
+    awaitResult: mock(async () => undefined),
   };
 }
 
@@ -71,12 +73,12 @@ export function createMockDeps(overrides?: Partial<SubAgentManagerDeps>): SubAge
         description: 'test',
         allowedTools: [],
         readOnly: false,
-        stratagem: 'surgeon',
+        stratagem: 'surgeon' as const,
         timeoutMs: 1000,
       })),
     },
     createRuntimeEnvironment: () => createMockRuntimeEnv(),
-    artifactStore: { saveText: mock(async () => 's8p://mock/artifact') },
+    artifactStore: { saveText: mock(async () => 's8p://mock/artifact' as any) },
     eventBus: createTaskEventBus(),
     ...overrides,
   };

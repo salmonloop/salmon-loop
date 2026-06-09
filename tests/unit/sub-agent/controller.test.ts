@@ -16,6 +16,7 @@ const TEST_PROFILE: SubAgentProfile = {
   readOnly: true,
   maxAttempts: 1,
   timeoutMs: 60_000,
+  stratagem: 'investigator',
 };
 
 describe('InMemorySubAgentController', () => {
@@ -41,31 +42,31 @@ describe('InMemorySubAgentController', () => {
 
     it('updates existing agent status on re-register', () => {
       controller.registerAgent('agent-1', TEST_PROFILE, 'working');
-      controller.registerAgent('agent-1', TEST_PROFILE, 'completed');
+      controller.registerAgent('agent-1', TEST_PROFILE, 'terminated');
       const agent = controller.getAgent('agent-1');
-      expect(agent!.status).toBe('completed');
+      expect(agent!.status).toBe('terminated');
     });
   });
 
   describe('updateStatus', () => {
     it('updates agent status', () => {
       controller.registerAgent('agent-1', TEST_PROFILE, 'working');
-      controller.updateStatus('agent-1', 'completed', 'Task done');
+      controller.updateStatus('agent-1', 'terminated', 'Task done');
       const agent = controller.getAgent('agent-1');
-      expect(agent!.status).toBe('completed');
+      expect(agent!.status).toBe('terminated');
       expect(agent!.summary).toBe('Task done');
     });
 
     it('appends status log entry', () => {
       controller.registerAgent('agent-1', TEST_PROFILE, 'working');
-      controller.updateStatus('agent-1', 'completed');
+      controller.updateStatus('agent-1', 'terminated');
       const agent = controller.getAgent('agent-1');
       expect(agent!.logs).toHaveLength(1);
-      expect(agent!.logs[0]).toContain('Status -> completed');
+      expect(agent!.logs[0]).toContain('Status -> terminated');
     });
 
     it('no-ops for non-existent agent', () => {
-      controller.updateStatus('non-existent', 'completed');
+      controller.updateStatus('non-existent', 'terminated');
       expect(controller.getAgent('non-existent')).toBeUndefined();
     });
   });
@@ -160,7 +161,7 @@ describe('InMemorySubAgentController', () => {
   describe('listAgents', () => {
     it('returns all registered agents', () => {
       controller.registerAgent('agent-1', TEST_PROFILE, 'working');
-      controller.registerAgent('agent-2', TEST_PROFILE, 'completed');
+      controller.registerAgent('agent-2', TEST_PROFILE, 'terminated');
       const agents = controller.listAgents();
       expect(agents).toHaveLength(2);
       expect(agents.map((a) => a.id).sort()).toEqual(['agent-1', 'agent-2']);
