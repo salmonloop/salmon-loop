@@ -32,7 +32,9 @@ export function mapAiSdkGenerateResultToMessage(result: unknown): LLMMessage {
     role: 'assistant' as LLMRole,
     content: typeof r.text === 'string' ? r.text : '',
     ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
-    tool_calls: toOpenAiToolCalls(r.toolCalls),
+    tool_calls: toOpenAiToolCalls(
+      Array.isArray(r.toolCalls) ? (r.toolCalls as Parameters<typeof toOpenAiToolCalls>[0]) : undefined,
+    ),
   };
 }
 
@@ -42,9 +44,9 @@ export async function* mapAiSdkStreamResultToChunks(
   let doneEmitted = false;
 
   for await (const part of fullStream) {
-    if (!part) continue;
+    if (!part || !isRecord(part)) continue;
 
-    if (part.type === 'error') throw part.error;
+    if (part.type === 'error') throw (part as Record<string, unknown>).error;
     if (part.type === 'abort') throw new Error('Stream aborted');
 
     const chunk = mapAiSdkStreamPartToChunk(part);

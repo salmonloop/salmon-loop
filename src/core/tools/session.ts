@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import path from 'path';
 
-import type { ToolCallingAuditSink } from '../llm/audit.js';
+import type { ToolCallingAuditEntry, ToolCallingAuditSink } from '../llm/audit.js';
 import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/output-policy.js';
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
@@ -1516,7 +1516,7 @@ async function executeToolCalls(
       continue;
     }
 
-    const parsedAuditEntry: Record<string, unknown> = {
+    const parsedAuditEntry: ToolCallingAuditEntry = {
       timestamp: new Date().toISOString(),
       phase,
       round,
@@ -1530,7 +1530,7 @@ async function executeToolCalls(
     };
     const patchCoercionSource = patchCoercionByCallId.get(callId);
     if (patchCoercionSource) {
-      parsedAuditEntry.coercedPatchSource = patchCoercionSource;
+      (parsedAuditEntry as unknown as Record<string, unknown>).coercedPatchSource = patchCoercionSource;
     }
     session.toolCallingAudit?.event(parsedAuditEntry);
 
@@ -1647,7 +1647,7 @@ async function executeToolCalls(
     if (result.status !== 'ok') {
       const errorCode = result.error?.code;
       const attachArgsPreview = errorCode === 'INVALID_INPUT';
-      const errorAuditEntry: Record<string, unknown> = {
+      const errorAuditEntry: ToolCallingAuditEntry = {
         timestamp: new Date().toISOString(),
         phase,
         round,
@@ -1666,7 +1666,7 @@ async function executeToolCalls(
       };
       const patchCoercionSource = patchCoercionByCallId.get(callId);
       if (patchCoercionSource) {
-        errorAuditEntry.coercedPatchSource = patchCoercionSource;
+        (errorAuditEntry as unknown as Record<string, unknown>).coercedPatchSource = patchCoercionSource;
       }
       session.toolCallingAudit?.event(errorAuditEntry);
     } else {
