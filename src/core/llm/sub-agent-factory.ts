@@ -28,9 +28,7 @@ function resolveModelId(alias: string): string {
  * The factory reuses the parent provider's connection settings (API key,
  * base URL, headers) and only overrides the model ID.
  */
-export function createSubAgentLlmFactory(
-  baseProvider: ResolvedLlmProvider,
-): SubAgentLlmFactory {
+export function createSubAgentLlmFactory(baseProvider: ResolvedLlmProvider): SubAgentLlmFactory {
   return (modelAlias: string): LLM | undefined => {
     const modelId = resolveModelId(modelAlias);
 

@@ -84,7 +84,8 @@ type Facade = {
 };
 
 function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']): string | null {
-  if (!inputRequired || !isRecord(inputRequired) || !Array.isArray(inputRequired.questions)) return null;
+  if (!inputRequired || !isRecord(inputRequired) || !Array.isArray(inputRequired.questions))
+    return null;
   const questions = inputRequired.questions as Array<{
     question: string;
     options: Array<{ label: string; description: string }>;
@@ -1395,7 +1396,10 @@ export function createAcpFormalAgent(deps: {
             ...current,
             history: [
               ...current.history,
-              { role: 'assistant', content: [buildTextContentBlock(responseText)] as ContentBlock[] },
+              {
+                role: 'assistant',
+                content: [buildTextContentBlock(responseText)] as ContentBlock[],
+              },
             ],
           }));
           await sessionPersistence.persist();

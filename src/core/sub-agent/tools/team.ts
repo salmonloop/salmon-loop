@@ -6,17 +6,16 @@ import { Phase } from '../../types/runtime.js';
 import { getOrCreateTeam } from '../team.js';
 
 const AgentTeamInputSchema = z.object({
-  action: z.enum(['claim', 'release', 'list', 'is_claimed']).describe(
-    'Action: claim a task key, release a claim, list all claims, or check if claimed.',
-  ),
+  action: z
+    .enum(['claim', 'release', 'list', 'is_claimed'])
+    .describe('Action: claim a task key, release a claim, list all claims, or check if claimed.'),
   taskKey: z
     .string()
     .optional()
-    .describe('The task/file key to claim, release, or check. Required for claim/release/is_claimed.'),
-  teamId: z
-    .string()
-    .min(1)
-    .describe('The team ID to operate on.'),
+    .describe(
+      'The task/file key to claim, release, or check. Required for claim/release/is_claimed.',
+    ),
+  teamId: z.string().min(1).describe('The team ID to operate on.'),
 });
 
 /**
@@ -53,7 +52,15 @@ export const agentTeamSpec: ToolSpec = {
     {
       description: 'List all current claims',
       input: { action: 'list', teamId: 'team-alpha' },
-      output: { claims: [{ taskKey: 'src/utils/parser.ts', claimedBy: 'smallfry-a1b2c3d4', claimedAt: 1717800000000 }] },
+      output: {
+        claims: [
+          {
+            taskKey: 'src/utils/parser.ts',
+            claimedBy: 'smallfry-a1b2c3d4',
+            claimedAt: 1717800000000,
+          },
+        ],
+      },
     },
   ],
 

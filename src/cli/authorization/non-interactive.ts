@@ -51,12 +51,7 @@ function extractDecisionPayloadFromMcpResult(result: unknown): unknown {
 
   for (const item of content) {
     if (!isRecord(item)) continue;
-    const candidate =
-      item.json ??
-      item.text ??
-      item.value ??
-      item.data ??
-      undefined;
+    const candidate = item.json ?? item.text ?? item.value ?? item.data ?? undefined;
     if (typeof candidate === 'string' && candidate.trim()) {
       try {
         return JSON.parse(candidate);

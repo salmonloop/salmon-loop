@@ -33,7 +33,9 @@ export function mapAiSdkGenerateResultToMessage(result: unknown): LLMMessage {
     content: typeof r.text === 'string' ? r.text : '',
     ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
     tool_calls: toOpenAiToolCalls(
-      Array.isArray(r.toolCalls) ? (r.toolCalls as Parameters<typeof toOpenAiToolCalls>[0]) : undefined,
+      Array.isArray(r.toolCalls)
+        ? (r.toolCalls as Parameters<typeof toOpenAiToolCalls>[0])
+        : undefined,
     ),
   };
 }

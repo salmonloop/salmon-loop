@@ -27,7 +27,10 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
   disallowedToolRules: string[];
 } {
   const allOptions = command.optsWithGlobals() as Record<string, unknown>;
-  const repoPath = resolveRepoPath({ repo: getString(allOptions, 'repo') ?? undefined, cwd: process.cwd() });
+  const repoPath = resolveRepoPath({
+    repo: getString(allOptions, 'repo') ?? undefined,
+    cwd: process.cwd(),
+  });
 
   const continueSession = Boolean(allOptions.continue);
   const resumeSessionId = getString(allOptions, 'resume') ?? undefined;

@@ -104,7 +104,9 @@ export function createRuntimeLlmAndWarn(params: {
         },
         capabilities: phaseTarget.capabilities,
       };
-      const created = createRuntimeLlm(perPhaseConfig as unknown as ResolvedLlmProvider, { langfuseEnabled: params.langfuseEnabled });
+      const created = createRuntimeLlm(perPhaseConfig as unknown as ResolvedLlmProvider, {
+        langfuseEnabled: params.langfuseEnabled,
+      });
       warnings.push(...created.warnings);
       phaseLlms[phase as ExecutionPhase] = created.llm;
     }

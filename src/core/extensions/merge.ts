@@ -24,7 +24,10 @@ export function mergeScopedEntries<T>(
       if (previous) {
         merged.set(key, {
           key,
-          entry: { ...(previous.entry as Record<string, unknown>), ...(entry as Record<string, unknown>) } as T,
+          entry: {
+            ...(previous.entry as Record<string, unknown>),
+            ...(entry as Record<string, unknown>),
+          } as T,
           scope: 'repo',
         });
       } else {

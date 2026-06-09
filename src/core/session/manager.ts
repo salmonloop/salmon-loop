@@ -422,9 +422,7 @@ export class ChatSessionManager {
    * Reads JSON files from storageDir in chunks, parses each, and maps via the provided callback.
    * Silently skips files that fail to parse.
    */
-  private async scanSessionFiles<T>(
-    mapFn: (session: ChatSession) => T,
-  ): Promise<T[]> {
+  private async scanSessionFiles<T>(mapFn: (session: ChatSession) => T): Promise<T[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
     const jsonFiles = files.filter((f) => f.endsWith('.json'));
     const results: T[] = [];

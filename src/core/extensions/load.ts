@@ -32,10 +32,7 @@ export async function tryLoadJsonFile(
     ) {
       return { exists: false };
     }
-    throw new ExtensionConfigError(
-      path,
-      errorMessage(error) || 'Unable to read file',
-    );
+    throw new ExtensionConfigError(path, errorMessage(error) || 'Unable to read file');
   }
 }
 
@@ -49,9 +46,6 @@ export async function loadConfig<T>(
     const config = schema.parse(loaded.json);
     return { path, config };
   } catch (error: unknown) {
-    throw new ExtensionConfigError(
-      path,
-      errorMessage(error) || 'Schema validation failed',
-    );
+    throw new ExtensionConfigError(path, errorMessage(error) || 'Schema validation failed');
   }
 }

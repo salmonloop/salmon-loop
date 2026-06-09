@@ -146,8 +146,7 @@ export class StreamJsonReporter implements SalmonReporter {
 
   onError(error: Error): void {
     const errorRecord = error as unknown as Record<string, unknown>;
-    const auditPath =
-      typeof errorRecord.auditPath === 'string' ? errorRecord.auditPath : undefined;
+    const auditPath = typeof errorRecord.auditPath === 'string' ? errorRecord.auditPath : undefined;
     this.emit(
       encodeStreamFailure({
         uuid: this.uuid(),

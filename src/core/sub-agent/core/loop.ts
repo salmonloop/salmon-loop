@@ -39,14 +39,18 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
 
     // Each subsequent step makes at least one LLM call
     if (maxTurns !== undefined && turnCount >= maxTurns) {
-      getLogger().warn(`[SmallfryLoop] maxTurns (${maxTurns}) reached before CONTEXT — stopping early`);
+      getLogger().warn(
+        `[SmallfryLoop] maxTurns (${maxTurns}) reached before CONTEXT — stopping early`,
+      );
     } else {
       pipeline = pipeline.step('CONTEXT', buildContext);
       turnCount++;
     }
 
     if (maxTurns !== undefined && turnCount >= maxTurns) {
-      getLogger().warn(`[SmallfryLoop] maxTurns (${maxTurns}) reached before PLAN — stopping early`);
+      getLogger().warn(
+        `[SmallfryLoop] maxTurns (${maxTurns}) reached before PLAN — stopping early`,
+      );
     } else {
       pipeline = pipeline.step('PLAN', generatePlan);
       turnCount++;
@@ -54,7 +58,9 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
 
     if (this.profile.stratagem === 'surgeon') {
       if (maxTurns !== undefined && turnCount >= maxTurns) {
-        getLogger().warn(`[SmallfryLoop] maxTurns (${maxTurns}) reached before PATCH — stopping early`);
+        getLogger().warn(
+          `[SmallfryLoop] maxTurns (${maxTurns}) reached before PATCH — stopping early`,
+        );
       } else {
         pipeline = pipeline.step('PATCH', generatePatch);
         turnCount++;

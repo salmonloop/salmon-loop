@@ -17,10 +17,13 @@ function formatOutputSchema(schema: z.ZodType | undefined): string {
   }
 
   try {
-    const jsonSchemaObj = zodToJsonSchema(schema as unknown as Parameters<typeof zodToJsonSchema>[0], {
-      target: 'openApi3',
-      $refStrategy: 'none',
-    });
+    const jsonSchemaObj = zodToJsonSchema(
+      schema as unknown as Parameters<typeof zodToJsonSchema>[0],
+      {
+        target: 'openApi3',
+        $refStrategy: 'none',
+      },
+    );
 
     if (jsonSchemaObj && typeof jsonSchemaObj === 'object') {
       const { $schema: _$schema, ...cleanSchema } = jsonSchemaObj as Record<string, unknown>;
@@ -297,7 +300,9 @@ export function toAiSdkToolSet(
   return Object.keys(tools).length > 0 ? (tools as unknown as ToolSet) : undefined;
 }
 
-export function toOpenAiToolCalls(toolCalls: ToolCallInput[] | undefined): Record<string, unknown>[] | undefined {
+export function toOpenAiToolCalls(
+  toolCalls: ToolCallInput[] | undefined,
+): Record<string, unknown>[] | undefined {
   if (!Array.isArray(toolCalls) || toolCalls.length === 0) return undefined;
 
   const normalizeToolInput = (raw: unknown): unknown => {

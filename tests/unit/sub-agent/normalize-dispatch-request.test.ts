@@ -25,7 +25,10 @@ describe('normalizeDispatchRequest', () => {
     });
 
     it('preserves explicit isolated', () => {
-      const result = normalizeDispatchRequest(makeRequest({ session_target: 'isolated' }), createMockToolRuntimeCtx());
+      const result = normalizeDispatchRequest(
+        makeRequest({ session_target: 'isolated' }),
+        createMockToolRuntimeCtx(),
+      );
       expect(result.session_target).toBe('isolated');
     });
 
@@ -58,27 +61,42 @@ describe('normalizeDispatchRequest', () => {
 
   describe('default expected_output', () => {
     it('defaults to diagnosis for explorer', () => {
-      const result = normalizeDispatchRequest(makeRequest({ agent_ref: 'explorer' }), createMockToolRuntimeCtx());
+      const result = normalizeDispatchRequest(
+        makeRequest({ agent_ref: 'explorer' }),
+        createMockToolRuntimeCtx(),
+      );
       expect(result.expected_output).toBe('diagnosis');
     });
 
     it('defaults to patch for surgeon', () => {
-      const result = normalizeDispatchRequest(makeRequest({ agent_ref: 'surgeon' }), createMockToolRuntimeCtx());
+      const result = normalizeDispatchRequest(
+        makeRequest({ agent_ref: 'surgeon' }),
+        createMockToolRuntimeCtx(),
+      );
       expect(result.expected_output).toBe('patch');
     });
 
     it('defaults to patch for cleaner', () => {
-      const result = normalizeDispatchRequest(makeRequest({ agent_ref: 'cleaner' }), createMockToolRuntimeCtx());
+      const result = normalizeDispatchRequest(
+        makeRequest({ agent_ref: 'cleaner' }),
+        createMockToolRuntimeCtx(),
+      );
       expect(result.expected_output).toBe('patch');
     });
 
     it('defaults to review for reviewer', () => {
-      const result = normalizeDispatchRequest(makeRequest({ agent_ref: 'reviewer' }), createMockToolRuntimeCtx());
+      const result = normalizeDispatchRequest(
+        makeRequest({ agent_ref: 'reviewer' }),
+        createMockToolRuntimeCtx(),
+      );
       expect(result.expected_output).toBe('review');
     });
 
     it('defaults to diagnosis for unknown agent_ref', () => {
-      const result = normalizeDispatchRequest(makeRequest({ agent_ref: 'custom-agent' }), createMockToolRuntimeCtx());
+      const result = normalizeDispatchRequest(
+        makeRequest({ agent_ref: 'custom-agent' }),
+        createMockToolRuntimeCtx(),
+      );
       expect(result.expected_output).toBe('diagnosis');
     });
 
@@ -276,7 +294,18 @@ describe('normalizeDispatchRequest', () => {
 
     it('clone semantics: mutable fields are not shared by reference', () => {
       const runtimeConversation = [{ role: 'assistant' as const, content: 'shared' }];
-      const runtimeAudit = [{ timestamp: 't', phase: 'PLAN', round: 0, callId: 'c', toolName: 'x', rawArgsType: 'string', parsedArgsOk: true, toolResultStatus: 'ok' }];
+      const runtimeAudit = [
+        {
+          timestamp: 't',
+          phase: 'PLAN',
+          round: 0,
+          callId: 'c',
+          toolName: 'x',
+          rawArgsType: 'string',
+          parsedArgsOk: true,
+          toolResultStatus: 'ok',
+        },
+      ];
 
       const result = normalizeDispatchRequest(
         makeRequest({ session_target: 'shared', contextSnapshot: { ...compatibleSharing } }),

@@ -48,9 +48,7 @@ export class PluginLoader {
         getLogger().error(`CRITICAL: Failed to load plugins: ${errorMsg}`);
         throw error;
       }
-      getLogger().error(
-        `Failed to load plugins: ${errorMessage(error)}`,
-      );
+      getLogger().error(`Failed to load plugins: ${errorMessage(error)}`);
     }
   }
 
@@ -91,18 +89,14 @@ export class PluginLoader {
           }
         } catch (err: unknown) {
           if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
-            getLogger().warn(
-              `Failed to load user plugin from ${dirName}: ${errorMessage(err)}`,
-            );
+            getLogger().warn(`Failed to load user plugin from ${dirName}: ${errorMessage(err)}`);
           }
         }
       }
     } catch (err: unknown) {
       // Ignore if directory doesn't exist
       if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
-        getLogger().debug(
-          `Error scanning for user plugins: ${errorMessage(err)}`,
-        );
+        getLogger().debug(`Error scanning for user plugins: ${errorMessage(err)}`);
       }
     }
   }

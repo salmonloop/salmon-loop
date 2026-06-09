@@ -65,7 +65,10 @@ export type SubAgentManagerDeps = {
  * SubAgentManager coordinates the lifecycle of Smallfrys.
  * It handles profile resolution, budget monitoring, and result aggregation.
  */
-export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentResult | SubAgentHandle> {
+export class SubAgentManager implements IExecutable<
+  SubAgentRequest,
+  SubAgentResult | SubAgentHandle
+> {
   private activeAgents = new Map<
     string,
     { profile: SubAgentProfile; status: SubAgentStatus; result?: SubAgentResult }
@@ -133,11 +136,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     if (terminalEvent) {
       return terminalEvent.state === 'completed'
         ? (terminalEvent.result as SubAgentResult)
-        : this.fail(
-            handle.agentId,
-            terminalEvent.reason ?? 'Sub-agent failed',
-            'LOOP_FAILED',
-          );
+        : this.fail(handle.agentId, terminalEvent.reason ?? 'Sub-agent failed', 'LOOP_FAILED');
     }
 
     const effectiveTimeout = timeoutMs ?? 300_000;
@@ -148,7 +147,11 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         unsub();
         // Request stop on the sub-agent so it can clean up
         this.controller.requestStop(handle.agentId);
-        reject(new Error(`Timed out waiting for sub-agent ${handle.agentId} after ${effectiveTimeout}ms`));
+        reject(
+          new Error(
+            `Timed out waiting for sub-agent ${handle.agentId} after ${effectiveTimeout}ms`,
+          ),
+        );
       }, effectiveTimeout);
 
       const unsub = this.deps.eventBus.subscribe((event) => {
@@ -159,13 +162,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           if (event.type === 'subagent.completed') {
             resolve(event.result as SubAgentResult);
           } else {
-            resolve(
-              this.fail(
-                handle.agentId,
-                event.reason ?? 'Sub-agent failed',
-                'LOOP_FAILED',
-              ),
-            );
+            resolve(this.fail(handle.agentId, event.reason ?? 'Sub-agent failed', 'LOOP_FAILED'));
           }
         }
       });
@@ -242,11 +239,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         this.deps.onSubAgentComplete?.(agentId, result);
       })
       .catch((error) => {
-        const failResult = this.fail(
-          profile.id,
-          errorMessage(error),
-          'LOOP_CRASH',
-        );
+        const failResult = this.fail(profile.id, errorMessage(error), 'LOOP_CRASH');
         const entry = this.activeAgents.get(agentId);
         if (entry) entry.result = failResult;
         this.controller.setResult(agentId, failResult);
@@ -344,7 +337,9 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         try {
           const workspace = runtimeEnv.workspace;
           if (!workspace) {
-            throw new Error('Runtime environment setup succeeded but workspace was not initialized');
+            throw new Error(
+              'Runtime environment setup succeeded but workspace was not initialized',
+            );
           }
 
           const activePath = workspace.workPath;
@@ -367,10 +362,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
               contextFiles: request.contextFiles || [],
               llm,
               recursionDepth: currentDepth + 1,
-              allowedToolNames: this.resolveAllowedTools(
-                profile,
-                request.teamId,
-              ),
+              allowedToolNames: this.resolveAllowedTools(profile, request.teamId),
               timeoutMs: request.timeout_seconds
                 ? request.timeout_seconds * 1000
                 : profile.timeoutMs,
@@ -415,20 +407,13 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           await runtimeEnv.teardown();
         }
       } catch (error: unknown) {
-        this.controller.appendLog(
-          agentId,
-          `Execution failed: ${errorMessage(error)}`,
-        );
-        getLogger().error(
-          `[SubAgentManager] Smallfry ${agentId} crashed: ${errorMessage(error)}`,
-        );
+        this.controller.appendLog(agentId, `Execution failed: ${errorMessage(error)}`);
+        getLogger().error(`[SubAgentManager] Smallfry ${agentId} crashed: ${errorMessage(error)}`);
         // Crashes are not retryable
         return {
           agent_ref: profile.id,
           success: false,
-          summary: text.smallfry.errors.missionFailedWithReason(
-            errorMessage(error),
-          ),
+          summary: text.smallfry.errors.missionFailedWithReason(errorMessage(error)),
           tokenUsage: 0,
           reason: errorMessage(error),
           reasonCode: 'LOOP_CRASH',
@@ -440,9 +425,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     }
 
     // Should not reach here, but safety fallback
-    return (
-      lastResult ?? this.fail(profile.id, text.smallfry.errors.missionFailed, 'LOOP_FAILED')
-    );
+    return lastResult ?? this.fail(profile.id, text.smallfry.errors.missionFailed, 'LOOP_FAILED');
   }
 
   // Backward compatibility for internal calls (always synchronous)
@@ -508,10 +491,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     };
   }
 
-  private resolveAllowedTools(
-    profile: SubAgentProfile,
-    teamId?: string,
-  ): string[] | undefined {
+  private resolveAllowedTools(profile: SubAgentProfile, teamId?: string): string[] | undefined {
     const base = this.filterAllowedTools(
       profile.allowedTools,
       this.ctx.phase,
@@ -572,9 +552,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       return parentLlm;
     }
 
-    getLogger().debug(
-      `[SubAgentManager] Using model "${model}" for profile "${profile.id}"`,
-    );
+    getLogger().debug(`[SubAgentManager] Using model "${model}" for profile "${profile.id}"`);
     return modelLlm;
   }
 

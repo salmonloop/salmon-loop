@@ -34,56 +34,57 @@ export async function codeSearchExecutor(
     dryRun: ctx.dryRun,
     // Allow tests (and callers) to override platform; default to host platform.
     platform: isRecord(ctx) && typeof ctx.platform === 'string' ? ctx.platform : process.platform,
-    runner: isRecord(ctx) && typeof ctx.runner === 'object' && ctx.runner !== null
-      ? ctx.runner as CapabilityCtx['runner']
-      : {
-      execFile: async (file, args, opts) => {
-        const maxStdoutBytes = opts?.maxStdoutBytes ?? Number.POSITIVE_INFINITY;
-        let stdout = '';
-        let stderr = '';
-        let stdoutBytes = 0;
+    runner:
+      isRecord(ctx) && typeof ctx.runner === 'object' && ctx.runner !== null
+        ? (ctx.runner as CapabilityCtx['runner'])
+        : {
+            execFile: async (file, args, opts) => {
+              const maxStdoutBytes = opts?.maxStdoutBytes ?? Number.POSITIVE_INFINITY;
+              let stdout = '';
+              let stderr = '';
+              let stdoutBytes = 0;
 
-        const result = await spawnCommand({
-          command: file,
-          args,
-          cwd: opts?.cwd ?? ctx.repoRoot,
-          timeoutMs: opts?.timeoutMs,
-          signal: ctx.signal,
-          env: { ...process.env, ...ctx.env, ...opts?.env },
-          onStdoutChunk: (chunk) => {
-            if (stdoutBytes >= maxStdoutBytes) return;
-            const buffer = Buffer.from(chunk);
-            const remaining = maxStdoutBytes - stdoutBytes;
-            if (buffer.length <= remaining) {
-              stdout += buffer.toString();
-              stdoutBytes += buffer.length;
-              return;
-            }
-            stdout += buffer.subarray(0, remaining).toString();
-            stdoutBytes += remaining;
+              const result = await spawnCommand({
+                command: file,
+                args,
+                cwd: opts?.cwd ?? ctx.repoRoot,
+                timeoutMs: opts?.timeoutMs,
+                signal: ctx.signal,
+                env: { ...process.env, ...ctx.env, ...opts?.env },
+                onStdoutChunk: (chunk) => {
+                  if (stdoutBytes >= maxStdoutBytes) return;
+                  const buffer = Buffer.from(chunk);
+                  const remaining = maxStdoutBytes - stdoutBytes;
+                  if (buffer.length <= remaining) {
+                    stdout += buffer.toString();
+                    stdoutBytes += buffer.length;
+                    return;
+                  }
+                  stdout += buffer.subarray(0, remaining).toString();
+                  stdoutBytes += remaining;
+                },
+                onStderrChunk: (chunk) => {
+                  stderr += Buffer.from(chunk).toString();
+                },
+              });
+
+              if (result.error) {
+                return {
+                  stdout,
+                  stderr: stderr || result.error.message,
+                  exitCode: 1,
+                  timedOut: false,
+                };
+              }
+
+              return {
+                stdout,
+                stderr,
+                exitCode: result.code ?? 1,
+                timedOut: result.timedOut,
+              };
+            },
           },
-          onStderrChunk: (chunk) => {
-            stderr += Buffer.from(chunk).toString();
-          },
-        });
-
-        if (result.error) {
-          return {
-            stdout,
-            stderr: stderr || result.error.message,
-            exitCode: 1,
-            timedOut: false,
-          };
-        }
-
-        return {
-          stdout,
-          stderr,
-          exitCode: result.code ?? 1,
-          timedOut: result.timedOut,
-        };
-      },
-    },
     limits: {
       timeoutMs: LIMITS.defaultToolTimeoutMs,
       maxOutputBytes: LIMITS.maxToolOutputBytes,

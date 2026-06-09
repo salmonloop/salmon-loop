@@ -226,7 +226,8 @@ export function mapErrorForAudit(input: ErrorDisplayInput): ErrorAuditOutput {
 }
 
 function buildLangfuseHttpFailed(details: unknown): ErrorAuditOutput | undefined {
-  const status = isRecord(details) && typeof details.status === 'number' ? details.status : undefined;
+  const status =
+    isRecord(details) && typeof details.status === 'number' ? details.status : undefined;
   if (!status) return undefined;
   if (status === 401 || status === 403) {
     return {

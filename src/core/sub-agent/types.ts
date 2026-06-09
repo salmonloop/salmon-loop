@@ -230,7 +230,9 @@ export const SubAgentRequestSchema = z.object({
   teamId: z
     .string()
     .optional()
-    .describe('Join a coordination team. Sub-agents sharing a teamId can avoid duplicate work via claim/list.'),
+    .describe(
+      'Join a coordination team. Sub-agents sharing a teamId can avoid duplicate work via claim/list.',
+    ),
   contextSnapshot: z
     .object({
       version: z.literal(SUB_AGENT_CONTEXT_SNAPSHOT_VERSION).optional().default(1),

@@ -203,7 +203,9 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     name === 'ZodError' ||
     name.includes('TypeValidationError') ||
     message.includes('TypeValidationError') ||
-    (err != null && typeof err === 'object' && Symbol.for('vercel.ai.error.AI_TypeValidationError') in err)
+    (err != null &&
+      typeof err === 'object' &&
+      Symbol.for('vercel.ai.error.AI_TypeValidationError') in err)
   ) {
     return new LlmError('LLM validation failed', 'LLM_VALIDATION_FAILED', {
       provider,

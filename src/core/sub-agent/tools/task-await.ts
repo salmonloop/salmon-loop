@@ -8,10 +8,7 @@ import { createSubAgentController } from '../controller.js';
 import type { SubAgentResult } from '../types.js';
 
 const AgentAwaitInputSchema = z.object({
-  agentId: z
-    .string()
-    .min(1)
-    .describe('The agent ID returned by agent_dispatch in async mode.'),
+  agentId: z.string().min(1).describe('The agent ID returned by agent_dispatch in async mode.'),
   timeout_seconds: z
     .number()
     .positive()

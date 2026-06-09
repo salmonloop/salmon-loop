@@ -272,7 +272,10 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
               argsHash,
               traceId,
               denyReason: result.error?.code || 'unknown',
-              denySource: isRecord(result.meta) && isRecord(result.meta.authorization) ? (result.meta.authorization.source as string) : 'policy',
+              denySource:
+                isRecord(result.meta) && isRecord(result.meta.authorization)
+                  ? (result.meta.authorization.source as string)
+                  : 'policy',
               durationMs: Date.now() - startedAt,
             });
           }

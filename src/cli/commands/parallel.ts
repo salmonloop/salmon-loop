@@ -242,10 +242,7 @@ export const parallelCommand: Command = {
         });
 
         try {
-          const scheduler = new ParallelScheduler(
-            toolstack.router,
-            new InMemoryLockManager(),
-          );
+          const scheduler = new ParallelScheduler(toolstack.router, new InMemoryLockManager());
 
           const phase: ExecutionPhase = state.runtime?.phase ?? ('PATCH' as ExecutionPhase);
           const runtime = {
@@ -264,8 +261,7 @@ export const parallelCommand: Command = {
             resumeBlockedApprovals: true,
           });
 
-          const canWaitForAuth =
-            typeof toolstack.router.waitForAuthorization === 'function';
+          const canWaitForAuth = typeof toolstack.router.waitForAuthorization === 'function';
           let resumeAttempts = 0;
           while (result.blockedApprovals.length > 0 && canWaitForAuth && !runSignal.aborted) {
             resumeAttempts++;

@@ -70,7 +70,9 @@ export class BudgetGuard {
 
     if (currentRiskActive >= maxRiskAllowed) {
       throw Object.assign(
-        new Error(`Too many concurrent ${params.riskLevel}-risk tool calls (limit: ${maxRiskAllowed})`),
+        new Error(
+          `Too many concurrent ${params.riskLevel}-risk tool calls (limit: ${maxRiskAllowed})`,
+        ),
         { code: 'BUDGET_CONCURRENCY' },
       );
     }
@@ -78,10 +80,9 @@ export class BudgetGuard {
     // 2. Rate Limit / Count Check per Phase
     const currentCount = this.callCounts.get(params.phase) || 0;
     if (currentCount >= this.config.maxCallsPerPhase) {
-      throw Object.assign(
-        new Error(`Too many tool calls in phase ${params.phase}`),
-        { code: 'BUDGET_RATE_LIMIT' },
-      );
+      throw Object.assign(new Error(`Too many tool calls in phase ${params.phase}`), {
+        code: 'BUDGET_RATE_LIMIT',
+      });
     }
 
     this.activeCallsByRisk[params.riskLevel]++;

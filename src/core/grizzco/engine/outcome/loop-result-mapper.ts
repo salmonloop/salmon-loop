@@ -114,13 +114,12 @@ export function buildLoopResultFromTransaction({
   const report = isRecord(ctxObj?.report) ? ctxObj.report : null;
   const assistantMessage =
     ((flowMode === 'answer' || profile.driver === 'agent') &&
-    typeof report?.summary === 'string' && report.summary.trim()
+    typeof report?.summary === 'string' &&
+    report.summary.trim()
       ? report.summary.trim()
       : undefined) ?? undefined;
-  const finalPatch =
-    ctxObj && typeof ctxObj.diff === 'string' ? ctxObj.diff : undefined;
-  const changedFiles =
-    Array.isArray(ctxObj?.changedFiles) ? ctxObj.changedFiles : undefined;
+  const finalPatch = ctxObj && typeof ctxObj.diff === 'string' ? ctxObj.diff : undefined;
+  const changedFiles = Array.isArray(ctxObj?.changedFiles) ? ctxObj.changedFiles : undefined;
 
   const authorizationDecisions = (() => {
     if (!options.eventPayload?.includeAuthorizationDecisions) return undefined;

@@ -1,10 +1,7 @@
 import { readFileSync } from '../adapters/fs/node-fs.js';
 import { initializeDefaultCalculator } from '../context/policies/pack-until-full.js';
 import { isRecord } from '../utils/serialize.js';
-import {
-  getRepoAgentsConfigPath,
-  getUserAgentsConfigPath,
-} from '../extensions/paths.js';
+import { getRepoAgentsConfigPath, getUserAgentsConfigPath } from '../extensions/paths.js';
 import { AgentsConfigSchema } from '../extensions/schemas.js';
 import type { RawAgentsConfig } from '../extensions/types.js';
 import { createLogger, getLogger, setLogger, tryGetLogger } from '../observability/logger.js';
@@ -65,9 +62,12 @@ export function initializeRuntime() {
     const sanitizedArgs = args.map((arg) => {
       if (isRecord(arg)) {
         // Drop the object structure entirely for console output to prevent UI pollution
-        const code = (typeof arg.code === 'string' ? arg.code : undefined) ||
-          (typeof arg.llmCode === 'string' ? arg.llmCode : undefined) || 'TECHNICAL_ERROR';
-        const msg = (typeof arg.message === 'string' ? arg.message : undefined) || 'No detail provided';
+        const code =
+          (typeof arg.code === 'string' ? arg.code : undefined) ||
+          (typeof arg.llmCode === 'string' ? arg.llmCode : undefined) ||
+          'TECHNICAL_ERROR';
+        const msg =
+          (typeof arg.message === 'string' ? arg.message : undefined) || 'No detail provided';
         return `[${code}] ${msg}`;
       }
       return arg;

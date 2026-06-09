@@ -15,9 +15,7 @@ import { createTaskEventBus } from '../../src/core/interaction/events/bus.js';
 
 // ─── ToolRuntimeCtx ───────────────────────────────────────────────
 
-export function createMockToolRuntimeCtx(
-  overrides?: Partial<ToolRuntimeCtx>,
-): ToolRuntimeCtx {
+export function createMockToolRuntimeCtx(overrides?: Partial<ToolRuntimeCtx>): ToolRuntimeCtx {
   return {
     repoRoot: '/repo',
     attemptId: 1,
@@ -63,9 +61,7 @@ export function createMockRuntimeEnv(
 
 // ─── SubAgentManagerDeps ──────────────────────────────────────────
 
-export function createMockDeps(
-  overrides?: Partial<SubAgentManagerDeps>,
-): SubAgentManagerDeps {
+export function createMockDeps(overrides?: Partial<SubAgentManagerDeps>): SubAgentManagerDeps {
   return {
     registry: {
       get: mock(() => ({

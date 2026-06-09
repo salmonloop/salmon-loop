@@ -42,7 +42,9 @@ function findNetworkCode(err: unknown): string | undefined {
 function isAbortLikeError(err: unknown): boolean {
   const unwrapped = unwrapRetryError(err);
   const name = unwrapped instanceof Error ? unwrapped.name : '';
-  const msg = String((isRecord(unwrapped) ? unwrapped.message : undefined) ?? unwrapped).toLowerCase();
+  const msg = String(
+    (isRecord(unwrapped) ? unwrapped.message : undefined) ?? unwrapped,
+  ).toLowerCase();
   return name === 'AbortError' || msg.includes('aborted');
 }
 

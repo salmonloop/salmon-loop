@@ -192,9 +192,7 @@ export class WorkspaceSynchronizer {
     try {
       detectedDependencyPaths = await detectDependencyPaths(repoPath);
     } catch (error) {
-      getLogger().debug(
-        `[checkpoint] Failed to detect dependency paths: ${errorMessage(error)}`,
-      );
+      getLogger().debug(`[checkpoint] Failed to detect dependency paths: ${errorMessage(error)}`);
     }
 
     const candidates = new Set<string>([

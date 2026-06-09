@@ -4,12 +4,7 @@ import { LLM_OUTPUT_KINDS } from '../types/index.js';
 
 import { ConfigError } from './errors.js';
 import { normalizePermissionMode, normalizeUiLogMode, normalizeUiLogView } from './normalize.js';
-import {
-  MARKDOWN_RENDER_MODES,
-  MARKDOWN_THEMES,
-  UI_LOG_MODES,
-  UI_LOG_VIEWS,
-} from './types.js';
+import { MARKDOWN_RENDER_MODES, MARKDOWN_THEMES, UI_LOG_MODES, UI_LOG_VIEWS } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Primitive schemas
@@ -216,12 +211,8 @@ const outputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 const uiLogSchema = z.object({
-  view: z
-    .preprocess((val) => normalizeUiLogView(val), z.enum([...UI_LOG_VIEWS]))
-    .optional(),
-  mode: z
-    .preprocess((val) => normalizeUiLogMode(val), z.enum([...UI_LOG_MODES]))
-    .optional(),
+  view: z.preprocess((val) => normalizeUiLogView(val), z.enum([...UI_LOG_VIEWS])).optional(),
+  mode: z.preprocess((val) => normalizeUiLogMode(val), z.enum([...UI_LOG_MODES])).optional(),
 });
 
 const uiSchema = z.object({
@@ -260,32 +251,32 @@ const CAPABILITY_KEYS = new Set([
   'streaming',
 ]);
 
-const llmModelParamsSchema = z.object({
-  temperature: finiteNumber.optional(),
-  maxTokens: finiteNumber.optional(),
-  topP: finiteNumber.optional(),
-  presencePenalty: finiteNumber.optional(),
-  frequencyPenalty: finiteNumber.optional(),
-}).passthrough().superRefine((val, ctx) => {
-  for (const key of CAPABILITY_KEYS) {
-    if (key in val && (val as Record<string, unknown>)[key] !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: [key],
-        params: {
-          configErrorCode: 'CONFIG_INVALID_LLM_CAPABILITY_LOCATION',
-          capability: key,
-          expected: 'model.capabilities',
-        },
-      });
+const llmModelParamsSchema = z
+  .object({
+    temperature: finiteNumber.optional(),
+    maxTokens: finiteNumber.optional(),
+    topP: finiteNumber.optional(),
+    presencePenalty: finiteNumber.optional(),
+    frequencyPenalty: finiteNumber.optional(),
+  })
+  .passthrough()
+  .superRefine((val, ctx) => {
+    for (const key of CAPABILITY_KEYS) {
+      if (key in val && (val as Record<string, unknown>)[key] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          params: {
+            configErrorCode: 'CONFIG_INVALID_LLM_CAPABILITY_LOCATION',
+            capability: key,
+            expected: 'model.capabilities',
+          },
+        });
+      }
     }
-  }
-});
+  });
 
-const modelProviderSchema = z.union([
-  z.string(),
-  z.array(z.string()).min(1),
-]);
+const modelProviderSchema = z.union([z.string(), z.array(z.string()).min(1)]);
 
 const llmModelProfileSchema = z.object({
   provider: modelProviderSchema,
@@ -404,10 +395,7 @@ export const configFileV1Schema = z
   .object({
     version: z.literal(1).optional(),
     mode: z
-      .preprocess(
-        (val) => normalizePermissionMode(val),
-        z.enum(['interactive', 'yolo']),
-      )
+      .preprocess((val) => normalizePermissionMode(val), z.enum(['interactive', 'yolo']))
       .optional(),
     cli: cliSchema.optional(),
     server: serverSchema.optional(),
@@ -451,12 +439,24 @@ const ERROR_CODE_MAP = new Map<string, string>([
   ['server.acp.sessionStore', 'CONFIG_INVALID_SERVER_ACP_SESSION_STORE'],
   ['server.acp.sessionStore.maxEntries', 'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_MAX_ENTRIES'],
   ['server.acp.sessionStore.maxAgeMs', 'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_MAX_AGE_MS'],
-  ['server.acp.sessionStore.historyMaxEntries', 'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_HISTORY_MAX_ENTRIES'],
+  [
+    'server.acp.sessionStore.historyMaxEntries',
+    'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_HISTORY_MAX_ENTRIES',
+  ],
   ['server.acp.sessionStore.lockStaleMs', 'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_LOCK_STALE_MS'],
-  ['server.acp.sessionStore.lockHeartbeatMs', 'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_LOCK_HEARTBEAT_MS'],
+  [
+    'server.acp.sessionStore.lockHeartbeatMs',
+    'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_LOCK_HEARTBEAT_MS',
+  ],
   ['server.acp.checkpointManifest', 'CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST'],
-  ['server.acp.checkpointManifest.lockStaleMs', 'CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST_LOCK_STALE_MS'],
-  ['server.acp.checkpointManifest.lockHeartbeatMs', 'CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST_LOCK_HEARTBEAT_MS'],
+  [
+    'server.acp.checkpointManifest.lockStaleMs',
+    'CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST_LOCK_STALE_MS',
+  ],
+  [
+    'server.acp.checkpointManifest.lockHeartbeatMs',
+    'CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST_LOCK_HEARTBEAT_MS',
+  ],
 
   // Context
   ['context', 'CONFIG_INVALID_CONTEXT'],
@@ -479,8 +479,14 @@ const ERROR_CODE_MAP = new Map<string, string>([
   ['context.dynamicBudget.maxBudget', 'CONFIG_INVALID_DYNAMIC_BUDGET_MAX'],
   ['context.dynamicBudget.adjustmentStep', 'CONFIG_INVALID_DYNAMIC_BUDGET_STEP'],
   ['context.dynamicBudget.alerts', 'CONFIG_INVALID_DYNAMIC_BUDGET_ALERTS'],
-  ['context.dynamicBudget.alerts.truncationRateWarn', 'CONFIG_INVALID_DYNAMIC_BUDGET_ALERT_TRUNCATION'],
-  ['context.dynamicBudget.alerts.criticalDropRateWarn', 'CONFIG_INVALID_DYNAMIC_BUDGET_ALERT_CRITICAL_DROP'],
+  [
+    'context.dynamicBudget.alerts.truncationRateWarn',
+    'CONFIG_INVALID_DYNAMIC_BUDGET_ALERT_TRUNCATION',
+  ],
+  [
+    'context.dynamicBudget.alerts.criticalDropRateWarn',
+    'CONFIG_INVALID_DYNAMIC_BUDGET_ALERT_CRITICAL_DROP',
+  ],
 
   // Observability
   ['observability', 'CONFIG_INVALID_OBSERVABILITY'],
@@ -554,14 +560,32 @@ const ERROR_CODE_MAP = new Map<string, string>([
   ['toolAuthorization.autoAllowRisk.medium', 'CONFIG_INVALID_TOOL_AUTH_RISK_MEDIUM'],
   ['toolAuthorization.autoAllowRisk.high', 'CONFIG_INVALID_TOOL_AUTH_RISK_HIGH'],
   ['toolAuthorization.nonInteractive', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE'],
-  ['toolAuthorization.nonInteractive.strategy', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_STRATEGY'],
+  [
+    'toolAuthorization.nonInteractive.strategy',
+    'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_STRATEGY',
+  ],
   ['toolAuthorization.nonInteractive.command', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND'],
-  ['toolAuthorization.nonInteractive.command.cmd', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND_CMD'],
-  ['toolAuthorization.nonInteractive.command.timeoutMs', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND_TIMEOUT'],
+  [
+    'toolAuthorization.nonInteractive.command.cmd',
+    'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND_CMD',
+  ],
+  [
+    'toolAuthorization.nonInteractive.command.timeoutMs',
+    'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND_TIMEOUT',
+  ],
   ['toolAuthorization.nonInteractive.mcp', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP'],
-  ['toolAuthorization.nonInteractive.mcp.server', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_SERVER'],
-  ['toolAuthorization.nonInteractive.mcp.tool', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_TOOL'],
-  ['toolAuthorization.nonInteractive.mcp.timeoutMs', 'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_TIMEOUT'],
+  [
+    'toolAuthorization.nonInteractive.mcp.server',
+    'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_SERVER',
+  ],
+  [
+    'toolAuthorization.nonInteractive.mcp.tool',
+    'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_TOOL',
+  ],
+  [
+    'toolAuthorization.nonInteractive.mcp.timeoutMs',
+    'CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_TIMEOUT',
+  ],
   ['toolAuthorization.allowlist', 'CONFIG_INVALID_TOOL_AUTH_ALLOWLIST'],
   ['toolAuthorization.allowlist.repoFile', 'CONFIG_INVALID_TOOL_AUTH_REPO_FILE'],
   ['toolAuthorization.allowlist.userFile', 'CONFIG_INVALID_TOOL_AUTH_USER_FILE'],
@@ -596,7 +620,12 @@ const DYNAMIC_PATTERNS: Array<{
     details: (p) => ({ provider: p[2], expected: 'object' }),
   },
   {
-    test: (p) => p.length >= 5 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'client' && p[4] === 'package',
+    test: (p) =>
+      p.length >= 5 &&
+      p[0] === 'llm' &&
+      p[1] === 'providers' &&
+      p[3] === 'client' &&
+      p[4] === 'package',
     code: 'CONFIG_INVALID_CLIENT_PACKAGE',
     details: (p) => ({ provider: p[2], expected: 'string' }),
   },
@@ -606,41 +635,67 @@ const DYNAMIC_PATTERNS: Array<{
     details: (p) => ({ provider: p[2], expected: 'object' }),
   },
   {
-    test: (p) => p.length >= 5 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'api' && p[4] === 'baseUrl',
+    test: (p) =>
+      p.length >= 5 &&
+      p[0] === 'llm' &&
+      p[1] === 'providers' &&
+      p[3] === 'api' &&
+      p[4] === 'baseUrl',
     code: 'CONFIG_INVALID_BASE_URL',
     details: (p) => ({ provider: p[2], expected: 'string' }),
   },
   {
-    test: (p) => p.length >= 5 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'api' && p[4] === 'apiKey',
+    test: (p) =>
+      p.length >= 5 &&
+      p[0] === 'llm' &&
+      p[1] === 'providers' &&
+      p[3] === 'api' &&
+      p[4] === 'apiKey',
     code: 'CONFIG_INVALID_API_KEY',
     details: (p) => ({ provider: p[2], expected: 'string_or_null' }),
   },
   {
-    test: (p) => p.length >= 5 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'api' && p[4] === 'timeoutMs',
+    test: (p) =>
+      p.length >= 5 &&
+      p[0] === 'llm' &&
+      p[1] === 'providers' &&
+      p[3] === 'api' &&
+      p[4] === 'timeoutMs',
     code: 'CONFIG_INVALID_TIMEOUT',
     details: (p) => ({ provider: p[2], expected: 'number' }),
   },
   {
-    test: (p) => p.length >= 5 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'api' && p[4] === 'headers',
+    test: (p) =>
+      p.length >= 5 &&
+      p[0] === 'llm' &&
+      p[1] === 'providers' &&
+      p[3] === 'api' &&
+      p[4] === 'headers',
     code: 'CONFIG_INVALID_HEADERS',
     details: (p) => ({ provider: p[2], expected: 'object' }),
   },
   {
     test: (p) =>
-      p.length >= 6 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'api' && p[4] === 'headers',
+      p.length >= 6 &&
+      p[0] === 'llm' &&
+      p[1] === 'providers' &&
+      p[3] === 'api' &&
+      p[4] === 'headers',
     code: 'CONFIG_INVALID_HEADER_VALUE',
     details: (p) => ({ provider: p[2], header: p[5], expected: 'string' }),
   },
   {
     test: (p, issue) =>
-      p.length === 4 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'capabilities' &&
+      p.length === 4 &&
+      p[0] === 'llm' &&
+      p[1] === 'providers' &&
+      p[3] === 'capabilities' &&
       issue?.code !== 'unrecognized_keys',
     code: 'CONFIG_INVALID_LLM_CAPABILITIES',
     details: (p) => ({ provider: p[2], expected: 'object' }),
   },
   {
-    test: (p) =>
-      p.length >= 4 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'capabilities',
+    test: (p) => p.length >= 4 && p[0] === 'llm' && p[1] === 'providers' && p[3] === 'capabilities',
     code: 'CONFIG_INVALID_LLM_CAPABILITY',
     details: (p) => ({ provider: p[2], capability: p[4] ?? '', expected: 'boolean' }),
   },
@@ -667,27 +722,27 @@ const DYNAMIC_PATTERNS: Array<{
   },
   {
     test: (p, issue) =>
-      p.length === 4 && p[0] === 'llm' && p[1] === 'models' && p[3] === 'capabilities' &&
+      p.length === 4 &&
+      p[0] === 'llm' &&
+      p[1] === 'models' &&
+      p[3] === 'capabilities' &&
       issue?.code !== 'unrecognized_keys',
     code: 'CONFIG_INVALID_LLM_CAPABILITIES',
     details: (p) => ({ model: p[2], expected: 'object' }),
   },
   {
-    test: (p) =>
-      p.length >= 4 && p[0] === 'llm' && p[1] === 'models' && p[3] === 'capabilities',
+    test: (p) => p.length >= 4 && p[0] === 'llm' && p[1] === 'models' && p[3] === 'capabilities',
     code: 'CONFIG_INVALID_LLM_CAPABILITY',
     details: (p) => ({ model: p[2], capability: p[4] ?? '', expected: 'boolean' }),
   },
   // LLM routing per-key errors
   {
-    test: (p) =>
-      p.length >= 4 && p[0] === 'llm' && p[1] === 'routing' && p[2] === 'taskToModel',
+    test: (p) => p.length >= 4 && p[0] === 'llm' && p[1] === 'routing' && p[2] === 'taskToModel',
     code: 'CONFIG_INVALID_TASK_TO_MODEL_VALUE',
     details: (p) => ({ task: p[3], expected: 'string' }),
   },
   {
-    test: (p) =>
-      p.length >= 4 && p[0] === 'llm' && p[1] === 'routing' && p[2] === 'phaseToModel',
+    test: (p) => p.length >= 4 && p[0] === 'llm' && p[1] === 'routing' && p[2] === 'phaseToModel',
     code: 'CONFIG_INVALID_PHASE_TO_MODEL_VALUE',
     details: (p) => ({ phase: p[3], expected: 'string' }),
   },

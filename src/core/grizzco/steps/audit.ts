@@ -92,7 +92,12 @@ export async function saveAudit(
                 : errorInfo?.code || errorInfo?.llmCode,
           }
         : report.error
-          ? { name: 'UnknownError', message: String(report.error), stack: undefined, code: undefined }
+          ? {
+              name: 'UnknownError',
+              message: String(report.error),
+              stack: undefined,
+              code: undefined,
+            }
           : undefined;
     const mappedErrorMeta = replaceRedactedTokens(errorMeta) as typeof errorMeta;
     const errorDisplay = mapErrorForDisplay({
@@ -353,10 +358,15 @@ function sanitizeContext(ctx: unknown): Record<string, unknown> | null {
   if (typed.applyBackResult) safe.applyBackResult = typed.applyBackResult;
 
   if (typed.toolCallingAudit && Array.isArray(typed.toolCallingAudit)) {
-    const KEYS_TO_STRIP = new Set(['rawArgsPreview', 'parsedArgsPreview', 'toolResultErrorMessage']);
+    const KEYS_TO_STRIP = new Set([
+      'rawArgsPreview',
+      'parsedArgsPreview',
+      'toolResultErrorMessage',
+    ]);
     safe.toolCallingAudit = typed.toolCallingAudit.map((entry) => {
       if (!entry || typeof entry !== 'object') return entry as unknown as ToolCallingAuditEntry;
-      const keepArgsPreview = (entry as ToolCallingAuditEntry).toolResultErrorCode === 'INVALID_INPUT';
+      const keepArgsPreview =
+        (entry as ToolCallingAuditEntry).toolResultErrorCode === 'INVALID_INPUT';
       if (keepArgsPreview) return entry;
       return Object.fromEntries(
         Object.entries(entry).filter(([k]) => !KEYS_TO_STRIP.has(k)),

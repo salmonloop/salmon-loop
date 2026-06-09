@@ -67,9 +67,7 @@ export async function registerPluginTools(registry: ToolRegistry, plugins: Resol
     try {
       tools = await registerFn();
     } catch (error: unknown) {
-      getLogger().error(
-        `Plugin ${pluginId} register() failed: ${errorMessage(error)}`,
-      );
+      getLogger().error(`Plugin ${pluginId} register() failed: ${errorMessage(error)}`);
       continue;
     }
 

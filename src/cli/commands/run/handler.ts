@@ -582,10 +582,9 @@ export async function handleRunCommand(options: any, command: Command) {
       activeReporterStarted &&
       activeReporter
     ) {
-      const error = Object.assign(
-        new Error(text.cli.unexpectedError(msg)),
-        { auditPath: lastKnownAuditPath },
-      );
+      const error = Object.assign(new Error(text.cli.unexpectedError(msg)), {
+        auditPath: lastKnownAuditPath,
+      });
       activeReporter.onError(error);
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUnexpectedError({

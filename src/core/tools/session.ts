@@ -1530,7 +1530,8 @@ async function executeToolCalls(
     };
     const patchCoercionSource = patchCoercionByCallId.get(callId);
     if (patchCoercionSource) {
-      (parsedAuditEntry as unknown as Record<string, unknown>).coercedPatchSource = patchCoercionSource;
+      (parsedAuditEntry as unknown as Record<string, unknown>).coercedPatchSource =
+        patchCoercionSource;
     }
     session.toolCallingAudit?.event(parsedAuditEntry);
 
@@ -1637,10 +1638,10 @@ async function executeToolCalls(
       result.error?.code === 'INTERRUPT_REQUIRED' &&
       result.meta?.interrupt
     ) {
-      const err = Object.assign(
-        new Error(result.error.message || 'Interrupt required'),
-        { code: 'INTERRUPT_REQUIRED', interrupt: result.meta.interrupt },
-      );
+      const err = Object.assign(new Error(result.error.message || 'Interrupt required'), {
+        code: 'INTERRUPT_REQUIRED',
+        interrupt: result.meta.interrupt,
+      });
       throw err;
     }
 
@@ -1666,7 +1667,8 @@ async function executeToolCalls(
       };
       const patchCoercionSource = patchCoercionByCallId.get(callId);
       if (patchCoercionSource) {
-        (errorAuditEntry as unknown as Record<string, unknown>).coercedPatchSource = patchCoercionSource;
+        (errorAuditEntry as unknown as Record<string, unknown>).coercedPatchSource =
+          patchCoercionSource;
       }
       session.toolCallingAudit?.event(errorAuditEntry);
     } else {

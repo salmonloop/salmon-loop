@@ -54,8 +54,7 @@ export class ParallelScheduler {
       return true;
     }
 
-    const errorCode =
-      isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
+    const errorCode = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
     return isRecoverableToolInputErrorCode(errorCode);
   }
 
@@ -226,14 +225,16 @@ export class ParallelScheduler {
         const normalizedArgs = this.normalizeArgsForSpec(spec, resolvedArgs);
 
         // 1.5 Deferred authorization preflight (avoid holding locks while waiting for user)
-        const phase = isRecord(baseCtx) && typeof baseCtx.phase === 'string' ? baseCtx.phase : Phase.EXPLORE;
-        const preflight = await this.router.preflightDeferredAuthorization?.({
-              id: nodeId,
-              phase,
-              toolName: node.toolName,
-              args: normalizedArgs,
-              ctx: baseCtx,
-            }) ?? null;
+        const phase =
+          isRecord(baseCtx) && typeof baseCtx.phase === 'string' ? baseCtx.phase : Phase.EXPLORE;
+        const preflight =
+          (await this.router.preflightDeferredAuthorization?.({
+            id: nodeId,
+            phase,
+            toolName: node.toolName,
+            args: normalizedArgs,
+            ctx: baseCtx,
+          })) ?? null;
         if (preflight?.kind === 'pending') {
           nodeStates.set(nodeId, 'BLOCKED_APPROVAL');
           const approval: ApprovalRequest = {
@@ -320,7 +321,9 @@ export class ParallelScheduler {
               toolName: node.toolName,
               riskLevel: spec.riskLevel,
               message: result.error.message || 'Approval required',
-              confirmToken: isRecord(result.error) ? (result.error as Record<string, unknown>).confirmToken as string | undefined : undefined,
+              confirmToken: isRecord(result.error)
+                ? ((result.error as Record<string, unknown>).confirmToken as string | undefined)
+                : undefined,
             };
             nodeResults[nodeId] = {
               status: 'BLOCKED_APPROVAL',

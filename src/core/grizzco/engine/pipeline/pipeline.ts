@@ -66,11 +66,7 @@ export class Pipeline<CurrentCtx> {
     const nextPromise = this.executeStep(name, action, async () => {
       // No recovery for plain steps — check for APPLY_BACK structured failure
       const result = this.ctxRef.current;
-      if (
-        name === 'APPLY_BACK' &&
-        isRecord(result) &&
-        isRecord(result.applyBackResult)
-      ) {
+      if (name === 'APPLY_BACK' && isRecord(result) && isRecord(result.applyBackResult)) {
         const applyBackResult = result.applyBackResult as {
           success?: boolean;
           skipped?: boolean;
@@ -165,7 +161,7 @@ export class Pipeline<CurrentCtx> {
     const persistenceRoot =
       (typeof workspace?.baseRepoPath === 'string' ? workspace.baseRepoPath : undefined) ||
       (typeof workspace?.workPath === 'string' ? workspace.workPath : undefined);
-    const attempt = (typeof ctxObj?.attempt === 'number' ? ctxObj.attempt : 1);
+    const attempt = typeof ctxObj?.attempt === 'number' ? ctxObj.attempt : 1;
 
     const tryAppendPlanNote = async (note: string) => {
       if (!planRuntime || !persistenceRoot) return;
@@ -264,7 +260,14 @@ export class Pipeline<CurrentCtx> {
       }
       setAuditContext({ phase: undefined });
       const end = Date.now();
-      this.traces.push({ name, start, end, duration: end - start, error: errorStr, metadata: errorMeta });
+      this.traces.push({
+        name,
+        start,
+        end,
+        duration: end - start,
+        error: errorStr,
+        metadata: errorMeta,
+      });
     }
   }
 

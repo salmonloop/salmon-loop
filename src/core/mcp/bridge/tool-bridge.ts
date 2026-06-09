@@ -449,7 +449,6 @@ function summarizeMcpAuthorization(
   return safeStringify(payload, { maxLength: 1200 });
 }
 
-
 function coerceRecord(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return {};

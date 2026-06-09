@@ -156,7 +156,9 @@ export class PromptRegistry {
 
     try {
       const unwrapped = unwrapZodSchema(zodSchema);
-      const zWithJson = z as unknown as { toJSONSchema?: (s: z.ZodTypeAny) => Record<string, unknown> };
+      const zWithJson = z as unknown as {
+        toJSONSchema?: (s: z.ZodTypeAny) => Record<string, unknown>;
+      };
       if (zWithJson.toJSONSchema) {
         const schema = zWithJson.toJSONSchema(unwrapped);
         if (schema && typeof schema === 'object') {

@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import { SubAgentTeam, getOrCreateTeam, removeTeam, clearAllTeams } from '../../../src/core/sub-agent/team.js';
+import {
+  SubAgentTeam,
+  getOrCreateTeam,
+  removeTeam,
+  clearAllTeams,
+} from '../../../src/core/sub-agent/team.js';
 
 describe('SubAgentTeam', () => {
   let team: SubAgentTeam;

@@ -29,7 +29,9 @@ abstract class TiktokenEncoding implements IEncoding {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    this.encoder = get_encoding(this.getTiktokenName() as unknown as Parameters<typeof get_encoding>[0]);
+    this.encoder = get_encoding(
+      this.getTiktokenName() as unknown as Parameters<typeof get_encoding>[0],
+    );
     this.initialized = true;
   }
 

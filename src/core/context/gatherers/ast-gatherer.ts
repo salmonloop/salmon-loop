@@ -287,16 +287,15 @@ export class AstGatherer {
     controlFlow: NonNullable<ContextAnalysis['ast']>['controlFlow'];
     exceptionPaths: NonNullable<ContextAnalysis['ast']>['exceptionPaths'];
   }> {
-    if (
-      !parsedTree ||
-      !lang ||
-      !flowPack?.control ||
-      !flowPack?.exceptions
-    ) {
+    if (!parsedTree || !lang || !flowPack?.control || !flowPack?.exceptions) {
       return summarizeControlFlow(primaryText);
     }
 
-    const controlCaptures = await AstParser.queryCapturesFromQuery(parsedTree, lang, flowPack.control);
+    const controlCaptures = await AstParser.queryCapturesFromQuery(
+      parsedTree,
+      lang,
+      flowPack.control,
+    );
     const exceptionCaptures = await AstParser.queryCapturesFromQuery(
       parsedTree,
       lang,

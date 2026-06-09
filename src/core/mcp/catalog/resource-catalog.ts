@@ -4,9 +4,7 @@ export function withResourceServer(
   serverName: string,
   resources: Array<Record<string, unknown>>,
 ): McpResourceDescriptor[] {
-  return resources.map(
-    (resource) => ({ ...resource, serverName }) as McpResourceDescriptor,
-  );
+  return resources.map((resource) => ({ ...resource, serverName }) as McpResourceDescriptor);
 }
 
 export function withResourceTemplateServer(

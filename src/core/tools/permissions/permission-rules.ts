@@ -374,13 +374,31 @@ function compileRule(
   const category = resolveToolCategory(tool);
 
   if (category === 'bash') {
-    return { effect, tool, raw, specifier, compiled: { kind: 'bash', matcher: compileBashMatcher(specifier) } };
+    return {
+      effect,
+      tool,
+      raw,
+      specifier,
+      compiled: { kind: 'bash', matcher: compileBashMatcher(specifier) },
+    };
   }
   if (category === 'edit') {
-    return { effect, tool, raw, specifier, compiled: { kind: 'edit', matcher: compilePathMatcher(specifier) } };
+    return {
+      effect,
+      tool,
+      raw,
+      specifier,
+      compiled: { kind: 'edit', matcher: compilePathMatcher(specifier) },
+    };
   }
   if (category === 'path') {
-    return { effect, tool, raw, specifier, compiled: { kind: 'path', matcher: compilePathMatcher(specifier) } };
+    return {
+      effect,
+      tool,
+      raw,
+      specifier,
+      compiled: { kind: 'path', matcher: compilePathMatcher(specifier) },
+    };
   }
   return { effect, tool, raw, specifier, compiled: { kind: 'tool_any' } };
 }

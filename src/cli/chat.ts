@@ -142,7 +142,9 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       const answers: Record<string, string> = {};
       for (const question of input.questions) {
         if (requestOptions?.signal?.aborted) {
-          const err = Object.assign(new Error(text.cli.askUserCancelled), { code: 'ASK_USER_CANCELLED' });
+          const err = Object.assign(new Error(text.cli.askUserCancelled), {
+            code: 'ASK_USER_CANCELLED',
+          });
           throw err;
         }
 
@@ -161,7 +163,9 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         });
 
         if (!selected || selected.length === 0) {
-          const err = Object.assign(new Error(text.cli.askUserCancelled), { code: 'ASK_USER_CANCELLED' });
+          const err = Object.assign(new Error(text.cli.askUserCancelled), {
+            code: 'ASK_USER_CANCELLED',
+          });
           throw err;
         }
 

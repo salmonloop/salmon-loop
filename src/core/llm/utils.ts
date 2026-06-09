@@ -39,7 +39,9 @@ export function parsePlanFromLLMContent(content: string): Plan {
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error(`${text.llm.planInvalidJson} — Expected object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}`);
+    throw new Error(
+      `${text.llm.planInvalidJson} — Expected object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}`,
+    );
   }
 
   const plan = parsed as Plan;

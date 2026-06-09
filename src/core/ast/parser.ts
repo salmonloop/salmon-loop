@@ -48,7 +48,9 @@ export class AstParser {
   private static getParserClass(): typeof TreeSitter.Parser {
     const mod = TreeSitter as unknown as TreeSitterModuleInterop;
     try {
-      return (mod.Parser ?? mod.default?.Parser ?? TreeSitter) as unknown as typeof TreeSitter.Parser;
+      return (mod.Parser ??
+        mod.default?.Parser ??
+        TreeSitter) as unknown as typeof TreeSitter.Parser;
     } catch (_error) {
       getLogger().degrade(text.ast.degradedApi);
       return (mod.default ?? TreeSitter) as unknown as typeof TreeSitter.Parser;

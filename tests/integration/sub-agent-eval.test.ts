@@ -36,17 +36,17 @@ function buildSubAgentStubTurns(profile: string, task: string): StubTurn[] {
   ];
 }
 
-function buildDispatchTurns(
-  profile: string,
-  task: string,
-  asyncMode = false,
-): StubTurn[] {
+function buildDispatchTurns(profile: string, task: string, asyncMode = false): StubTurn[] {
   const dispatchArgs: Record<string, unknown> = {
     agent_ref: profile,
     task,
     session_target: 'isolated',
     expected_output:
-      profile === 'surgeon' || profile === 'cleaner' ? 'patch' : profile === 'reviewer' ? 'review' : 'diagnosis',
+      profile === 'surgeon' || profile === 'cleaner'
+        ? 'patch'
+        : profile === 'reviewer'
+          ? 'review'
+          : 'diagnosis',
   };
   if (asyncMode) dispatchArgs.async = true;
 
@@ -159,9 +159,7 @@ describe('Sub-Agent Evaluation Harness', () => {
     const turns: StubTurn[] = [
       {
         content: 'First turn with tool call',
-        toolCalls: [
-          { id: 'call-1', function: { name: 'test_tool', arguments: '{}' } },
-        ],
+        toolCalls: [{ id: 'call-1', function: { name: 'test_tool', arguments: '{}' } }],
       },
       { content: 'Final answer' },
     ];
@@ -192,7 +190,8 @@ describe('Sub-Agent Evaluation Harness', () => {
       llm: stub as unknown as LLM,
       mode: 'patch',
       subAgentController: controller,
-      llmFactory: () => new ToolCallingStubLLM(buildSubAgentStubTurns('explorer', task)) as unknown as LLM,
+      llmFactory: () =>
+        new ToolCallingStubLLM(buildSubAgentStubTurns('explorer', task)) as unknown as LLM,
     });
 
     expect(result).toBeDefined();
@@ -215,7 +214,8 @@ describe('Sub-Agent Evaluation Harness', () => {
       llm: stub as unknown as LLM,
       mode: 'patch',
       subAgentController: controller,
-      llmFactory: () => new ToolCallingStubLLM(buildSubAgentStubTurns('surgeon', task)) as unknown as LLM,
+      llmFactory: () =>
+        new ToolCallingStubLLM(buildSubAgentStubTurns('surgeon', task)) as unknown as LLM,
     });
 
     expect(result).toBeDefined();
@@ -278,7 +278,10 @@ describe('Sub-Agent Evaluation Harness', () => {
       llm: stub as unknown as LLM,
       mode: 'patch',
       subAgentController: controller,
-      llmFactory: () => new ToolCallingStubLLM(buildSubAgentStubTurns('explorer', 'Find unused exports')) as unknown as LLM,
+      llmFactory: () =>
+        new ToolCallingStubLLM(
+          buildSubAgentStubTurns('explorer', 'Find unused exports'),
+        ) as unknown as LLM,
     });
 
     expect(result).toBeDefined();
@@ -303,7 +306,8 @@ describe('Sub-Agent Evaluation Harness', () => {
         llm: stub as unknown as LLM,
         mode: 'patch',
         subAgentController: controller,
-        llmFactory: () => new ToolCallingStubLLM(buildSubAgentStubTurns(profile, task)) as unknown as LLM,
+        llmFactory: () =>
+          new ToolCallingStubLLM(buildSubAgentStubTurns(profile, task)) as unknown as LLM,
       });
 
       expect(result).toBeDefined();

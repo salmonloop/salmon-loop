@@ -118,7 +118,12 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
           // Intercept tools with READ intent
           if (intent === 'READ' && result.status === 'ok') {
             const output = result.output;
-            const content = typeof output === 'string' ? output : isRecord(output) && typeof output.content === 'string' ? output.content : undefined;
+            const content =
+              typeof output === 'string'
+                ? output
+                : isRecord(output) && typeof output.content === 'string'
+                  ? output.content
+                  : undefined;
 
             if (typeof content === 'string') {
               try {
@@ -228,9 +233,12 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   // Validation: Check for exploration consistency using ContextValidator on LOCAL audit
   const validation = ContextValidator.validateExploration(localAudit, capturedFiles.size);
   if (!validation.isValid) {
-    const validationMessages = text.grizzco.validation as Record<string, string | ((n: number) => string)>;
+    const validationMessages = text.grizzco.validation as Record<
+      string,
+      string | ((n: number) => string)
+    >;
     const raw = validation.errorCode ? validationMessages[validation.errorCode] : undefined;
-    const msg = typeof raw === 'string' ? raw : validation.errorCode ?? 'unknown';
+    const msg = typeof raw === 'string' ? raw : (validation.errorCode ?? 'unknown');
     ctx.emit({
       type: 'log',
       level: 'error',

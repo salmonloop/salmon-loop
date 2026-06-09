@@ -230,7 +230,7 @@ export const allowlistCommand: Command = {
         config,
         repoRoot,
         toolName,
-        phase: ((phase || 'CONTEXT') as ExecutionPhase),
+        phase: (phase || 'CONTEXT') as ExecutionPhase,
         scope,
         mode,
         sideEffects,
