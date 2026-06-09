@@ -43,7 +43,7 @@ export const SlashStrategyDSL = (
       (p) => {
         p.setWorker('slash.execute');
         p.addAction('EXECUTE_SLASH', {
-          commandName: engine.ctx.resolved!.command!.name,
+          commandName: engine.ctx.resolved?.command?.name ?? '',
           argsText: engine.ctx.input.argsText ?? '',
           tokens: engine.ctx.input.tokens ?? [],
         });
