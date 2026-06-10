@@ -524,7 +524,7 @@
     "sessionTarget": "isolated",
     "dispatchMode": "sync",
     "complexity": "complex",
-    "task": "First dispatch an explorer to find all test files related to sub-agents, then dispatch a reviewer to assess test coverage gaps.",
+    "task": "First dispatch an explorer to list all files in the repository and describe the project structure, then dispatch a reviewer to assess whether the README.md is comprehensive enough for a new contributor.",
     "expectedBehavior": {
       "minToolCalls": 3,
       "maxToolCalls": 12,
@@ -542,7 +542,7 @@
     "sessionTarget": "isolated",
     "dispatchMode": "sync",
     "complexity": "complex",
-    "task": "Dispatch a surgeon to create a utility function, then dispatch a reviewer to audit the implementation, then dispatch a cleaner to format the result.",
+    "task": "Dispatch a surgeon to create a utility function in src/utils/merge.ts that deep-merges two objects, then dispatch a reviewer to audit the implementation for edge cases, then dispatch a cleaner to ensure consistent formatting.",
     "expectedBehavior": {
       "minToolCalls": 4,
       "maxToolCalls": 15,

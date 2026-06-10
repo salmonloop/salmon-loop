@@ -100,18 +100,28 @@ async function execCommand(cwd: string, command: string, args: string[]): Promis
   });
 }
 
-async function createTempGitRepo(): Promise<string> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'sub-agent-eval-'));
-  await execCommand(dir, 'git', ['init']);
-  await execCommand(dir, 'git', ['config', 'user.email', 'eval@test']);
-  await execCommand(dir, 'git', ['config', 'user.name', 'Eval']);
-  // Create a minimal file so the repo isn't empty
-  const { writeFile } = await import('fs/promises');
-  await writeFile(path.join(dir, 'README.md'), '# Eval Repo\n');
-  await writeFile(path.join(dir, '.gitignore'), '.salmonloop/\n');
-  await execCommand(dir, 'git', ['add', '.']);
-  await execCommand(dir, 'git', ['commit', '-m', 'init']);
-  return dir;
+async function createTempGitRepo(retries = 3): Promise<string> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const dir = await mkdtemp(path.join(tmpdir(), 'sub-agent-eval-'));
+      await execCommand(dir, 'git', ['init']);
+      await execCommand(dir, 'git', ['config', 'user.email', 'eval@test']);
+      await execCommand(dir, 'git', ['config', 'user.name', 'Eval']);
+      const { writeFile } = await import('fs/promises');
+      await writeFile(path.join(dir, 'README.md'), '# Eval Repo\n');
+      await writeFile(path.join(dir, '.gitignore'), '.salmonloop/\n');
+      await execCommand(dir, 'git', ['add', '.']);
+      await execCommand(dir, 'git', ['commit', '-m', 'init']);
+      return dir;
+    } catch (error) {
+      if (attempt < retries - 1) {
+        await new Promise((r) => setTimeout(r, 200));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error('Failed to create temp git repo after retries');
 }
 
 // ─── Stub Builder ───
