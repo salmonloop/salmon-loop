@@ -79,3 +79,7 @@ task_plan.md
 # Harbor evaluation runtime
 harbor-jobs/
 harbor-agent/__pycache__/
+harbor-agent/Dockerfile
+harbor-agent/docker-compose-override.yaml
+harbor-agent/host_environment.py
+scripts/sub-agent-eval-report.json
