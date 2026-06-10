@@ -1,454 +1,546 @@
 {
+  "provider": "salmon-loop",
+  "generatedAt": "2026-06-10T15:48:52.701Z",
   "totalTasks": 31,
-  "completedTasks": 25,
-  "failedTasks": 6,
-  "successRate": 0.8064516129032258,
-  "avgDurationMs": 224110.16129032258,
-  "avgTokenUsage": 0,
-  "byProfile": {
-    "surgeon": {
-      "total": 10,
-      "success": 8,
-      "failed": 2
-    },
-    "cleaner": {
-      "total": 5,
-      "success": 2,
-      "failed": 3
-    },
-    "explorer": {
-      "total": 9,
-      "success": 8,
-      "failed": 1
-    },
-    "reviewer": {
-      "total": 7,
-      "success": 7,
-      "failed": 0
-    }
-  },
-  "byComplexity": {
-    "simple": {
-      "total": 11,
-      "success": 8,
-      "failed": 3
-    },
-    "medium": {
-      "total": 13,
-      "success": 11,
-      "failed": 2
-    },
-    "complex": {
-      "total": 7,
-      "success": 6,
-      "failed": 1
-    }
-  },
+  "completedTasks": 29,
+  "failedTasks": 2,
+  "successRate": 0.9354838709677419,
+  "avgDurationMs": 177956.96774193548,
   "results": [
     {
       "taskId": "surgeon-001",
-      "profile": "surgeon",
-      "dispatchMode": "sync",
-      "complexity": "simple",
-      "success": true,
-      "reasonCode": "SUCCESS",
-      "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 174197
-    },
-    {
-      "taskId": "surgeon-002",
-      "profile": "surgeon",
-      "dispatchMode": "sync",
-      "complexity": "medium",
-      "success": true,
-      "reasonCode": "SUCCESS",
-      "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 192844
-    },
-    {
-      "taskId": "surgeon-003",
-      "profile": "surgeon",
-      "dispatchMode": "sync",
-      "complexity": "complex",
-      "success": true,
-      "reasonCode": "SUCCESS",
-      "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 124071
-    },
-    {
-      "taskId": "surgeon-004",
-      "profile": "surgeon",
-      "dispatchMode": "async",
-      "complexity": "simple",
-      "success": true,
-      "reasonCode": "SUCCESS",
-      "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 103216
-    },
-    {
-      "taskId": "surgeon-005",
-      "profile": "surgeon",
-      "dispatchMode": "sync",
-      "complexity": "medium",
-      "success": true,
-      "reasonCode": "SUCCESS",
-      "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 134879
-    },
-    {
-      "taskId": "surgeon-006",
-      "profile": "surgeon",
-      "dispatchMode": "sync",
-      "complexity": "complex",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 2,
-      "agentCount": 1,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 424162
+      "durationMs": 304912,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "sync",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
-      "taskId": "surgeon-007",
-      "profile": "surgeon",
-      "dispatchMode": "sync",
-      "complexity": "medium",
-      "success": false,
-      "reasonCode": "MAX_RETRIES",
-      "attempts": 3,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 356757
-    },
-    {
-      "taskId": "surgeon-008",
-      "profile": "surgeon",
-      "dispatchMode": "async",
-      "complexity": "medium",
+      "taskId": "surgeon-002",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 149632
+      "durationMs": 128859,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
+    },
+    {
+      "taskId": "surgeon-003",
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 1,
+      "durationMs": 161778,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "sync",
+        "complexity": "complex",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
+    },
+    {
+      "taskId": "surgeon-004",
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 1,
+      "durationMs": 149837,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "async",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
+    },
+    {
+      "taskId": "surgeon-005",
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 1,
+      "durationMs": 142734,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
+    },
+    {
+      "taskId": "surgeon-006",
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 1,
+      "durationMs": 171931,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "sync",
+        "complexity": "complex",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
+    },
+    {
+      "taskId": "surgeon-007",
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 2,
+      "durationMs": 418247,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
+    },
+    {
+      "taskId": "surgeon-008",
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 2,
+      "durationMs": 572558,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "async",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "surgeon-009",
-      "profile": "surgeon",
-      "dispatchMode": "sync",
-      "complexity": "complex",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
-      "attempts": 3,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 516107
+      "attempts": 2,
+      "durationMs": 427400,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "sync",
+        "complexity": "complex",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "cleaner-001",
-      "profile": "cleaner",
-      "dispatchMode": "sync",
-      "complexity": "simple",
-      "success": false,
-      "reasonCode": "MAX_RETRIES",
-      "attempts": 3,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 469265
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 1,
+      "durationMs": 208202,
+      "providerMeta": {
+        "profile": "cleaner",
+        "dispatchMode": "sync",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "cleaner-002",
-      "profile": "cleaner",
-      "dispatchMode": "sync",
-      "complexity": "simple",
+      "provider": "salmon-loop",
       "success": false,
       "reasonCode": "LOOP_CRASH",
       "attempts": 0,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 600001,
+      "durationMs": 600047,
+      "providerMeta": {
+        "profile": "cleaner",
+        "dispatchMode": "sync",
+        "complexity": "simple"
+      },
       "error": "Task timeout"
     },
     {
       "taskId": "cleaner-003",
-      "profile": "cleaner",
-      "dispatchMode": "async",
-      "complexity": "medium",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
-      "attempts": 3,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 383057
+      "attempts": 1,
+      "durationMs": 224511,
+      "providerMeta": {
+        "profile": "cleaner",
+        "dispatchMode": "async",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "cleaner-004",
-      "profile": "cleaner",
-      "dispatchMode": "sync",
-      "complexity": "medium",
-      "success": false,
-      "reasonCode": "MAX_RETRIES",
-      "attempts": 3,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 374397
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 1,
+      "durationMs": 274191,
+      "providerMeta": {
+        "profile": "cleaner",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "cleaner-005",
-      "profile": "cleaner",
-      "dispatchMode": "sync",
-      "complexity": "simple",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 228093
+      "durationMs": 90707,
+      "providerMeta": {
+        "profile": "cleaner",
+        "dispatchMode": "sync",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "explorer-001",
-      "profile": "explorer",
-      "dispatchMode": "sync",
-      "complexity": "simple",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 104980
+      "durationMs": 67377,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "sync",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "explorer-002",
-      "profile": "explorer",
-      "dispatchMode": "sync",
-      "complexity": "simple",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
-      "attempts": 3,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 284980
+      "attempts": 1,
+      "durationMs": 69734,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "sync",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "explorer-003",
-      "profile": "explorer",
-      "dispatchMode": "sync",
-      "complexity": "medium",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 90078
+      "durationMs": 78520,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "explorer-004",
-      "profile": "explorer",
-      "dispatchMode": "sync",
-      "complexity": "simple",
-      "success": false,
-      "reasonCode": "MAX_RETRIES",
-      "attempts": 3,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 278501
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 1,
+      "durationMs": 62651,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "sync",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "explorer-005",
-      "profile": "explorer",
-      "dispatchMode": "async",
-      "complexity": "medium",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 83346
+      "durationMs": 58985,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "async",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "explorer-006",
-      "profile": "explorer",
-      "dispatchMode": "sync",
-      "complexity": "simple",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
-      "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 99665
+      "attempts": 2,
+      "durationMs": 180824,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "sync",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "explorer-007",
-      "profile": "explorer",
-      "dispatchMode": "sync",
-      "complexity": "medium",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 120414
+      "durationMs": 71336,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "explorer-008",
-      "profile": "explorer",
-      "dispatchMode": "async",
-      "complexity": "simple",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 76417
+      "durationMs": 70226,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "async",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "reviewer-001",
-      "profile": "reviewer",
-      "dispatchMode": "sync",
-      "complexity": "medium",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 83353
+      "durationMs": 68883,
+      "providerMeta": {
+        "profile": "reviewer",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "reviewer-002",
-      "profile": "reviewer",
-      "dispatchMode": "sync",
-      "complexity": "medium",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 90969
+      "durationMs": 59001,
+      "providerMeta": {
+        "profile": "reviewer",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "reviewer-003",
-      "profile": "reviewer",
-      "dispatchMode": "sync",
-      "complexity": "complex",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
-      "attempts": 2,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 187940
+      "attempts": 1,
+      "durationMs": 85555,
+      "providerMeta": {
+        "profile": "reviewer",
+        "dispatchMode": "sync",
+        "complexity": "complex",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "reviewer-004",
-      "profile": "reviewer",
-      "dispatchMode": "async",
-      "complexity": "simple",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 63879
+      "durationMs": 59676,
+      "providerMeta": {
+        "profile": "reviewer",
+        "dispatchMode": "async",
+        "complexity": "simple",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "reviewer-005",
-      "profile": "reviewer",
-      "dispatchMode": "sync",
-      "complexity": "medium",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 117064
+      "durationMs": 46693,
+      "providerMeta": {
+        "profile": "reviewer",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "reviewer-006",
-      "profile": "reviewer",
-      "dispatchMode": "sync",
-      "complexity": "medium",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 85864
+      "durationMs": 69280,
+      "providerMeta": {
+        "profile": "reviewer",
+        "dispatchMode": "sync",
+        "complexity": "medium",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "multi-profile-001",
-      "profile": "explorer",
-      "dispatchMode": "sync",
-      "complexity": "complex",
-      "success": true,
-      "reasonCode": "SUCCESS",
-      "attempts": 2,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 222265
-    },
-    {
-      "taskId": "multi-profile-003",
-      "profile": "reviewer",
-      "dispatchMode": "sync",
-      "complexity": "complex",
+      "provider": "salmon-loop",
       "success": true,
       "reasonCode": "SUCCESS",
       "attempts": 1,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 127021
+      "durationMs": 63167,
+      "providerMeta": {
+        "profile": "explorer",
+        "dispatchMode": "sync",
+        "complexity": "complex",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
+    },
+    {
+      "taskId": "multi-profile-003",
+      "provider": "salmon-loop",
+      "success": true,
+      "reasonCode": "SUCCESS",
+      "attempts": 1,
+      "durationMs": 62434,
+      "providerMeta": {
+        "profile": "reviewer",
+        "dispatchMode": "sync",
+        "complexity": "complex",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     },
     {
       "taskId": "multi-profile-002",
-      "profile": "surgeon",
-      "dispatchMode": "async",
-      "complexity": "complex",
+      "provider": "salmon-loop",
       "success": false,
-      "reasonCode": "LOOP_CRASH",
-      "attempts": 0,
-      "agentCount": 0,
-      "agentToolCalls": 0,
-      "agentTokenUsage": 0,
-      "durationMs": 600001,
-      "error": "Task timeout"
+      "reasonCode": "MAX_RETRIES",
+      "attempts": 3,
+      "durationMs": 466410,
+      "providerMeta": {
+        "profile": "surgeon",
+        "dispatchMode": "async",
+        "complexity": "complex",
+        "agentCount": 0,
+        "agentToolCalls": 0,
+        "agentTokenUsage": 0
+      }
     }
-  ]
+  ],
+  "supplement": {
+    "byProfile": {
+      "surgeon": {
+        "total": 10,
+        "success": 9,
+        "failed": 1
+      },
+      "cleaner": {
+        "total": 5,
+        "success": 4,
+        "failed": 1
+      },
+      "explorer": {
+        "total": 9,
+        "success": 9,
+        "failed": 0
+      },
+      "reviewer": {
+        "total": 7,
+        "success": 7,
+        "failed": 0
+      }
+    },
+    "byComplexity": {
+      "simple": {
+        "total": 11,
+        "success": 10,
+        "failed": 1
+      },
+      "medium": {
+        "total": 13,
+        "success": 13,
+        "failed": 0
+      },
+      "complex": {
+        "total": 7,
+        "success": 6,
+        "failed": 1
+      }
+    }
+  }
 }

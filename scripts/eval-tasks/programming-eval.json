@@ -1,0 +1,54 @@
+{
+  "cases": [
+    {
+      "id": "fibonacci-memo",
+      "file": "eval-tasks/fibonacci-memo/task.json",
+      "instruction": "Write a Python file `fibonacci.py` in the current directory that implements a memoized Fibonacci function. The file should export a function `fib(n: int) -> int` that returns the n-th Fibonacci number (0-indexed, fib(0)=0, fib(1)=1). It should handle n up to at least 1000 efficiently using memoization."
+    },
+    {
+      "id": "csv-filter",
+      "file": "eval-tasks/csv-filter/task.json",
+      "instruction": "Write a Python file `csv_filter.py` in the current directory. It should define a function `filter_rows(input_path: str, output_path: str, column: str, min_value: float) -> int` that reads a CSV file, keeps only rows where the specified column's value is >= min_value, writes the filtered rows to output_path, and returns the number of rows written. Handle missing files gracefully by returning -1."
+    },
+    {
+      "id": "matrix-ops",
+      "file": "eval-tasks/matrix-ops/task.json",
+      "instruction": "Write a Python file `matrix_ops.py` in the current directory that implements matrix operations WITHOUT using numpy. Define: `mat_mul(a: list[list[float]], b: list[list[float]]) -> list[list[float]]` for matrix multiplication, and `mat_transpose(a: list[list[float]]) -> list[list[float]]` for transpose. Raise ValueError for dimension mismatches."
+    },
+    {
+      "id": "http-status-histogram",
+      "file": "eval-tasks/http-status-histogram/task.json",
+      "instruction": "Write a Python file `http_histogram.py` in the current directory. Define `parse_log(log_text: str) -> dict[int, int]` that parses HTTP access log lines (Apache combined format) and returns a dictionary mapping HTTP status codes to their occurrence count. Lines that can't be parsed should be skipped."
+    },
+    {
+      "id": "bst-operations",
+      "file": "eval-tasks/bst-operations/task.json",
+      "instruction": "Write a Python file `bst.py` in the current directory implementing a Binary Search Tree. Define a class `BST` with methods: `insert(val: int)`, `search(val: int) -> bool`, `inorder() -> list[int]` (returns sorted list), and `min_val() -> int` (raises ValueError if empty). No external libraries."
+    },
+    {
+      "id": "rate-limiter",
+      "file": "eval-tasks/rate-limiter/task.json",
+      "instruction": "Write a Python file `rate_limiter.py` implementing a token bucket rate limiter. Define class `RateLimiter` with `__init__(self, rate: float, capacity: int)` where rate is tokens per second and capacity is max burst size. Method `allow() -> bool` returns True if a request is allowed, False if rate limited. Use time-based logic, not sleep."
+    },
+    {
+      "id": "json-path-getter",
+      "file": "eval-tasks/json-path-getter/task.json",
+      "instruction": "Write a Python file `json_path.py` in the current directory. Define `get_nested(data: dict, path: str, default=None) -> Any` that retrieves a value from a nested dict using dot notation path like 'a.b.c'. If any key in the path doesn't exist, return default. Support array indices like 'a.0.b' for list access."
+    },
+    {
+      "id": "markdown-table-parser",
+      "file": "eval-tasks/markdown-table-parser/task.json",
+      "instruction": "Write a Python file `md_table.py` in the current directory. Define `parse_table(md_text: str) -> list[dict[str, str]]` that parses a Markdown table (with header row, separator row, and data rows) into a list of dictionaries keyed by column headers. Return empty list for invalid input."
+    },
+    {
+      "id": "lru-cache",
+      "file": "eval-tasks/lru-cache/task.json",
+      "instruction": "Write a Python file `lru_cache.py` implementing an LRU cache. Define class `LRUCache` with `__init__(self, capacity: int)`, `get(key: str) -> Optional[Any]` (returns None if not found), and `put(key: str, value: Any) -> None` (evicts least recently used when capacity exceeded). O(1) for both operations."
+    },
+    {
+      "id": "text-justifier",
+      "file": "eval-tasks/text-justifier/task.json",
+      "instruction": "Write a Python file `justifier.py` in the current directory. Define `justify(text: str, width: int) -> str` that takes a paragraph and returns it with each line (except the last) justified to exactly `width` characters by distributing extra spaces between words. Last line should be left-justified. Words should not be broken."
+    }
+  ]
+}
