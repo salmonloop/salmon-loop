@@ -39,13 +39,12 @@ function findNetworkCode(err: unknown): string | undefined {
   return undefined;
 }
 
-function isAbortLikeError(err: unknown): boolean {
+function isUserAbortError(err: unknown): boolean {
   const unwrapped = unwrapRetryError(err);
   const name = unwrapped instanceof Error ? unwrapped.name : '';
-  const msg = String(
-    (isRecord(unwrapped) ? unwrapped.message : undefined) ?? unwrapped,
-  ).toLowerCase();
-  return name === 'AbortError' || msg.includes('aborted');
+  // Only treat as user abort if the error name is AbortError (from AbortController).
+  // Provider-side "aborted" messages are transient and should be retried.
+  return name === 'AbortError';
 }
 
 export function classifyRetryableApiError(err: unknown): {
@@ -54,7 +53,7 @@ export function classifyRetryableApiError(err: unknown): {
   statusCode?: number;
   networkCode?: string;
 } {
-  if (isAbortLikeError(err)) return { retryable: false, reason: 'aborted' };
+  if (isUserAbortError(err)) return { retryable: false, reason: 'aborted' };
 
   const statusCode = findStatusCode(err);
   const networkCode = findNetworkCode(err);
@@ -78,6 +77,13 @@ export function classifyRetryableApiError(err: unknown): {
   }
   if (msg.includes('overloaded')) {
     return { retryable: true, reason: 'overloaded', statusCode, networkCode };
+  }
+  // Provider-side aborts and unexpected errors are transient — retry them.
+  if (msg.includes('aborted')) {
+    return { retryable: true, reason: 'provider_abort', statusCode, networkCode };
+  }
+  if (msg.includes('unexpected error')) {
+    return { retryable: true, reason: 'unexpected', statusCode, networkCode };
   }
 
   if (typeof networkCode === 'string') {
