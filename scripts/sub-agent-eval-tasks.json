@@ -1,5 +1,267 @@
 [
   {
+    "id": "surgeon-001",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Create a file src/utils/math.ts that exports four functions: add(a: number, b: number): number, subtract(a: number, b: number): number, multiply(a: number, b: number): number, and divide(a: number, b: number): number. The divide function must throw an Error if b is zero.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 4,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "utility"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "surgeon-002",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Create a file src/cache.ts implementing a generic LRUCache<K, V> class with methods: get(key), set(key, value), delete(key), has(key), clear(), and a size getter. The constructor takes a maxSize parameter. When capacity is exceeded, evict the least recently used entry.",
+    "expectedBehavior": {
+      "minToolCalls": 2,
+      "maxToolCalls": 6,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "data-structure"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "surgeon-003",
+    "profile": "surgeon",
+    "sessionTarget": "fork",
+    "dispatchMode": "sync",
+    "complexity": "complex",
+    "task": "Create two files: (1) src/types.ts defining interfaces for Todo (id: number, title: string, completed: boolean, createdAt: Date) and CreateTodoInput (title: string). (2) src/todo-store.ts implementing a TodoStore class with methods: add(input: CreateTodoInput): Todo, getById(id: number): Todo | undefined, getAll(): Todo[], update(id: number, fields: Partial<Todo>): Todo | null, delete(id: number): boolean, and findByStatus(completed: boolean): Todo[]. Use auto-incrementing IDs.",
+    "expectedBehavior": {
+      "minToolCalls": 3,
+      "maxToolCalls": 8,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "feature",
+      "multi-file"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "surgeon-004",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "simple",
+    "task": "Create a file src/utils/strings.ts that exports these string utility functions: capitalize(s: string): string, camelCase(s: string): string, kebabCase(s: string): string, truncate(s: string, maxLen: number): string. Each function must handle edge cases like empty strings.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 4,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "utility"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "surgeon-005",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Create a file src/types.ts exporting these TypeScript utility types: DeepPartial<T> (makes all nested properties optional), Prettify<T> (flattens intersections for readability), PickByValue<T, V> (picks keys whose values extend V), and Optional<T, K extends keyof T> (makes specified keys optional). Each type must have a JSDoc comment explaining its purpose.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 4,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "types"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "surgeon-006",
+    "profile": "surgeon",
+    "sessionTarget": "shared",
+    "dispatchMode": "sync",
+    "complexity": "complex",
+    "task": "Create a file src/database.ts implementing a generic InMemoryDatabase<T extends { id: number }> class. Methods: insert(item: Omit<T, \"id\">): T (auto-increments id), findById(id: number): T | undefined, findAll(): T[], findWhere(predicate: (item: T) => boolean): T[], update(id: number, fields: Partial<T>): T | null, delete(id: number): boolean. The class must be generic and work with any type that has an id field.",
+    "expectedBehavior": {
+      "minToolCalls": 2,
+      "maxToolCalls": 8,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "database",
+      "generic"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "surgeon-007",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Create a file src/retry.ts exporting an async function retry<T>(fn: () => Promise<T>, options?: { maxRetries?: number; delayMs?: number; backoff?: number }): Promise<T>. It must retry on failure with exponential backoff (delay doubles each attempt). Default: 3 retries, 1000ms initial delay, backoff factor 2.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 4,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "async",
+      "resilience"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "surgeon-008",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "medium",
+    "task": "Create a file src/errors.ts implementing an error class hierarchy: AppError (base class with code: string and message: string), ValidationError (extends AppError, adds field: string), NotFoundError (extends AppError, adds resource: string), and UnauthorizedError (extends AppError). Each must extend Error properly with correct prototype chain.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 4,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "errors",
+      "classes"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "surgeon-009",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "complex",
+    "task": "Create two files: (1) src/event-bus.ts implementing a typed EventEmitter class with on(event, handler), off(event, handler), emit(event, ...args), and once(event, handler) methods. (2) src/event-bus.test.ts with unit tests verifying subscribe, unsubscribe, emit, and once behavior. Use Node built-in assert module for tests.",
+    "expectedBehavior": {
+      "minToolCalls": 3,
+      "maxToolCalls": 10,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "feature",
+      "testing"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "cleaner-001",
+    "profile": "cleaner",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Create a file src/utils/validators.ts exporting these validator functions: isEmail(s: string): boolean, isUrl(s: string): boolean, isPhoneNumber(s: string): boolean. Use single quotes, semicolons, trailing commas, and add a brief JSDoc comment above each function.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 3,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "validation",
+      "formatting"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "cleaner-002",
+    "profile": "cleaner",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Create a file src/utils/dates.ts exporting: formatDate(d: Date, pattern: string): string, addDays(d: Date, n: number): Date, diffDays(a: Date, b: Date): number, isToday(d: Date): boolean. Use consistent formatting: single quotes, semicolons, proper spacing.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 3,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "dates",
+      "formatting"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "cleaner-003",
+    "profile": "cleaner",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "medium",
+    "task": "Create a file src/constants.ts organizing constants into logical groups using object literals: HTTP_STATUS (common status codes with names), CONTENT_TYPES (json, html, text, etc.), and ERROR_MESSAGES (notFound, unauthorized, validationFailed, internalError). Export each group. Use clean, well-organized formatting.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 4,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "constants",
+      "organization"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "cleaner-004",
+    "profile": "cleaner",
+    "sessionTarget": "fork",
+    "dispatchMode": "sync",
+    "complexity": "medium",
+    "task": "Create a file src/middleware/error-handler.ts exporting an Express-style error handling middleware function errorHandler(err, req, res, next). It must: log the error, return JSON with { error: message, code }, handle ValidationError and NotFoundError differently (400 vs 404), default to 500. Use clean formatting with JSDoc.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 4,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "middleware",
+      "error-handling"
+    ],
+    "mode": "patch"
+  },
+  {
+    "id": "cleaner-005",
+    "profile": "cleaner",
+    "sessionTarget": "isolated",
+    "dispatchMode": "sync",
+    "complexity": "simple",
+    "task": "Create a file src/utils/arrays.ts exporting: unique<T>(arr: T[]): T[], chunk<T>(arr: T[], size: number): T[][], flatten<T>(arr: (T | T[])[]): T[], groupBy<T>(arr: T[], keyFn: (item: T) => string): Record<string, T[]>. Use consistent TypeScript generics and formatting.",
+    "expectedBehavior": {
+      "minToolCalls": 1,
+      "maxToolCalls": 3,
+      "shouldComplete": true
+    },
+    "tags": [
+      "write",
+      "utility",
+      "arrays"
+    ],
+    "mode": "patch"
+  },
+  {
     "id": "explorer-001",
     "profile": "explorer",
     "sessionTarget": "isolated",
@@ -147,151 +409,6 @@
     "mode": "review"
   },
   {
-    "id": "surgeon-001",
-    "profile": "surgeon",
-    "sessionTarget": "isolated",
-    "dispatchMode": "sync",
-    "complexity": "medium",
-    "task": "Add a JSDoc comment to the ToolCallingStubLLM class in src/core/llm/tool-calling-stub.ts explaining its purpose and usage.",
-    "expectedBehavior": {
-      "minToolCalls": 1,
-      "maxToolCalls": 4,
-      "shouldComplete": true
-    },
-    "tags": [
-      "write",
-      "documentation"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "surgeon-002",
-    "profile": "surgeon",
-    "sessionTarget": "isolated",
-    "dispatchMode": "sync",
-    "complexity": "medium",
-    "task": "Create a new file src/core/llm/stub-helpers.ts that exports a helper function createDispatchTurn(agentRef, task) that returns a StubTurn for dispatching a sub-agent.",
-    "expectedBehavior": {
-      "minToolCalls": 2,
-      "maxToolCalls": 6,
-      "shouldComplete": true
-    },
-    "tags": [
-      "write",
-      "feature"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "surgeon-003",
-    "profile": "surgeon",
-    "sessionTarget": "fork",
-    "dispatchMode": "sync",
-    "complexity": "complex",
-    "task": "Refactor the InMemorySubAgentController to extract a BaseAgentController abstract class, keeping InMemorySubAgentController as a concrete implementation.",
-    "expectedBehavior": {
-      "minToolCalls": 3,
-      "maxToolCalls": 10,
-      "shouldComplete": true
-    },
-    "tags": [
-      "write",
-      "refactor"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "surgeon-004",
-    "profile": "surgeon",
-    "sessionTarget": "isolated",
-    "dispatchMode": "async",
-    "complexity": "simple",
-    "task": "Fix the type annotation: change `any[]` to `StubToolCall[]` in the prepareToolCallRequests function signature in src/core/tools/session.ts.",
-    "expectedBehavior": {
-      "minToolCalls": 1,
-      "maxToolCalls": 4,
-      "shouldComplete": true
-    },
-    "tags": [
-      "write",
-      "type-fix"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "surgeon-005",
-    "profile": "surgeon",
-    "sessionTarget": "isolated",
-    "dispatchMode": "sync",
-    "complexity": "medium",
-    "task": "Add a `getStats()` method to SubAgentControllerPort that returns { totalAgents, activeAgents, totalTokenUsage, totalToolCalls }.",
-    "expectedBehavior": {
-      "minToolCalls": 2,
-      "maxToolCalls": 6,
-      "shouldComplete": true
-    },
-    "tags": [
-      "write",
-      "feature"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "surgeon-006",
-    "profile": "surgeon",
-    "sessionTarget": "shared",
-    "dispatchMode": "sync",
-    "complexity": "complex",
-    "task": "Implement a retry mechanism in SubAgentManager.executeAsync that retries up to 2 times on transient failures before giving up.",
-    "expectedBehavior": {
-      "minToolCalls": 3,
-      "maxToolCalls": 10,
-      "shouldComplete": true
-    },
-    "tags": [
-      "write",
-      "feature",
-      "resilience"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "surgeon-007",
-    "profile": "surgeon",
-    "sessionTarget": "isolated",
-    "dispatchMode": "sync",
-    "complexity": "medium",
-    "task": "Add input validation to the ToolCallingStubLLM constructor that throws if the turns array is empty.",
-    "expectedBehavior": {
-      "minToolCalls": 1,
-      "maxToolCalls": 4,
-      "shouldComplete": true
-    },
-    "tags": [
-      "write",
-      "validation"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "surgeon-008",
-    "profile": "surgeon",
-    "sessionTarget": "isolated",
-    "dispatchMode": "async",
-    "complexity": "medium",
-    "task": "Create a utility function in src/core/sub-agent/utils.ts that generates unique agent IDs with the pattern 'smallfry-{profile}-{uuid}'.",
-    "expectedBehavior": {
-      "minToolCalls": 2,
-      "maxToolCalls": 5,
-      "shouldComplete": true
-    },
-    "tags": [
-      "write",
-      "utility"
-    ],
-    "mode": "patch"
-  },
-  {
     "id": "reviewer-001",
     "profile": "reviewer",
     "sessionTarget": "isolated",
@@ -402,96 +519,6 @@
     "mode": "review"
   },
   {
-    "id": "cleaner-001",
-    "profile": "cleaner",
-    "sessionTarget": "isolated",
-    "dispatchMode": "sync",
-    "complexity": "simple",
-    "task": "Sort the imports in src/core/llm/tool-calling-stub.ts alphabetically and group them by external vs internal.",
-    "expectedBehavior": {
-      "minToolCalls": 1,
-      "maxToolCalls": 3,
-      "shouldComplete": true
-    },
-    "tags": [
-      "cleanup",
-      "imports"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "cleaner-002",
-    "profile": "cleaner",
-    "sessionTarget": "isolated",
-    "dispatchMode": "sync",
-    "complexity": "simple",
-    "task": "Remove any unused imports from src/core/sub-agent/tools/task-spawn.ts.",
-    "expectedBehavior": {
-      "minToolCalls": 1,
-      "maxToolCalls": 3,
-      "shouldComplete": true
-    },
-    "tags": [
-      "cleanup",
-      "dead-code"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "cleaner-003",
-    "profile": "cleaner",
-    "sessionTarget": "isolated",
-    "dispatchMode": "async",
-    "complexity": "medium",
-    "task": "Ensure all files in src/core/sub-agent/tools/ have consistent formatting: semicolons, trailing commas, and single quotes.",
-    "expectedBehavior": {
-      "minToolCalls": 2,
-      "maxToolCalls": 6,
-      "shouldComplete": true
-    },
-    "tags": [
-      "cleanup",
-      "formatting"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "cleaner-004",
-    "profile": "cleaner",
-    "sessionTarget": "fork",
-    "dispatchMode": "sync",
-    "complexity": "simple",
-    "task": "Check src/core/sub-agent/controller.ts for any TODO or FIXME comments and list them.",
-    "expectedBehavior": {
-      "minToolCalls": 1,
-      "maxToolCalls": 3,
-      "shouldComplete": true
-    },
-    "tags": [
-      "cleanup",
-      "audit"
-    ],
-    "mode": "patch"
-  },
-  {
-    "id": "cleaner-005",
-    "profile": "cleaner",
-    "sessionTarget": "isolated",
-    "dispatchMode": "sync",
-    "complexity": "medium",
-    "task": "Normalize all console.log/warn/error calls in src/core/sub-agent/ to use the project's getLogger() pattern instead.",
-    "expectedBehavior": {
-      "minToolCalls": 2,
-      "maxToolCalls": 6,
-      "shouldComplete": true
-    },
-    "tags": [
-      "cleanup",
-      "logging"
-    ],
-    "mode": "patch"
-  },
-  {
     "id": "multi-profile-001",
     "profile": "explorer",
     "sessionTarget": "isolated",
@@ -510,24 +537,6 @@
     "mode": "review"
   },
   {
-    "id": "multi-profile-002",
-    "profile": "surgeon",
-    "sessionTarget": "isolated",
-    "dispatchMode": "async",
-    "complexity": "complex",
-    "task": "Dispatch an explorer to analyze the current code structure, then use the findings to dispatch a surgeon to implement a missing feature.",
-    "expectedBehavior": {
-      "minToolCalls": 3,
-      "maxToolCalls": 12,
-      "shouldComplete": true
-    },
-    "tags": [
-      "multi-profile",
-      "orchestration"
-    ],
-    "mode": "patch"
-  },
-  {
     "id": "multi-profile-003",
     "profile": "reviewer",
     "sessionTarget": "isolated",
@@ -544,5 +553,23 @@
       "pipeline"
     ],
     "mode": "review"
+  },
+  {
+    "id": "multi-profile-002",
+    "profile": "surgeon",
+    "sessionTarget": "isolated",
+    "dispatchMode": "async",
+    "complexity": "complex",
+    "task": "Create a file src/pipeline.ts implementing a Pipeline<T> class that chains async transformations. Methods: pipe<U>(fn: (input: T) => Promise<U>): Pipeline<U>, execute(): Promise<T>, and a static create<T>(input: T): Pipeline<T> factory. Then create src/pipeline.test.ts with tests for chaining, error propagation, and empty pipeline. Use Node assert.",
+    "expectedBehavior": {
+      "minToolCalls": 3,
+      "maxToolCalls": 12,
+      "shouldComplete": true
+    },
+    "tags": [
+      "multi-profile",
+      "orchestration"
+    ],
+    "mode": "patch"
   }
 ]
