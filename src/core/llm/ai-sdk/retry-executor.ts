@@ -5,7 +5,7 @@ import { withRetry, withStreamRetry } from '../retry-utils.js';
 import { createAiSdkRetryLogger, isRetryableAiSdkError } from './request-runtime.js';
 
 const DEFAULT_AI_SDK_RETRY_OPTIONS: RetryOptions = {
-  maxRetries: 2,
+  maxRetries: 3,
   jitterRatio: 0.2,
 };
 
