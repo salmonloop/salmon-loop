@@ -53,6 +53,7 @@ interface TaskDefinition {
   dispatchMode: 'sync' | 'async' | 'fire-and-forget';
   complexity: 'simple' | 'medium' | 'complex';
   task: string;
+  mode: 'patch' | 'review';
   expectedBehavior: {
     minToolCalls: number;
     maxToolCalls: number;
@@ -238,7 +239,7 @@ function buildStubTurns(task: TaskDefinition): StubTurn[] {
 // ─── Harness ───
 
 const TASK_TIMEOUT_MS = 10_000;
-const TASK_TIMEOUT_REAL_MS = 300_000;
+const TASK_TIMEOUT_REAL_MS = 600_000;
 
 interface RealLlmConfig {
   llm: LLM;
@@ -272,7 +273,7 @@ async function runCase(
         instruction: `Dispatch a ${task.profile} sub-agent to: ${task.task}`,
         repoPath: tmpDir,
         llm,
-        mode: 'patch',
+        mode: task.mode,
         dryRun: realLlm ? false : true,
         subAgentController: controller,
         agentKind: 'primary',
