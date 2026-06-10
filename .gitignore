@@ -75,3 +75,7 @@ progress.md
 task_plan.md
 
 .worktrees/
+
+# Harbor evaluation runtime
+harbor-jobs/
+harbor-agent/__pycache__/
