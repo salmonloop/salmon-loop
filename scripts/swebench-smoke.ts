@@ -580,6 +580,98 @@ async function checkoutInstanceRepo(params: {
   return repoDir;
 }
 
+/**
+ * Apply the test_patch from a SWE-bench instance so that the failing tests
+ * exist in the repo before the agent runs. This is critical because the agent
+ * needs to see the actual test failures to understand what to fix.
+ */
+export async function applyTestPatch(params: {
+  instance: SweBenchInstance;
+  repoDir: string;
+  timeoutMs: number;
+}): Promise<GateResult> {
+  const testPatch = params.instance.test_patch;
+  if (!testPatch || testPatch.trim() === '') {
+    return skip('NO_TEST_PATCH', 'Instance has no test_patch to apply.');
+  }
+
+  const patchFile = path.join(params.repoDir, '.swebench-test.patch');
+  await writeFile(patchFile, testPatch, 'utf-8');
+
+  const apply = await git(['apply', '--verbose', patchFile], params.repoDir, params.timeoutMs);
+  // Clean up the temporary patch file regardless of outcome
+  await rm(patchFile, { force: true }).catch(() => {});
+
+  if (apply.exitCode !== 0) {
+    return fail('TEST_PATCH_APPLY_FAILED', `Failed to apply test_patch: ${apply.stderr || apply.stdout}`);
+  }
+
+  // Commit the test patch so the agent sees it as part of the working tree
+  const add = await git(['add', '-A'], params.repoDir, params.timeoutMs);
+  if (add.exitCode !== 0) return fail('TEST_PATCH_GIT_ADD_FAILED', add.stderr || add.stdout);
+  const commit = await git(
+    ['commit', '-m', 'Apply SWE-bench test_patch for failing tests'],
+    params.repoDir,
+    params.timeoutMs,
+  );
+  if (commit.exitCode !== 0) return fail('TEST_PATCH_COMMIT_FAILED', commit.stderr || commit.stdout);
+
+  return pass('TEST_PATCH_APPLIED', 'Applied test_patch and committed.', {
+    patchBytes: testPatch.length,
+  });
+}
+
+/**
+ * Install project dependencies using the install command from the SWE-bench instance.
+ * This ensures the project is in a runnable state before the agent attempts to verify.
+ */
+export async function installDependencies(params: {
+  instance: SweBenchInstance;
+  repoDir: string;
+  timeoutMs: number;
+}): Promise<GateResult> {
+  const installCmd = params.instance.install;
+  if (!installCmd || installCmd.trim() === '' || installCmd.trim().toUpperCase() === 'N/A') {
+    return skip('NO_INSTALL_COMMAND', 'Instance has no install command.');
+  }
+
+  const result = await runProcess({
+    command: 'bash',
+    args: ['-c', installCmd],
+    cwd: params.repoDir,
+    timeoutMs: params.timeoutMs,
+    env: { ...process.env, PIP_QUIET: '1' },
+  });
+
+  if (result.exitCode !== 0) {
+    return fail('INSTALL_FAILED', `Dependency installation failed (exit ${result.exitCode}): ${result.stderr.slice(-2000)}`);
+  }
+
+  return pass('INSTALL_SUCCEEDED', 'Project dependencies installed.', {
+    command: installCmd,
+  });
+}
+
+/**
+ * Build a pytest verify command from the FAIL_TO_PASS test IDs.
+ * Returns a command like: pytest tests/test_foo.py::test_bar tests/test_baz.py::test_qux -x --tb=short
+ */
+export function buildVerifyFromFailToPass(instance: SweBenchInstance): string | undefined {
+  const raw = instance.fail_to_pass;
+  if (!raw) return undefined;
+
+  let testIds: string[];
+  try {
+    testIds = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+
+  if (!Array.isArray(testIds) || testIds.length === 0) return undefined;
+
+  return `pytest ${testIds.join(' ')} -x --tb=short -q`;
+}
+
 export async function applyOverlayAndCommit(params: {
   repoDir: string;
   overlay: OverlaySpec;
@@ -1050,6 +1142,27 @@ async function main(): Promise<void> {
       timeoutMs: options.timeoutMs,
       sourceRepo: options.sourceRepo,
     });
+
+    // Apply test_patch so the agent can see the failing tests
+    const testPatchGate = await applyTestPatch({
+      instance,
+      repoDir,
+      timeoutMs: options.timeoutMs,
+    });
+    if (testPatchGate.status === 'fail') {
+      throw new Error(`test_patch application failed: ${testPatchGate.message}`);
+    }
+
+    // Install project dependencies
+    const installGate = await installDependencies({
+      instance,
+      repoDir,
+      timeoutMs: options.timeoutMs,
+    });
+    if (installGate.status === 'fail') {
+      throw new Error(`Dependency installation failed: ${installGate.message}`);
+    }
+
     const overlay = await loadOverlay(options.overlay);
     const mergedOverlay: OverlaySpec = {
       ...overlay,
@@ -1067,7 +1180,7 @@ async function main(): Promise<void> {
     const stdoutPath = path.join(artifactDir, `${instance.instance_id}.stdout.json`);
     const stderrPath = path.join(artifactDir, `${instance.instance_id}.stderr.log`);
     const reportPath = path.join(outputDir, 'report.json');
-    const verifyCommand = options.verify ?? mergedOverlay.behaviorCommand ?? 'true';
+    const verifyCommand = options.verify ?? mergedOverlay.behaviorCommand ?? buildVerifyFromFailToPass(instance) ?? 'true';
     const commandArgs = [
       CLI_ENTRY,
       'run',

@@ -465,7 +465,7 @@ export class FlowTransactionRunner {
       }
 
       this.currentContext = shrinkCtx?.context;
-      this.currentLastError = attemptFailure.reason;
+      this.currentLastError = shrinkCtx?.lastError ?? attemptFailure.reason;
       this.params.emit({
         type: 'retry',
         fromAttempt: attempt,
