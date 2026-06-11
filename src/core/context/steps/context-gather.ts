@@ -1,7 +1,8 @@
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { ensureInSandbox, normalizePath, safeJoin } from '../../utils/path.js';
-import { outlineSource } from '../ast/source-outline.js';
+import { detectLang } from '../ast/skeleton-extractor.js';
+import { outlineSourceAsync } from '../ast/source-outline.js';
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
 import { extractKeywords } from '../keywords.js';
@@ -82,7 +83,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
         kind: 'dependency',
         mode: content ? 'full' : 'outline',
         content: content ?? `ripgrep match at line ${snippet.line}: ${snippet.content}`,
-        outline: content ? outlineSource(content) : undefined,
+        outline: content ? await outlineSourceAsync(content, detectLang(file)) : undefined,
       });
     }
 

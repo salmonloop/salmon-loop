@@ -189,6 +189,7 @@ export interface ToolResult {
   outputSummary?: string;
   meta?: Record<string, any>;
   durationMs?: number;
+  warnings?: string[];
 
   error?: {
     code: string;

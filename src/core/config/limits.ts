@@ -2,7 +2,7 @@ export const LIMITS = {
   // Patch safety
   maxFilesChanged: 2,
   maxDiffLines: 200,
-  maxRetries: 2,
+  maxRetries: 5,
 
   // Context budget (token-based, with char fallback)
   maxContextTokens: 7500, // ~30k chars equivalent

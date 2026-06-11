@@ -43,7 +43,8 @@ function getExtensionsPatternForPlugins(
 
 const fileAdapter = new FileAdapter();
 
-import { outlineSource } from './ast/source-outline.js';
+import { detectLang } from './ast/skeleton-extractor.js';
+import { outlineSourceAsync } from './ast/source-outline.js';
 import { createContextCacheStore } from './cache/store-factory.js';
 import type { ContextCacheStore } from './cache/store.js';
 import { applySmartCompression } from './compression/smart-compress.js';
@@ -302,7 +303,7 @@ export class ContextBuilder {
         if (content === null) continue;
 
         const isLarge = content.length > LIMITS.largeFileThresholdBytes;
-        const outline = outlineSource(content);
+        const outline = await outlineSourceAsync(content, detectLang(p));
 
         newRelatedFiles.push({
           path: p,

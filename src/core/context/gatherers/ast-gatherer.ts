@@ -19,7 +19,8 @@ import type {
 import { normalizePath, safeJoin } from '../../utils/path.js';
 import { extractImportSpecifiers } from '../ast/import-extractor.js';
 import { resolveImportCandidates } from '../ast/module-resolver.js';
-import { outlineSource } from '../ast/source-outline.js';
+import { detectLang } from '../ast/skeleton-extractor.js';
+import { outlineSourceAsync } from '../ast/source-outline.js';
 import type { ContextRequest } from '../types.js';
 
 export interface AstResult {
@@ -429,7 +430,7 @@ export class AstGatherer {
 
         if (!relatedSeen.has(normalized)) {
           relatedSeen.add(normalized);
-          const outline = outlineSource(content);
+          const outline = await outlineSourceAsync(content, detectLang(normalized));
           const isLarge = content.length > LIMITS.largeFileThresholdBytes;
           related.push({
             path: normalized,

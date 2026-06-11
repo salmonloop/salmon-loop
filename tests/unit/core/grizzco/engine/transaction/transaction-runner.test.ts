@@ -189,7 +189,7 @@ describe('transaction-runner', () => {
 
     expect(report.success).toBe(false);
     expect(report.retryExhausted).toBe(true);
-    expect(report.attempts).toBe(3);
+    expect(report.attempts).toBe(6); // 1 initial + 5 retries (LIMITS.maxRetries)
     expect(report.terminalFailurePhase).toBe('VERIFY');
     expect(report.terminalReasonCode).toBe('VERIFY_FAILED');
     expect(report.terminalDiagnosticCode).toBe('TEST_FAILED');
@@ -790,9 +790,9 @@ describe('transaction-runner', () => {
 
     expect(report.success).toBe(false);
     expect(report.retryExhausted).toBe(true);
-    expect(report.attempts).toBe(3);
-    expect(report.history).toHaveLength(3);
-    expect(emit).toHaveBeenCalledTimes(2);
+    expect(report.attempts).toBe(6); // 1 initial + 5 retries
+    expect(report.history).toHaveLength(6);
+    expect(emit).toHaveBeenCalledTimes(5);
   });
 
   it('preserves the last failed phase when retryable LLM errors exhaust retries', async () => {
@@ -826,7 +826,7 @@ describe('transaction-runner', () => {
 
     expect(report.success).toBe(false);
     expect(report.retryExhausted).toBe(true);
-    expect(report.attempts).toBe(3);
+    expect(report.attempts).toBe(6); // 1 initial + 5 retries
     expect(report.lastErrorCode).toBe('LLM_HTTP_REQUEST_FAILED');
     expect(report.terminalFailurePhase).toBe('EXPLORE');
     expect(report.terminalDiagnosticCode).toBe('LLM_HTTP_REQUEST_FAILED');

@@ -52,8 +52,111 @@ export function parsePythonError(output: string): Diagnostic[] {
   return diagnostics;
 }
 
+export function parsePytestOutput(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const lines = output.split('\n');
+
+  // Pattern 1: FAILED lines (--tb=short -q format)
+  // e.g. FAILED tests/test_foo.py::test_bar - AssertionError: expected 5, got 3
+  // e.g. FAILED tests/test_foo.py::TestClass::test_method - ValueError: bad value
+  const failedRegex = /^FAILED\s+(\S+?)\s+-\s+(.+)$/;
+  // Pattern 2: Assertion detail lines (E   prefix)
+  // e.g. E       AssertionError: expected 5, got 3
+  const assertionRegex = /^\s*E\s{2,}(\w+(?:Error|Exception)?):\s*(.+)$/;
+  // Pattern 3: File:line reference in traceback
+  // e.g. tests/test_module.py:42: in test_function
+  const fileLineRegex = /^\s*(\S+\.py):(\d+): in /;
+  // Pattern 4: One-line format (--tb=line)
+  // e.g. tests/test_module.py:42: AssertionError
+  const lineFormatRegex = /^(\S+\.py):(\d+):\s+(\w+(?:Error|Exception)?)$/;
+
+  // Track current file context for enhancing FAILED diagnostics
+  let currentFile: string | null = null;
+  let currentLine: number | null = null;
+  // Map test_id -> { file, line, assertion } for merging
+  const assertionMap = new Map<string, { file?: string; line?: number; assertion?: string }>();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Collect file:line context from tracebacks
+    const fileMatch = line.match(fileLineRegex);
+    if (fileMatch) {
+      currentFile = fileMatch[1];
+      currentLine = parseInt(fileMatch[2]);
+      continue;
+    }
+
+    // Collect assertion details
+    const assertionMatch = line.match(assertionRegex);
+    if (assertionMatch && currentFile) {
+      // Associate with the most recent file context
+      const key = `${currentFile}:${currentLine}`;
+      if (!assertionMap.has(key)) {
+        assertionMap.set(key, {
+          file: currentFile,
+          line: currentLine ?? undefined,
+          assertion: `${assertionMatch[1]}: ${assertionMatch[2]}`,
+        });
+      }
+      continue;
+    }
+
+    // Parse FAILED lines — the primary signal
+    const failedMatch = line.match(failedRegex);
+    if (failedMatch) {
+      const testId = failedMatch[1]; // e.g. tests/test_foo.py::test_bar
+      const errorMessage = failedMatch[2];
+      // Extract file from test_id (everything before ::)
+      const testFile = testId.split('::')[0];
+      diagnostics.push({
+        file: testFile,
+        severity: 'error',
+        message: errorMessage,
+        source: 'pytest',
+      });
+      continue;
+    }
+
+    // Parse one-line format
+    const lineFormatMatch = line.match(lineFormatRegex);
+    if (lineFormatMatch) {
+      diagnostics.push({
+        file: lineFormatMatch[1],
+        line: parseInt(lineFormatMatch[2]),
+        severity: 'error',
+        message: lineFormatMatch[3],
+        source: 'pytest',
+      });
+    }
+  }
+
+  // Enhance FAILED diagnostics with file:line info from tracebacks
+  if (diagnostics.length > 0 && assertionMap.size > 0) {
+    for (const diag of diagnostics) {
+      if (diag.source === 'pytest' && !diag.line) {
+        // Find matching assertion detail by file
+        for (const [, info] of assertionMap) {
+          if (info.file === diag.file && info.line) {
+            diag.line = info.line;
+            if (info.assertion && diag.message.length < info.assertion.length) {
+              diag.message = info.assertion;
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
 export function parseGenericOutput(output: string): Diagnostic[] {
-  // Fallback or combined parser
+  // Try pytest first (SWE-bench's primary test runner)
+  const pytest = parsePytestOutput(output);
+  if (pytest.length > 0) return pytest;
+
   const tsc = parseTscOutput(output);
   if (tsc.length > 0) return tsc;
 

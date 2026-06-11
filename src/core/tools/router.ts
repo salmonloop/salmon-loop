@@ -1,7 +1,9 @@
 import * as crypto from 'crypto';
+import path from 'path';
 
 import { z } from 'zod';
 
+import { AstParser } from '../ast/parser.js';
 import { LIMITS } from '../config/limits.js';
 import { getLogger } from '../observability/logger.js';
 import { isRecord } from '../utils/serialize.js';
@@ -24,6 +26,7 @@ import {
   SideEffect,
   ToolCallEnvelope,
   ToolResult,
+  ToolRuntimeCtx,
   ToolSource,
   ToolSpec,
 } from './types.js';
@@ -260,6 +263,18 @@ export class ToolRouter {
         outputSummary: sanitized.summary,
         durationMs,
       };
+
+      // Per-edit syntax guard: check for syntax errors after file writes
+      const syntaxWarnings = await checkPostEditSyntax(
+        spec,
+        normalizedEnvelope.args,
+        rawOutput,
+        normalizedEnvelope.ctx,
+      );
+      if (syntaxWarnings.length > 0) {
+        result.warnings = syntaxWarnings;
+        result.meta = { ...result.meta, syntaxWarning: true };
+      }
 
       this.audit.onEnd(result);
       return result;
@@ -670,4 +685,69 @@ export class ToolRouter {
       return fallback;
     }
   }
+}
+
+/**
+ * Per-edit syntax guard: after a file write, parse the file with tree-sitter
+ * and return syntax error warnings. Non-blocking — returns empty array on
+ * any failure (missing grammar, parse error, etc.).
+ */
+async function checkPostEditSyntax(
+  spec: ToolSpec,
+  args: unknown,
+  rawOutput: unknown,
+  ctx: ToolRuntimeCtx,
+): Promise<string[]> {
+  // Only check fs.write_file
+  if (spec.name !== 'fs.write_file') return [];
+  if (!isRecord(rawOutput) || typeof rawOutput.path !== 'string') return [];
+  if (!isRecord(args) || typeof args.content !== 'string') return [];
+
+  const filePath = rawOutput.path as string;
+  const content = args.content as string;
+
+  // Detect language from extension
+  const ext = path.extname(filePath).toLowerCase().replace('.', '');
+  if (!ext) return [];
+
+  // Only check for languages that have tree-sitter support
+  const plugin = ctx.languagePlugins?.getByExtension(`.${ext}`);
+  if (!plugin) return [];
+
+  try {
+    const tree = await AstParser.parse(content, plugin.meta.id);
+    if (!tree?.rootNode) return [];
+
+    const errors = collectSyntaxErrors(tree.rootNode);
+    if (errors.length === 0) return [];
+
+    return [
+      `Syntax warning in ${filePath}: ${errors.length} error(s) detected — ` +
+        errors
+          .slice(0, 3)
+          .map((e) => `line ${e.line}: ${e.text}`)
+          .join('; '),
+    ];
+  } catch {
+    // Tree-sitter parse failed (no grammar, etc.) — silently skip
+    return [];
+  }
+}
+
+function collectSyntaxErrors(
+  node: any,
+  errors: Array<{ line: number; text: string }> = [],
+  depth = 0,
+): Array<{ line: number; text: string }> {
+  if (depth > 50) return errors; // prevent stack overflow
+  if (node.type === 'ERROR' || node.isMissing) {
+    errors.push({
+      line: (node.startPosition?.row ?? 0) + 1,
+      text: node.text?.slice(0, 80) ?? node.type,
+    });
+  }
+  for (const child of node.children ?? []) {
+    collectSyntaxErrors(child, errors, depth + 1);
+  }
+  return errors;
 }

@@ -672,6 +672,72 @@ export function buildVerifyFromFailToPass(instance: SweBenchInstance): string | 
   return `pytest ${testIds.join(' ')} -x --tb=short -q`;
 }
 
+/**
+ * Extract file paths mentioned in a problem statement.
+ * Looks for patterns like `path/to/file.py`, `path/to/file.py:42`, or
+ * backtick-quoted paths. Filters out common false positives.
+ */
+export function extractFilePathsFromText(text: string): string[] {
+  const paths = new Set<string>();
+
+  // Pattern 1: Backtick-quoted paths — `foo/bar.py` or `foo/bar.py:42`
+  const backtickRegex = /`([a-zA-Z0-9_./-]+\.[a-zA-Z]{1,6})(?::\d+)?`/g;
+  for (const match of text.matchAll(backtickRegex)) {
+    const p = match[1];
+    if (isLikelyFilePath(p)) paths.add(p);
+  }
+
+  // Pattern 2: Unquoted paths — file paths with directory separators and extensions
+  // Must have at least one / and a file extension
+  const pathRegex = /\b([a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)+\.[a-zA-Z]{1,6})\b/g;
+  for (const match of text.matchAll(pathRegex)) {
+    const p = match[1];
+    if (isLikelyFilePath(p)) paths.add(p);
+  }
+
+  return [...paths];
+}
+
+/**
+ * Heuristic check: is this string likely a file path (not a URL, version, etc.)?
+ */
+function isLikelyFilePath(p: string): boolean {
+  // Must have at least one directory separator
+  if (!p.includes('/')) return false;
+  // Must not be a URL
+  if (p.startsWith('http://') || p.startsWith('https://')) return false;
+  // Must not be a version string like 1.0.0
+  if (/^\d+\.\d+\.\d+/.test(p)) return false;
+  // Must have a reasonable file extension
+  const ext = p.split('.').pop()?.toLowerCase();
+  if (!ext || ext.length > 6) return false;
+  const validExtensions = new Set([
+    'py', 'pyx', 'pxd', 'pyi', 'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs',
+    'rs', 'go', 'java', 'c', 'cpp', 'cc', 'h', 'hpp', 'rb', 'php',
+    'swift', 'kt', 'scala', 'clj', 'ex', 'exs', 'erl', 'hs',
+    'html', 'css', 'scss', 'less', 'vue', 'svelte',
+    'json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf',
+    'md', 'rst', 'txt', 'sql', 'sh', 'bash', 'zsh',
+  ]);
+  return validExtensions.has(ext);
+}
+
+/**
+ * Build an enhanced instruction with file path localization hints.
+ * Extracts file paths from the problem statement and prepends them
+ * so the agent knows which files to focus on.
+ */
+export function buildInstructionWithHints(problemStatement: string): string {
+  const filePaths = extractFilePathsFromText(problemStatement);
+  if (filePaths.length === 0) return problemStatement;
+
+  // Cap at 10 files to avoid overwhelming the agent
+  const hints = filePaths.slice(0, 10);
+  const hintBlock = `Files mentioned in the problem statement (prioritize these):\n${hints.map((f) => `- ${f}`).join('\n')}`;
+
+  return `${hintBlock}\n\n${problemStatement}`;
+}
+
 export async function applyOverlayAndCommit(params: {
   repoDir: string;
   overlay: OverlaySpec;
@@ -1187,7 +1253,7 @@ async function main(): Promise<void> {
       '--repo',
       repoDir,
       '--instruction',
-      String(instance.problem_statement ?? ''),
+      buildInstructionWithHints(String(instance.problem_statement ?? '')),
       '--output-format',
       'json',
       '--act-mode',
