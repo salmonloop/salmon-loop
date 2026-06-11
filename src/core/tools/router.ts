@@ -157,7 +157,7 @@ export class ToolRouter {
           startedAt,
           'denied',
           'PERMISSION_RULE_DENY',
-          permissionDecision.reason,
+          permissionDecision.reason ?? 'Permission denied',
           {
             authorization: {
               outcome: 'deny',
@@ -375,7 +375,7 @@ export class ToolRouter {
         startedAt,
         'denied',
         'PERMISSION_RULE_DENY',
-        permissionDecision.reason,
+        permissionDecision.reason ?? 'Permission denied',
         {
           authorization: {
             outcome: 'deny',

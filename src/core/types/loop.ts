@@ -3,6 +3,7 @@ import type { BudgetRunSummary } from '../context/budget/dynamic-adjuster.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 import type { PluginRegistry } from '../plugin/registry.js';
+import type { VerifyPolicy } from '../runtime/execution-profile.js';
 import type { ToolResultReplacementState } from '../session/replacement-state.js';
 import type {
   CanonicalResponsesEvent,
@@ -426,6 +427,7 @@ export interface LoopOptions {
   instruction: string;
   checkpointSessionId?: string;
   verify?: string;
+  verifyPolicy?: VerifyPolicy;
   repoPath: string;
   fileSystemOverride?: FileSystem;
   signal?: AbortSignal;

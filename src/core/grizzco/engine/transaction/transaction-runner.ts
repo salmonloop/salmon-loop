@@ -318,6 +318,7 @@ export class FlowTransactionRunner {
         flowReport: result,
         context: shrinkCtx,
         flowMode: this.params.flowMode,
+        verifyPolicy: this.params.options.verifyPolicy,
       });
       lastAttemptFailure = attemptFailure;
       if (this.params.flowMode === 'autopilot') {

@@ -5,12 +5,14 @@ import type {
   PermissionMode,
   PluginRegistry,
   ToolResultReplacementState,
+  VerifyPolicy,
 } from '../../../core/facades/cli-run-loop-params.js';
 import { createTerminalAuthorizationProvider } from '../../authorization/provider.js';
 
 export function buildRunLoopParams(params: {
   instruction: string;
   verify?: string;
+  verifyPolicy?: VerifyPolicy;
   repoPath: string;
   llm: any;
   conversationContext?: LLMMessage[];
@@ -48,6 +50,7 @@ export function buildRunLoopParams(params: {
   return {
     instruction: params.instruction,
     verify: params.verify,
+    verifyPolicy: params.verifyPolicy,
     repoPath: params.repoPath,
     llm: params.llm,
     conversationContext: params.conversationContext,

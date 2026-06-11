@@ -8,8 +8,8 @@ import type {
   ToolAuthorizationProvider,
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-provider.js';
+import { DEFAULT_TOOL_AUTH } from '../../core/config/defaults.js';
 import { getLogger } from '../../core/facades/cli-authorization-provider.js';
-import { TOOL_AUTH_CONFIG } from '../config.js';
 import { text } from '../locales/index.js';
 import { getPendingAuthorization, requestAuthorization } from '../ui/authorization/bus.js';
 
@@ -42,14 +42,7 @@ const shouldAutoAllow = (request: ToolAuthorizationRequest, config: ToolAuthoriz
 
 const resolveConfig = (config?: ToolAuthorizationConfig): ToolAuthorizationConfig => {
   if (config) return config;
-  return {
-    sessionTtlMs: TOOL_AUTH_CONFIG.SESSION_TTL_MS,
-    autoAllowRisk: TOOL_AUTH_CONFIG.AUTO_ALLOW_RISK,
-    allowlist: {
-      repoFile: '.salmonloop/config/authorization.json',
-      userFile: '~/.salmonloop/config/authorization-user.json',
-    },
-  };
+  return DEFAULT_TOOL_AUTH;
 };
 
 export function createUiAuthorizationProvider(options?: {

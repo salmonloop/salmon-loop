@@ -1,3 +1,4 @@
+import type { VerifyPolicy } from '../../../core/runtime/execution-profile.js';
 import { getLogger } from '../../../core/facades/cli-observability.js';
 import { text } from '../../locales/index.js';
 import { resolveLlmOutputPolicyFromCli } from '../../utils/llm-output.js';
@@ -12,7 +13,7 @@ export async function resolveRunRuntimeOptions(params: {
   headlessOutput?: boolean;
   writeJsonFailure: (args: { message: string; repoPath?: string }) => void;
 }): Promise<
-  | { ok: true; llmOutput: any; effectiveVerify?: string; effectiveWorktreePrepare?: string }
+  | { ok: true; llmOutput: any; effectiveVerify?: string; effectiveWorktreePrepare?: string; verifyPolicyOverride?: VerifyPolicy }
   | { ok: false; exitCode: 1 }
 > {
   const llmOutputResolution = resolveLlmOutputPolicyFromCli(
@@ -56,5 +57,9 @@ export async function resolveRunRuntimeOptions(params: {
     { quiet: params.headlessOutput },
   );
 
-  return { ok: true, llmOutput, effectiveVerify, effectiveWorktreePrepare };
+  // When --no-verify is explicit, override verifyPolicy to 'never'
+  const verifyPolicyOverride: VerifyPolicy | undefined =
+    params.cliOptions.verify === false && effectiveVerify === undefined ? 'never' : undefined;
+
+  return { ok: true, llmOutput, effectiveVerify, effectiveWorktreePrepare, verifyPolicyOverride };
 }

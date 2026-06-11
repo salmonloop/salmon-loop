@@ -1,4 +1,5 @@
 export type { PermissionMode } from '../config/types.js';
+export type { VerifyPolicy } from '../runtime/execution-profile.js';
 export type { LLMMessage } from '../types/llm.js';
 export type { CheckpointStrategy } from '../types/loop.js';
 export type { LoopArtifactHints } from '../types/loop.js';

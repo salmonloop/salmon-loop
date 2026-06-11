@@ -20,7 +20,7 @@ export const en = {
   chatCommandHistory: '  /history      - Show iteration history',
   chatCommandQueue: '  /queue        - Manage the chat queue',
   chatCommandAuth: '  /config allowlist - Manage tool allowlist',
-  chatCommandMode: '  /mode         - Set permission mode (interactive/yolo)',
+  chatCommandMode: '  /permission-mode - Set permission mode (interactive/yolo)',
   chatCommandConfig:
     '  /config           - Settings (log-mode/view/output/allowlist/permission-mode)',
   chatSessionSaved: 'Session saved. Goodbye!',
@@ -118,7 +118,7 @@ export const en = {
   llmOutputUnavailable: 'LLM output configuration is unavailable in this mode.',
   llmOutputPersisted: (path: string) => `LLM output settings saved to ${path}`,
   llmOutputPersistFailed: (reason: string) => `Failed to save LLM output settings: ${reason}`,
-  modeUsage: 'Usage: /mode <interactive|yolo>',
+  modeUsage: 'Usage: /permission-mode <interactive|yolo>',
   modeSuggestion: (mode: string) => {
     if (mode === 'interactive') return 'Interactive permission checks and allowlist rules';
     if (mode === 'yolo') return 'Bypass prompts, allowlist, and permission rules';

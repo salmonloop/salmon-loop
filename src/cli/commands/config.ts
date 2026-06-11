@@ -201,10 +201,10 @@ const permissionModeSubcommand: Command = {
   getSuggestions: (ctx) =>
     modeCommand.getSuggestions?.({
       ...ctx,
-      input: delegateInputToCommand(ctx.input, '/mode'),
+      input: delegateInputToCommand(ctx.input, '/permission-mode'),
     }) ?? [],
   execute: async (ctx) =>
-    modeCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/mode') }),
+    modeCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/permission-mode') }),
 };
 
 const outputSubcommand: Command = {

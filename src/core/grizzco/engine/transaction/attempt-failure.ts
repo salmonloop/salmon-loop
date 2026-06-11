@@ -2,7 +2,7 @@ import { text } from '../../../../locales/index.js';
 import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
 import { mapErrorForDisplay } from '../../../observability/error-mapping.js';
-import { resolveExecutionProfile } from '../../../runtime/execution-profile.js';
+import { resolveExecutionProfile, type VerifyPolicy } from '../../../runtime/execution-profile.js';
 import { isRecoverableToolInputErrorCode } from '../../../tools/recoverable-tool-errors.js';
 import { EXECUTION_PHASES } from '../../../types/runtime.js';
 import type {
@@ -108,9 +108,11 @@ export function resolveAttemptFailure(params: {
   flowReport: FlowReport;
   context?: ShrinkCtx | AutopilotCtx;
   flowMode: FlowMode;
+  verifyPolicy?: VerifyPolicy;
 }): AttemptFailureDetails | undefined {
   const { flowReport, context, flowMode } = params;
   const profile = resolveExecutionProfile(flowMode);
+  const effectiveVerifyPolicy = params.verifyPolicy ?? profile.verifyPolicy;
   const interrupt = extractInterrupt(flowReport.error);
   const interruptCode = extractErrorCode(flowReport.error);
   if (interruptCode === 'INTERRUPT_REQUIRED' && interrupt?.type === 'awaiting_input') {
@@ -132,7 +134,7 @@ export function resolveAttemptFailure(params: {
   }
   const autopilotCompletion =
     flowMode === 'autopilot' && context && 'completion' in context ? context.completion : undefined;
-  const verifyOk = profile.verifyPolicy === 'never' ? true : context?.verifyResult?.ok !== false;
+  const verifyOk = effectiveVerifyPolicy === 'never' ? true : context?.verifyResult?.ok !== false;
   const applyBackResult =
     context && 'applyBackResult' in context ? context.applyBackResult : undefined;
   const applyBackFailed =
@@ -169,7 +171,7 @@ export function resolveAttemptFailure(params: {
 
   const errorCode = extractErrorCode(flowReport.error) ?? extractErrorCodeFromTraces(flowReport);
 
-  if (profile.verifyPolicy !== 'never' && context?.verifyResult?.ok === false) {
+  if (effectiveVerifyPolicy !== 'never' && context?.verifyResult?.ok === false) {
     const verifyOutput = context.verifyResult.output || text.loop.loopExecutionFailed;
     const errorType = classifyError(verifyOutput);
     const fallbackReason = sanitizeReason(context.lastError || verifyOutput);

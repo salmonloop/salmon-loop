@@ -1,9 +1,12 @@
 import { text } from '../../../locales/index.js';
+import type { PermissionDecision, PermissionEffect } from '../../permission-gate/types.js';
 import { normalizeDiff, validateDiff } from '../../patch/diff.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import { normalizeRepoRelativePath } from '../../utils/path.js';
 import { isRecord } from '../../utils/serialize.js';
 import type { ToolRuntimeCtx } from '../types.js';
+
+export type { PermissionEffect };
 
 export type PermissionRuleAliasTool =
   | 'Bash'
@@ -15,8 +18,6 @@ export type PermissionRuleAliasTool =
   | 'WebFetch';
 
 export type PermissionRuleTool = PermissionRuleAliasTool | string;
-
-export type PermissionEffect = 'allow' | 'deny';
 
 export interface RawPermissionRulesInput {
   allow?: string[] | undefined;
@@ -66,19 +67,6 @@ export interface CompiledPermissionRules {
    */
   visibleToolNamesFromAllow: Set<string>;
 }
-
-export type PermissionDecision =
-  | {
-      kind: 'allow';
-      reason?: string;
-      rule?: { effect: PermissionEffect; raw: string; tool: PermissionRuleTool };
-    }
-  | {
-      kind: 'deny';
-      reason: string;
-      rule?: { effect: PermissionEffect; raw: string; tool: PermissionRuleTool };
-    }
-  | { kind: 'no_match' };
 
 const DEFAULT_TOOL_ALIASES: Record<string, PermissionRuleAliasTool> = {
   bash: 'Bash',

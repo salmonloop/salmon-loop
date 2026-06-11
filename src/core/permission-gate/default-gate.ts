@@ -126,22 +126,22 @@ class DefaultPermissionGate implements PermissionGate {
     outcome: 'allow' | 'allow_once' | 'allow_session' | 'deny';
     reason?: string;
     source?: 'auto' | 'allowlist' | 'user' | 'cache' | 'cli' | 'hook';
+    ttlMs?: number;
+    persist?: 'repo' | 'user';
   }): PermissionDecision {
+    const source =
+      decision.source === 'auto' || decision.source === 'allowlist'
+        ? 'policy'
+        : decision.source;
     if (decision.outcome === 'deny') {
-      return {
-        kind: 'deny',
-        reason: decision.reason ?? 'denied',
-        source:
-          decision.source === 'auto' || decision.source === 'allowlist'
-            ? 'policy'
-            : decision.source,
-      };
+      return { kind: 'deny', reason: decision.reason ?? 'denied', source };
     }
     return {
       kind: 'allow',
       reason: decision.reason,
-      source:
-        decision.source === 'auto' || decision.source === 'allowlist' ? 'policy' : decision.source,
+      source,
+      ttlMs: decision.ttlMs,
+      persist: decision.persist,
     };
   }
 }

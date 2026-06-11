@@ -5,6 +5,7 @@ import { ConfigError } from '../../config/errors.js';
 import type { ConfigFileV1 } from '../../config/types.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import type { PermissionGate } from '../../permission-gate/gate.js';
+import type { PermissionDecision } from '../../permission-gate/types.js';
 import { isPathWithinDirectory } from '../../utils/path.js';
 
 export interface ContextCachePathResolution {
@@ -65,14 +66,7 @@ export async function resolveContextCachePath(
       },
     } as const;
 
-    let decision:
-      | {
-          kind: 'allow' | 'deny' | 'challenge';
-          reason?: string;
-          source?: string;
-          challengeId?: string;
-        }
-      | undefined;
+    let decision: PermissionDecision | undefined;
     let pendingChallenge: string | undefined;
     let pendingRequestId: string | undefined;
 

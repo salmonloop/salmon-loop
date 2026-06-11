@@ -63,8 +63,8 @@ async function persistPermissionMode(repoRoot: string, mode: PermissionMode) {
 }
 
 export const modeCommand: Command = {
-  name: '/mode',
-  aliases: ['/permission-mode', '/perm-mode'],
+  name: '/permission-mode',
+  aliases: ['/mode', '/perm-mode'],
   description: text.cli.commandMode,
   order: 53,
   getSuggestions: ({ input }) => {

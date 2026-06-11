@@ -244,6 +244,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const llmOutput = runtimeOptions.llmOutput;
   const effectiveVerify = runtimeOptions.effectiveVerify;
   const effectiveWorktreePrepare = runtimeOptions.effectiveWorktreePrepare;
+  const verifyPolicyOverride = runtimeOptions.verifyPolicyOverride;
 
   const instructionGuard = ensureInstructionOrExit({
     command,
@@ -289,11 +290,10 @@ export async function handleRunCommand(options: any, command: Command) {
   }
   const profile = resolveExecutionProfile(mode);
   const permissionModeOptionSource = getOptionValueSourceWithGlobalFallback(command, 'mode');
-  const configuredPermissionMode = normalizePermissionMode(resolvedConfig.raw?.mode);
 
   const rawPermissionMode =
     (permissionModeOptionSource === 'cli' ? allOptions.mode : undefined) ??
-    configuredPermissionMode ??
+    resolvedConfig.permissionMode ??
     profile.defaultPermissionMode ??
     'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
@@ -351,7 +351,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const extensionResolution = extensionsResult.extensionResolution;
 
   const operationalHeadlessWarnings: HeadlessWarning[] = [];
-  if (!effectiveVerify) {
+  if (!effectiveVerify && !verifyPolicyOverride) {
     if (!headlessOutput) {
       getLogger().warn(text.verify.noCommandFound);
     } else {
@@ -461,6 +461,7 @@ export async function handleRunCommand(options: any, command: Command) {
     const loopParams = buildRunLoopParams({
       instruction: instructionText,
       verify: effectiveVerify,
+      verifyPolicy: verifyPolicyOverride,
       repoPath: runPath,
       llm,
       languagePlugins,
