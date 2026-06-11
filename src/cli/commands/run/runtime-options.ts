@@ -1,5 +1,5 @@
-import type { VerifyPolicy } from '../../../core/runtime/execution-profile.js';
 import { getLogger } from '../../../core/facades/cli-observability.js';
+import type { VerifyPolicy } from '../../../core/runtime/execution-profile.js';
 import { text } from '../../locales/index.js';
 import { resolveLlmOutputPolicyFromCli } from '../../utils/llm-output.js';
 import { resolveVerifyOption } from '../../utils/verify-resolver.js';
@@ -13,7 +13,13 @@ export async function resolveRunRuntimeOptions(params: {
   headlessOutput?: boolean;
   writeJsonFailure: (args: { message: string; repoPath?: string }) => void;
 }): Promise<
-  | { ok: true; llmOutput: any; effectiveVerify?: string; effectiveWorktreePrepare?: string; verifyPolicyOverride?: VerifyPolicy }
+  | {
+      ok: true;
+      llmOutput: any;
+      effectiveVerify?: string;
+      effectiveWorktreePrepare?: string;
+      verifyPolicyOverride?: VerifyPolicy;
+    }
   | { ok: false; exitCode: 1 }
 > {
   const llmOutputResolution = resolveLlmOutputPolicyFromCli(

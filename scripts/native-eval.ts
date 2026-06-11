@@ -8,9 +8,9 @@
  *   npx tsx scripts/native-eval.ts --tasks <path> [--filter <name>] [--verbose]
  */
 
+import { spawn } from 'child_process';
 import { readFile, readdir, mkdir, cp } from 'fs/promises';
 import path from 'path';
-import { spawn } from 'child_process';
 
 interface HarborTask {
   id: string;

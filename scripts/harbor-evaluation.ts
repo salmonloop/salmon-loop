@@ -20,8 +20,8 @@
  *   npx tsx scripts/harbor-evaluation.ts --dataset swe-bench@1.0 --agent claude-code --n-concurrent 8 --env daytona
  */
 
-import { runHarness, buildFilter } from './eval/run.js';
 import { createHarborProvider } from './eval/providers/harbor.js';
+import { runHarness, buildFilter } from './eval/run.js';
 
 function parseArgs(argv: string[]) {
   const args: Record<string, string | string[] | boolean> = {

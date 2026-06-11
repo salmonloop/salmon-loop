@@ -38,9 +38,9 @@ describe('CLI Command Registry: Strict Logic Guard', () => {
       expect(findCommand('/exitter')).toBeUndefined();
     });
 
-    it('should expose /mode', async () => {
+    it('should expose /mode (alias for /permission-mode)', async () => {
       const { findCommand } = await loadRegistry();
-      expect(findCommand('/mode')?.name).toBe('/mode');
+      expect(findCommand('/mode')?.name).toBe('/permission-mode');
     });
 
     it('should expose /log-mode', async () => {

@@ -1,5 +1,6 @@
 import { createInterface } from 'readline/promises';
 
+import { DEFAULT_TOOL_AUTH } from '../../core/config/defaults.js';
 import type {
   AuthorizationDecision,
   PermissionMode,
@@ -8,7 +9,6 @@ import type {
   ToolAuthorizationProvider,
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-provider.js';
-import { DEFAULT_TOOL_AUTH } from '../../core/config/defaults.js';
 import { getLogger } from '../../core/facades/cli-authorization-provider.js';
 import { text } from '../locales/index.js';
 import { getPendingAuthorization, requestAuthorization } from '../ui/authorization/bus.js';

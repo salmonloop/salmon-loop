@@ -8,8 +8,8 @@
  *   npx tsx scripts/evaluation-runner.ts --repo <path> --config <path> --cases <path> --out <path> [options]
  */
 
-import { runHarness } from './eval/run.js';
 import { createSubprocessProvider } from './eval/providers/subprocess.js';
+import { runHarness } from './eval/run.js';
 
 export { buildRunCommandArgs, detectNewestAuditArtifact } from './eval/providers/subprocess.js';
 

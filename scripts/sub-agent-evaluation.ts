@@ -31,8 +31,9 @@ import {
   createSubAgentRegistry,
   setSubAgentRegistry,
 } from '../src/core/sub-agent/registry.js';
-import { buildFilter, runHarness } from './eval/run.js';
+
 import { createSalmonLoopProvider, resolveRealLlm } from './eval/providers/salmon-loop.js';
+import { buildFilter, runHarness } from './eval/run.js';
 
 async function main(): Promise<void> {
   process.stderr.write('[eval] starting initialization...\n');

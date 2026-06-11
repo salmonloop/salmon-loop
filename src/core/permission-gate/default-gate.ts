@@ -130,9 +130,7 @@ class DefaultPermissionGate implements PermissionGate {
     persist?: 'repo' | 'user';
   }): PermissionDecision {
     const source =
-      decision.source === 'auto' || decision.source === 'allowlist'
-        ? 'policy'
-        : decision.source;
+      decision.source === 'auto' || decision.source === 'allowlist' ? 'policy' : decision.source;
     if (decision.outcome === 'deny') {
       return { kind: 'deny', reason: decision.reason ?? 'denied', source };
     }

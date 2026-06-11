@@ -100,7 +100,10 @@ describe('sub-agent task-spawn context snapshot injection', () => {
           },
         },
       },
-      createMockToolRuntimeCtx({ contextSnapshot: runtimeSnapshot, subAgentManagerFactory: createMockManagerFactory() }),
+      createMockToolRuntimeCtx({
+        contextSnapshot: runtimeSnapshot,
+        subAgentManagerFactory: createMockManagerFactory(),
+      }),
     );
 
     expect(executeMock).toHaveBeenCalledTimes(1);

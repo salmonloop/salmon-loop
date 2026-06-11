@@ -1,6 +1,6 @@
 import { text } from '../../../locales/index.js';
-import type { PermissionDecision, PermissionEffect } from '../../permission-gate/types.js';
 import { normalizeDiff, validateDiff } from '../../patch/diff.js';
+import type { PermissionDecision, PermissionEffect } from '../../permission-gate/types.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import { normalizeRepoRelativePath } from '../../utils/path.js';
 import { isRecord } from '../../utils/serialize.js';
