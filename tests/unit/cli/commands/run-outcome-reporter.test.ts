@@ -147,7 +147,7 @@ mock.module('../../../../src/cli/commands/run/config-resolution.js', () => ({
           audit: { scope: 'repo' },
         },
         llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' }, models: {} },
-        permissionMode: 'interactive',
+        permissionMode: hoisted.resolvedConfigRaw?.mode ?? undefined,
         llmOutput: { kinds: [] },
         markdownTheme: 'default',
         markdownRenderMode: 'enhanced',
