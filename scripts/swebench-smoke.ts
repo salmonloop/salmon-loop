@@ -657,7 +657,7 @@ export async function installDependencies(params: {
  * Returns a command like: pytest tests/test_foo.py::test_bar tests/test_baz.py::test_qux -x --tb=short
  */
 export function buildVerifyFromFailToPass(instance: SweBenchInstance): string | undefined {
-  const raw = instance.fail_to_pass;
+  const raw = instance.FAIL_TO_PASS;
   if (!raw) return undefined;
 
   let testIds: string[];

@@ -28,9 +28,9 @@ export interface SweBenchInstance {
   base_commit?: string;
   problem_statement?: string;
   /** JSON-encoded array of test IDs that should pass after the fix (e.g. '["tests/test_foo.py::test_bar"]') */
-  fail_to_pass?: string;
+  FAIL_TO_PASS?: string;
   /** JSON-encoded array of test IDs that should always pass */
-  pass_to_pass?: string;
+  PASS_TO_PASS?: string;
   /** Unified diff that modifies/adds test files to reproduce the bug */
   test_patch?: string;
   /** Shell command to install project dependencies (e.g. "pip install -e .[test]"), or "N/A" */
