@@ -7,7 +7,6 @@ import { ToolCallingStubLLM, type StubTurn } from '../../src/core/llm/tool-calli
 import { clearLogger, createLogger, setLogger } from '../../src/core/observability/logger.js';
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { createSubAgentController } from '../../src/core/sub-agent/controller.js';
-import type { SubAgentControllerPort } from '../../src/core/sub-agent/controller.js';
 import type { LLM } from '../../src/core/types/llm.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 

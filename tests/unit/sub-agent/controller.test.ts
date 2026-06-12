@@ -5,7 +5,7 @@ import {
   createSubAgentController,
   type ToolCallEvent,
 } from '../../../src/core/sub-agent/controller.js';
-import type { SubAgentProfile, SubAgentStatus } from '../../../src/core/sub-agent/types.js';
+import type { SubAgentProfile } from '../../../src/core/sub-agent/types.js';
 
 const TEST_PROFILE: SubAgentProfile = {
   id: 'explorer',

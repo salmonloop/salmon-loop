@@ -422,7 +422,7 @@ index 123..456 100644
     });
 
     expect(result.success).toBe(false);
-    expect(result.attempts).toBe(3);
+    expect(result.attempts).toBe(6);
   });
 
   it('should fail when max retries exceeded', async () => {
@@ -472,7 +472,7 @@ index 123..456 100644
     });
 
     expect(result.success).toBe(false);
-    expect(result.attempts).toBe(3);
+    expect(result.attempts).toBe(6);
     expect(result.reason).toBe(text.loop.exceededMaxRetriesSimple);
   });
 

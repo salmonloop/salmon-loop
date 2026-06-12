@@ -18,7 +18,7 @@ import { getMonitor, type MonitorStructuredReport } from '../../../src/core/obse
 import { runSalmonLoop } from '../../../src/core/runtime/loop.js';
 import { createSubAgentController } from '../../../src/core/sub-agent/controller.js';
 import type { LLM } from '../../../src/core/types/llm.js';
-import type { EvalProvider, EvalResult, EvalRunOptions, EvalTaskDefinition } from '../types.js';
+import type { EvalProvider, EvalResult, EvalTaskDefinition } from '../types.js';
 
 // ─── Internal Task Definition (superset of EvalTaskDefinition) ───
 

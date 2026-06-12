@@ -1,4 +1,7 @@
+import { createLogger, setLogger } from '../../src/core/observability/logger.js';
 import { createAcpFormalAgent } from '../../src/core/protocols/acp/formal-agent.js';
+
+setLogger(createLogger({ silent: true }));
 
 function createFacade() {
   return {
