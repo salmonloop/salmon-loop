@@ -702,6 +702,10 @@ Please return the patch in PURE unified diff format:`;
     fsDeleteFileDescription: 'Delete a file under the repository root (slash-only)',
     gitStatusDescription: 'Show the working tree status',
     gitCatDescription: 'Read file content from a specific git revision',
+    gitBlameDescription: 'Show line-by-line authorship for a file',
+    gitLogDescription: 'Show structured commit history',
+    gitShowDescription: 'Show commit details and diff',
+    globFindDescription: 'Find files matching a glob pattern (respects .gitignore)',
     codeAstDescription: 'Query AST definitions and references for symbols',
     codeFindReferencesDescription:
       'Find all references to a symbol across the codebase using ripgrep pre-filter + tree-sitter precise matching',

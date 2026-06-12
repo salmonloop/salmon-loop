@@ -49,7 +49,19 @@ import {
   fsReadFileSpec,
   fsWriteFileSpec,
 } from './fs.js';
-import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git.js';
+import {
+  gitCatSpec,
+  executeGitCat,
+  gitStatusSpec,
+  executeGitStatus,
+  gitBlameSpec,
+  executeGitBlame,
+  gitLogSpec,
+  executeGitLog,
+  gitShowSpec,
+  executeGitShow,
+} from './git.js';
+import { globFindSpec, executeGlobFind } from './glob.js';
 import { askUserSpec } from './interaction.js';
 import { updateKnowledgeSpec, executeUpdateKnowledge } from './knowledge.js';
 import { planInitSpec, planReadSpec, planUpdateSpec } from './plan.js';
@@ -83,8 +95,14 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   // Git
   registry.register(defineTool(gitCatSpec, executeGitCat));
   registry.register(defineTool(gitStatusSpec, executeGitStatus));
+  registry.register(defineTool(gitBlameSpec, executeGitBlame));
+  registry.register(defineTool(gitLogSpec, executeGitLog));
+  registry.register(defineTool(gitShowSpec, executeGitShow));
   registry.register(defineTool(gitDiffCheckSpec, executeGitDiffCheck));
   registry.register(defineTool(gitApplyCheckSpec, executeGitApplyCheck));
+
+  // Glob
+  registry.register(defineTool(globFindSpec, executeGlobFind));
 
   // Benchmark / SWE-bench
   registry.register(defineTool(benchmarkReportSpec, executeBenchmarkReport));
@@ -126,6 +144,14 @@ export {
   executeGitCat,
   gitStatusSpec,
   executeGitStatus,
+  gitBlameSpec,
+  executeGitBlame,
+  gitLogSpec,
+  executeGitLog,
+  gitShowSpec,
+  executeGitShow,
+  globFindSpec,
+  executeGlobFind,
   codeReadSpec,
   fsListSpec,
   executeFsList,
