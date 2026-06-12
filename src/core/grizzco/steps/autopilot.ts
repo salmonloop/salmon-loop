@@ -409,12 +409,10 @@ function isRuntimeGeneratedPath(path: string): boolean {
 function lastFailedToolAuditEntry(
   entries: readonly NonNullable<AutopilotCtx['toolCallingAudit']>[number][] | undefined,
 ): NonNullable<AutopilotCtx['toolCallingAudit']>[number] | undefined {
-  if (!Array.isArray(entries)) return undefined;
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    if (entry?.toolResultStatus && entry.toolResultStatus !== 'ok') {
-      return entry;
-    }
+  if (!Array.isArray(entries) || entries.length === 0) return undefined;
+  const last = entries[entries.length - 1];
+  if (last?.toolResultStatus && last.toolResultStatus !== 'ok') {
+    return last;
   }
   return undefined;
 }

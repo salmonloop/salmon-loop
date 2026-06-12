@@ -54,7 +54,11 @@ async function createTempArtifactDir(): Promise<string> {
   return dir;
 }
 
-describe('E2E CLI (black-box)', () => {
+const hasLlmApiKey = Boolean(
+  process.env.SALMONLOOP_API_KEY || process.env.S8P_API_KEY || process.env.OPENAI_API_KEY,
+);
+
+describe.skipIf(!hasLlmApiKey)('E2E CLI (black-box)', () => {
   it(
     'success path works across modes and outputs',
     async () => {
