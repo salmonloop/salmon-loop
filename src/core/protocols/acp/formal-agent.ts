@@ -21,6 +21,7 @@ import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
 import { inferTurnStopReasonFromFailure } from '../../interaction/turn-stop-reason.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { getLogger } from '../../observability/logger.js';
 import { toAcpPublicModes } from '../../public-capabilities/projections.js';
 import { buildPublicCapabilityRegistry } from '../../public-capabilities/registry.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
@@ -861,8 +862,10 @@ export function createAcpFormalAgent(deps: {
     if (!update) return;
     try {
       await emitSessionUpdate(sessionId, update);
-    } catch {
-      // Best-effort: do not fail the request due to notification delivery issues.
+    } catch (error) {
+      getLogger().debug(
+        `[AcpFormalAgent] Best-effort session info update failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

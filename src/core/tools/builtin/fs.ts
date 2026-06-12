@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { text } from '../../../locales/index.js';
 import { AtomicFileWriter } from '../../adapters/fs/atomic-file-writer.js';
 import { mkdir, readFile, readdir, stat } from '../../adapters/fs/node-fs.js';
+import { getLogger } from '../../observability/logger.js';
 import { Phase } from '../../types/runtime.js';
 import { normalizeRepoRelativePath } from '../../utils/path.js';
 import { isRecord } from '../../utils/serialize.js';
@@ -239,7 +240,10 @@ function shouldIncludeListedEntry(dir: string, entryName: string, includeHidden:
   try {
     assertNotReservedRepoPrefix(childPath);
     return true;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[Fs] Reserved path check failed for "${childPath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
     return false;
   }
 }

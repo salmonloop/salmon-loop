@@ -5,6 +5,7 @@ import * as fs from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { FileState, FileStatus } from '../../grizzco/domain/grizzco-types.js';
+import { getLogger } from '../../observability/logger.js';
 
 /**
  * FileStateResolver
@@ -48,9 +49,10 @@ export class FileStateResolver {
       try {
         state.stagedContent = await this.git.show(':0', normalizedPath);
         state.workingContent = await fs.readFile(absolutePath);
-      } catch {
-        // Fallback: If we can't capture content, we might be in a race condition.
-        // But proceed with what we have; strategy layer will handle missing content if needed.
+      } catch (error) {
+        getLogger().debug(
+          `[FileStateResolver] Failed to capture MM content for ${normalizedPath}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
@@ -136,8 +138,10 @@ export class FileStateResolver {
       } finally {
         await fd.close();
       }
-    } catch {
-      // If file doesn't exist or can't be read, assume non-binary (safe default for new files)
+    } catch (error) {
+      getLogger().debug(
+        `[FileStateResolver] Binary detection failed for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }
@@ -149,7 +153,10 @@ export class FileStateResolver {
     try {
       const stats = await fs.lstat(filePath);
       return stats.isSymbolicLink();
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[FileStateResolver] Symlink detection failed for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }
@@ -161,7 +168,10 @@ export class FileStateResolver {
     try {
       const stats = await fs.stat(filePath);
       return stats.size;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[FileStateResolver] File size check failed for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return 0;
     }
   }

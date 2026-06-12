@@ -77,8 +77,11 @@ export class KnowledgeGatherer {
             }
             aggregated.lessons_learned.push(...data.lessons_learned);
           }
-        } catch {
+        } catch (error) {
           // Skip corrupted files
+          getLogger().debug(
+            `[KnowledgeGatherer] failed to load event file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
 
@@ -104,8 +107,11 @@ export class KnowledgeGatherer {
           getLogger().debug(`[KnowledgeGatherer] Compaction failed: ${e}`),
         );
       }
-    } catch {
+    } catch (error) {
       // Directory missing or other read errors, return empty aggregated state
+      getLogger().debug(
+        `[KnowledgeGatherer] knowledge directory read failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return {

@@ -1,3 +1,4 @@
+import { getLogger } from '../observability/logger.js';
 import type { RunnerKind } from '../verification/detect-runner.js';
 
 import { Diagnostic } from './types.js';
@@ -209,7 +210,10 @@ export function parseJestJson(output: string): Diagnostic[] {
   let parsed: JestJsonResult;
   try {
     parsed = JSON.parse(output) as JestJsonResult;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[Parsers] Failed to parse jest JSON output: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return [];
   }
 
@@ -258,8 +262,11 @@ export function parseJestJsonSummary(
       const total = parsed.numTotalTests;
       return { total, passed, failed, skipped: total - passed - failed };
     }
-  } catch {
+  } catch (error) {
     /* not JSON */
+    getLogger().debug(
+      `[Parsers] Failed to parse jest JSON summary: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   return undefined;
 }
@@ -270,7 +277,10 @@ export function parseEslintJson(output: string): Diagnostic[] {
   let parsed: EslintJsonResult[];
   try {
     parsed = JSON.parse(output) as EslintJsonResult[];
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[Parsers] Failed to parse eslint JSON output: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return [];
   }
 
@@ -319,8 +329,11 @@ export function parseBunTestNdjson(output: string): Diagnostic[] {
           source: 'bun',
         });
       }
-    } catch {
+    } catch (error) {
       /* skip non-JSON lines */
+      getLogger().debug(
+        `[Parsers] Failed to parse bun test NDJSON line: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
   return diagnostics;
@@ -353,8 +366,11 @@ export function parseGoTestNdjson(output: string): Diagnostic[] {
           source: 'go',
         });
       }
-    } catch {
+    } catch (error) {
       /* skip non-JSON lines */
+      getLogger().debug(
+        `[Parsers] Failed to parse go test NDJSON line: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
   return diagnostics;

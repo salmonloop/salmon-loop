@@ -61,8 +61,11 @@ async function writeJsonAtomic(targetPath: string, data: unknown): Promise<void>
   await writeFile(tmpPath, payload);
   try {
     await rename(tmpPath, targetPath);
-  } catch {
+  } catch (error) {
     // Retry once with a fresh temp file to reduce transient rename failures.
+    getLogger().debug(
+      `[AuditFile] Atomic rename failed, retrying: ${error instanceof Error ? error.message : String(error)}`,
+    );
     const retryTmpPath = path.join(dir, `.${base}.tmp-${process.pid}-${Date.now()}-retry`);
     await writeFile(retryTmpPath, payload);
     await rename(retryTmpPath, targetPath);

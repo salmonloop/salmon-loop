@@ -92,7 +92,10 @@ export class StrataFileSystemProvider implements IFileSystemProvider {
       const safePath = rootContext ? ensureInSandbox(rootContext, filePath) : filePath;
       const buffer = await fs.readFile(safePath);
       return this.guardian.inspect(buffer).isBinary;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[StrataFileSystem] Binary detection failed for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }

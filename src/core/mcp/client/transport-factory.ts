@@ -5,6 +5,7 @@ import { ReadBuffer, serializeMessage } from '@modelcontextprotocol/sdk/shared/s
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 
+import { getLogger } from '../../observability/logger.js';
 import { spawnInteractiveProcess, type InteractiveProcess } from '../../runtime/process-runner.js';
 import type { ResolvedMcpServerV2 } from '../types.js';
 
@@ -106,8 +107,11 @@ export class StrictStdioClientTransport implements Transport {
 
     try {
       child.stdin?.end?.();
-    } catch {
+    } catch (error) {
       // best-effort shutdown
+      getLogger().debug(
+        `[TransportFactory] Error ending stdin: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     await Promise.race([closePromise, unrefTimeout(2_000)]);
@@ -115,8 +119,11 @@ export class StrictStdioClientTransport implements Transport {
     if (child.exitCode === null) {
       try {
         child.kill('SIGTERM');
-      } catch {
+      } catch (error) {
         // best-effort shutdown
+        getLogger().debug(
+          `[TransportFactory] Error sending SIGTERM: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
       await Promise.race([closePromise, unrefTimeout(2_000)]);
     }
@@ -124,8 +131,11 @@ export class StrictStdioClientTransport implements Transport {
     if (child.exitCode === null) {
       try {
         child.kill('SIGKILL');
-      } catch {
+      } catch (error) {
         // best-effort shutdown
+        getLogger().debug(
+          `[TransportFactory] Error sending SIGKILL: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 

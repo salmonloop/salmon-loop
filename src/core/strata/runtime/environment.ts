@@ -29,7 +29,10 @@ async function pathExists(target: string): Promise<boolean> {
   try {
     await stat(target);
     return true;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[RuntimeEnvironment] pathExists check failed for ${target}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return false;
   }
 }

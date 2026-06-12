@@ -4,6 +4,7 @@ import { join } from 'path';
 
 import { rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { getLogger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 
 export type SnapshotCreateStep = 'read-tree' | 'add-u' | 'write-tree-final' | 'commit-tree';
@@ -67,8 +68,10 @@ export async function createSnapshotCommitFromStagedTree(input: {
           } else {
             await git.exec(['add', '--', file], { env });
           }
-        } catch {
-          // Ignore per-file add failures to keep snapshot best-effort.
+        } catch (error) {
+          getLogger().debug(
+            `[SnapshotCreate] Failed to add file ${file} to snapshot index: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
     }
@@ -91,8 +94,10 @@ export async function createSnapshotCommitFromStagedTree(input: {
   } finally {
     try {
       await rm(tempIndexFile, { force: true });
-    } catch {
-      // Ignore cleanup errors.
+    } catch (error) {
+      getLogger().debug(
+        `[SnapshotCreate] Failed to clean up temp index file: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

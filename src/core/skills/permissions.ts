@@ -140,9 +140,11 @@ export class SkillPermissionManager {
         logger?.warn(text.skills.permissionFileInvalidFormat(this.filePath));
         this.policies = [];
       }
-    } catch {
+    } catch (error) {
       const logger = tryGetLogger();
-      logger?.warn(text.skills.permissionFileLoadError(this.filePath));
+      logger?.warn(
+        `${text.skills.permissionFileLoadError(this.filePath)}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       this.policies = [];
     }
   }

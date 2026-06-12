@@ -11,6 +11,7 @@ import { Executor } from '../../grizzco/execution/Executor.js';
 import { WorkerFactory } from '../../grizzco/execution/WorkerFactory.js';
 import { MockLockService } from '../../grizzco/services/implementations/mock/MockLockService.js';
 import { registry } from '../../grizzco/services/registry.js';
+import { getLogger } from '../../observability/logger.js';
 import { normalizeDiff, validateDiff, convertDiffToShadowOperations } from '../../patch/diff.js';
 import { getRejectionsDir } from '../../runtime/paths.js';
 import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
@@ -70,7 +71,10 @@ export const proposalApplySpec: Omit<ToolSpec, 'executor'> = {
         changedFiles,
         changedFilesTruncated: meta.changedFiles.length > changedFiles.length,
       });
-    } catch {
+    } catch (error) {
+      getLogger().warn(
+        `[Proposal] Failed to validate diff for authorization preview: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return JSON.stringify({ handle, preview: 'invalid_diff' });
     }
   },

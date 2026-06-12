@@ -1,3 +1,5 @@
+import { getLogger } from '../observability/logger.js';
+
 function findFirstJsonStart(text: string): number {
   const obj = text.indexOf('{');
   const arr = text.indexOf('[');
@@ -65,7 +67,10 @@ export function extractFirstJsonValueFromText(text: string): unknown | null {
   const slice = raw.slice(start, end + 1);
   try {
     return JSON.parse(slice);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[StructuredOutput] Failed to parse extracted JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }

@@ -78,12 +78,12 @@ export function isWithinRoot(candidate: string, root: string): boolean {
     const realCandidate = realpathSync(resolvedCandidate);
     const realRoot = realpathSync(resolvedRoot);
     return realCandidate === realRoot || realCandidate.startsWith(realRoot + path.sep);
-  } catch {
+  } catch (error) {
     // Candidate or root does not exist yet — fall back to lexical check.
     // This allows pre-declaring paths that will be created later, while
     // still catching obvious traversal sequences like `../../etc`.
     tryGetLogger()?.debug(
-      `isWithinRoot: path not on disk, using lexical check for "${candidate}" against root "${root}"`,
+      `[Paths] isWithinRoot: path not on disk, using lexical check for "${candidate}" against root "${root}": ${error instanceof Error ? error.message : String(error)}`,
     );
     return (
       resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(resolvedRoot + path.sep)

@@ -470,8 +470,11 @@ export class AstGatherer {
       try {
         await this.fileAdapter.readFile(safeJoin(req.repoPath, c), 'utf-8');
         return c;
-      } catch {
-        // continue
+      } catch (error) {
+        // continue - file not found, try next candidate
+        getLogger().debug(
+          `[AstGatherer] candidate file not found: ${c}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
@@ -487,7 +490,10 @@ export class AstGatherer {
 
     try {
       return await this.fileAdapter.readFile(safeJoin(req.repoPath, filePath), 'utf-8');
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[AstGatherer] readRepoFile failed for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }

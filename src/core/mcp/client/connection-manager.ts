@@ -269,8 +269,11 @@ export class McpConnectionManager {
     for (const uri of entry.subscribedResources) {
       try {
         await entry.client.unsubscribeResource({ uri }, { timeout: LIMITS.defaultToolTimeoutMs });
-      } catch {
+      } catch (error) {
         // best-effort unsubscribe during shutdown
+        getLogger().debug(
+          `[McpConnectionManager] Failed to unsubscribe resource ${uri}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
     entry.subscribedResources.clear();
@@ -285,8 +288,11 @@ export class McpConnectionManager {
         await maybeHttpTransport.terminateSession().catch(() => undefined);
       }
       await entry.client.close();
-    } catch {
+    } catch (error) {
       // best-effort shutdown
+      getLogger().debug(
+        `[McpConnectionManager] Error during connection shutdown: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

@@ -8,6 +8,7 @@
 import { createHash } from 'crypto';
 
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
+import { getLogger } from '../../observability/logger.js';
 
 import type { CacheStats, FileCacheEntry } from './types.js';
 
@@ -103,8 +104,11 @@ export class TokenCache {
       this.fileCache.delete(filePath);
       this.fileCache.set(filePath, entry);
       return entry;
-    } catch {
+    } catch (error) {
       // File doesn't exist or can't be accessed
+      getLogger().debug(
+        `[TokenCache] file cache get failed for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       this.fileCache.delete(filePath);
       this.misses++;
       return null;
@@ -131,8 +135,11 @@ export class TokenCache {
         mtime: stats.mtimeMs,
         contentHash: this.hashContent(content),
       });
-    } catch {
+    } catch (error) {
       // Ignore if file can't be accessed
+      getLogger().debug(
+        `[TokenCache] file cache set failed for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

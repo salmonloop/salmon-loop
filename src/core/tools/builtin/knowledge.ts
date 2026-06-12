@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { writeFile, mkdir } from '../../adapters/fs/node-fs.js';
 import { getDefaultIndexPath } from '../../config/paths.js';
-import { tryGetLogger } from '../../observability/logger.js';
+import { getLogger, tryGetLogger } from '../../observability/logger.js';
 import { Phase } from '../../types/runtime.js';
 import { safeJoin } from '../../utils/path.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
@@ -79,12 +79,18 @@ async function loadExistingKnowledge(
             if (typeof d.decision === 'string') decisions.push(d.decision);
           }
         }
-      } catch {
+      } catch (error) {
         /* skip corrupted */
+        getLogger().debug(
+          `[Knowledge] Failed to read knowledge file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
-  } catch {
+  } catch (error) {
     /* dir missing */
+    getLogger().debug(
+      `[Knowledge] Failed to read knowledge directory: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   return { rules, decisions, deprecatedRules };

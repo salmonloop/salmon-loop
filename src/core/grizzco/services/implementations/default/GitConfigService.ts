@@ -15,7 +15,10 @@ export class GitConfigService implements IDataService {
       const getConfig = async (key: string) => {
         try {
           return await git.exec(['config', '--get', key], { allowError: true });
-        } catch {
+        } catch (error) {
+          getLogger().debug(
+            `[GitConfigService] git config --get failed for key "${key}": ${error instanceof Error ? error.message : String(error)}`,
+          );
           return null;
         }
       };

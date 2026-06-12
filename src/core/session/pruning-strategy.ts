@@ -234,7 +234,10 @@ export class SessionArchiver {
           contextSummary: iter.summary,
         })),
       };
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[SessionPruning] Failed to restore session from archive: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }

@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
+import { getLogger } from '../../observability/logger.js';
 import { getReviewPrompt } from '../../prompts/runtime.js';
 import type { LLM } from '../../types/llm.js';
 import type {
@@ -26,7 +27,10 @@ function normalizeReviewSuggestions(value: unknown): ReviewSummary['suggestions'
 function parseReviewResponse(content: string): ReviewSummary['suggestions'] {
   try {
     return normalizeReviewSuggestions(JSON.parse(content));
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[GenerateReview] Failed to parse review response as JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return normalizeReviewSuggestions(content);
   }
 }

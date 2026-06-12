@@ -196,7 +196,10 @@ export class ContextService {
       try {
         const stat = await this.fileAdapter.stat(absoluteFile);
         parts.push(this.formatStatSignature(relativeFile, stat));
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[ContextService] stat failed for ${relativeFile}: ${error instanceof Error ? error.message : String(error)}`,
+        );
         parts.push(`${relativeFile}:missing`);
       }
     }
@@ -215,7 +218,10 @@ export class ContextService {
       try {
         const stat = await this.fileAdapter.stat(gitPath);
         parts.push(this.formatStatSignature(rel, stat));
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[ContextService] stat failed for ${rel}: ${error instanceof Error ? error.message : String(error)}`,
+        );
         parts.push(`${rel}:missing`);
       }
     }

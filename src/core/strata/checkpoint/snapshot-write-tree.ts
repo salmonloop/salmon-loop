@@ -2,6 +2,7 @@ import { join } from 'path';
 
 import { stat } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { getLogger } from '../../observability/logger.js';
 
 import { classifyGitFailureHint } from './snapshot-audit.js';
 
@@ -33,7 +34,10 @@ export async function probeWriteTreeFailure(git: GitAdapter): Promise<Record<str
     const lockStat = await stat(indexLockPath);
     details.indexLockPresent = true;
     details.indexLockAgeMs = Math.max(0, Math.floor(Date.now() - lockStat.mtimeMs));
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[SnapshotWriteTree] Index lock not present or unreadable: ${error instanceof Error ? error.message : String(error)}`,
+    );
     details.indexLockPresent = false;
   }
   try {
@@ -43,7 +47,10 @@ export async function probeWriteTreeFailure(git: GitAdapter): Promise<Record<str
       .map((line) => line.trim())
       .filter(Boolean).length;
     details.unmergedCount = count;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[SnapshotWriteTree] Failed to list unmerged files: ${error instanceof Error ? error.message : String(error)}`,
+    );
     details.unmergedCount = undefined;
   }
   try {
@@ -67,7 +74,10 @@ export async function probeWriteTreeFailure(git: GitAdapter): Promise<Record<str
         command: 'rev-parse --is-inside-work-tree',
       });
     }
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[SnapshotWriteTree] Failed to probe work tree status: ${error instanceof Error ? error.message : String(error)}`,
+    );
     details.isInsideWorkTree = undefined;
   }
   return details;

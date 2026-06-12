@@ -1,5 +1,5 @@
 import { text } from '../../locales/index.js';
-import { tryGetLogger } from '../observability/logger.js';
+import { getLogger, tryGetLogger } from '../observability/logger.js';
 import { AuthorizationSourceSummary, ExecutionPhase, Phase } from '../types/runtime.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
@@ -190,7 +190,10 @@ export class ToolAuditLogger {
     try {
       const str = JSON.stringify(data);
       return str.length > 200 ? str.substring(0, 200) + '...' : str;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ToolAudit] Failed to summarize data: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return '[Circular/Unserializable]';
     }
   }

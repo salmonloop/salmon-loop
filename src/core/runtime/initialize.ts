@@ -166,7 +166,10 @@ function loadUserAgentProfiles(registry: ReturnType<typeof createSubAgentRegistr
     try {
       const content = readFileSync(filePath, 'utf-8');
       return AgentsConfigSchema.parse(JSON.parse(content));
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[InitializeRuntime] Failed to load agent config from ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   };

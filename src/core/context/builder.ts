@@ -3,6 +3,7 @@ import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 import { ConfigError } from '../config/errors.js';
 import { LIMITS } from '../config/limits.js';
 import { resolveConfig } from '../config/resolve.js';
+import { getLogger } from '../observability/logger.js';
 import { createDefaultPermissionGate } from '../permission-gate/default-gate.js';
 import type { PluginRegistry } from '../plugin/registry.js';
 import type { Context } from '../types/context.js';
@@ -111,7 +112,10 @@ async function readRepoFileText(repoPath: string, relativePath: string): Promise
     const normalized = normalizePath(relativePath).replace(/^(\.\/|\/)+/, '');
     const fullPath = ensureInSandbox(repoPath, defaultPathAdapter.join(repoPath, normalized));
     return await fileAdapter.readFile(fullPath, 'utf-8');
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ContextBuilder] readRepoFileText failed for ${relativePath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }

@@ -1,3 +1,4 @@
+import { getLogger } from '../../observability/logger.js';
 import { getEffectivenessTracker } from '../effectiveness/tracker.js';
 
 /**
@@ -149,8 +150,11 @@ export class DynamicBudgetAdjuster {
           confidence: 0.5,
         };
       }
-    } catch {
+    } catch (error) {
       // Effectiveness tracker not available, skip
+      getLogger().debug(
+        `[DynamicBudgetAdjuster] effectiveness tracker unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return null;

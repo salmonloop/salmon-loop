@@ -117,8 +117,11 @@ export class FileHandleManager {
         try {
           const fs = await import('fs/promises');
           await fs.unlink(lockFile);
-        } catch {
-          // Ignore
+        } catch (error) {
+          // Ignore - best-effort force unlock
+          getLogger().debug(
+            `[LockManager] force unlock failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
 
@@ -167,9 +170,12 @@ export class FileHandleManager {
                 await fs.unlink(lockFile);
                 continue; // Retry immediately after removing stale lock
               }
-            } catch {
+            } catch (error) {
               // If the lock file is unreadable, we cannot safely determine ownership.
               // Do not auto-remove in this path; rely on timeout-based recovery instead.
+              getLogger().debug(
+                `[LockManager] lock file unreadable during stale check: ${error instanceof Error ? error.message : String(error)}`,
+              );
             }
 
             // Exponential backoff: delay increases with retry count, capped at 2000ms
@@ -188,8 +194,11 @@ export class FileHandleManager {
             try {
               await mkdir(repoPath, { recursive: true });
               continue; // Retry immediately
-            } catch {
+            } catch (error) {
               // If mkdir fails, just wait and retry
+              getLogger().debug(
+                `[LockManager] mkdir fallback failed: ${error instanceof Error ? error.message : String(error)}`,
+              );
             }
             await this.abortableDelay(LIMITS.retry.io.initialDelayMs, hardAbort.signal);
           } else {

@@ -1,4 +1,5 @@
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { getLogger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
 
@@ -54,8 +55,11 @@ export class GitHistoryGatherer {
         churnByFile:
           Object.keys(churnByNumstat).length > 0 ? churnByNumstat : buildChurnIndex(churnLog),
       };
-    } catch {
+    } catch (error) {
       // Not a git repo or git not found
+      getLogger().debug(
+        `[GitHistoryGatherer] git history gather failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return {};
     }
   }

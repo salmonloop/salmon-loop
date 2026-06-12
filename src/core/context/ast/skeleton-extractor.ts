@@ -1,5 +1,6 @@
 import { AstParser } from '../../ast/parser.js';
 import { createLanguageSupportOrchestrator } from '../../language-support/orchestrator.js';
+import { getLogger } from '../../observability/logger.js';
 import { tryGetPluginRegistry } from '../../plugin/registry.js';
 
 const MAX_SKELETON_LINES = 200;
@@ -117,8 +118,11 @@ export async function extractSkeleton(
 
     const result = out.join('\n').trim();
     return result.length > 0 ? result : undefined;
-  } catch {
+  } catch (error) {
     // Tree-sitter parsing failed (no grammar, parse error, etc.)
+    getLogger().debug(
+      `[SkeletonExtractor] parse failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return undefined;
   }
 }

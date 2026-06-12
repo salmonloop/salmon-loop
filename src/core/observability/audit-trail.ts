@@ -1,3 +1,5 @@
+import { getLogger } from './logger.js';
+
 export type AuditSeverity = 'low' | 'medium' | 'high';
 export type AuditScope = 'global' | 'repo' | 'user' | 'session';
 
@@ -57,7 +59,10 @@ export function setAuditBufferLimits(
 function estimateEventSize(event: AuditTrailEvent): number {
   try {
     return Buffer.byteLength(JSON.stringify(event), 'utf-8');
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[AuditTrail] Failed to estimate event size: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return 0;
   }
 }

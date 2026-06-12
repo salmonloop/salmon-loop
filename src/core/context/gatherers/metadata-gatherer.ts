@@ -1,4 +1,5 @@
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
+import { getLogger } from '../../observability/logger.js';
 import { safeJoin } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
 
@@ -26,16 +27,22 @@ export class MetadataGatherer {
     try {
       const pkgRaw = await this.fileAdapter.readFile(safeJoin(repoPath, 'package.json'), 'utf-8');
       metadata.packageJson = JSON.parse(pkgRaw);
-    } catch {
-      // Ignored
+    } catch (error) {
+      // Ignored - best-effort metadata
+      getLogger().debug(
+        `[MetadataGatherer] package.json read failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     // 2. README.md (first 1000 chars)
     try {
       const readmeRaw = await this.fileAdapter.readFile(safeJoin(repoPath, 'README.md'), 'utf-8');
       metadata.readmeHeader = readmeRaw.slice(0, 1000);
-    } catch {
-      // Ignored
+    } catch (error) {
+      // Ignored - best-effort metadata
+      getLogger().debug(
+        `[MetadataGatherer] README.md read failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     // 3. AI Instructions (GEMINI.md, CLAUDE.md, ARCH.md)
@@ -44,8 +51,11 @@ export class MetadataGatherer {
       try {
         const content = await this.fileAdapter.readFile(safeJoin(repoPath, file), 'utf-8');
         metadata.aiInstructions = (metadata.aiInstructions || '') + `\n--- ${file} ---\n${content}`;
-      } catch {
-        // Ignored
+      } catch (error) {
+        // Ignored - best-effort metadata
+        getLogger().debug(
+          `[MetadataGatherer] AI instruction file ${file} not found: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
@@ -67,8 +77,11 @@ export class MetadataGatherer {
       try {
         await this.fileAdapter.readFile(safeJoin(repoPath, config), 'utf-8');
         metadata.configFiles.push(config);
-      } catch {
+      } catch (error) {
         // Ignored: config not found
+        getLogger().debug(
+          `[MetadataGatherer] config file ${config} not found: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 

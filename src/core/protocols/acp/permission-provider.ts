@@ -7,6 +7,7 @@ import type {
 import type { ClientCapabilities } from '@agentclientprotocol/sdk';
 
 import { text } from '../../../locales/index.js';
+import { getLogger } from '../../observability/logger.js';
 import type {
   ToolAuthorizationProvider,
   ToolAuthorizationRequest,
@@ -68,8 +69,10 @@ export function createAcpToolAuthorizationProvider(params: {
         status: 'in_progress',
       };
       await params.conn.sessionUpdate({ sessionId: params.sessionId, update });
-    } catch {
-      // Best-effort: do not block authorization if the client can't accept updates.
+    } catch (error) {
+      getLogger().debug(
+        `[AcpPermissionProvider] Best-effort in_progress update failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 

@@ -1,6 +1,7 @@
 import { resolve } from 'path';
 
 import { LIMITS } from '../../../../config/limits.js';
+import { getLogger } from '../../../../observability/logger.js';
 import { Backend } from '../../../capability/types.js';
 import { parseRgJson } from '../parse/rg-json.js';
 import { CodeSearchInputT, CodeSearchOutputT } from '../spec.js';
@@ -13,7 +14,10 @@ export const rgBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
       // Check if rg is available and working
       const res = await ctx.runner.execFile('rg', ['--version'], { timeoutMs: 1500 });
       return res.exitCode === 0;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[CodeSearch] rg compatibility check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   },

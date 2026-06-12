@@ -543,7 +543,10 @@ export class ToolRouter {
       const raw = JSON.stringify(args);
       if (raw.length <= maxLength) return raw;
       return `${raw.slice(0, maxLength)}...`;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ToolRouter] Failed to summarize args: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return '[Unserializable]';
     }
   }
@@ -555,7 +558,10 @@ export class ToolRouter {
       // Full SHA-256 hex digest (64 chars / 256-bit) for authorization cache keys.
       // Truncation to 16 hex was insufficient collision resistance for security use.
       return crypto.createHash('sha256').update(raw).digest('hex');
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ToolRouter] Failed to hash args: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return undefined;
     }
   }
@@ -682,7 +688,10 @@ export class ToolRouter {
         new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), TIMEOUT_MS)),
       ]);
       return typeof result === 'string' && result.trim() ? result : fallback;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ToolRouter] Failed to get authorization args summary: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return fallback;
     }
   }
@@ -713,7 +722,10 @@ async function checkPostEditSyntax(
     try {
       const absolutePath = path.resolve(ctx.repoRoot, filePath);
       content = await readFile(absolutePath, 'utf-8');
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ToolRouter] Failed to read file for post-edit syntax check: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return [];
     }
   }
@@ -740,8 +752,11 @@ async function checkPostEditSyntax(
           .map((e) => `line ${e.line}: ${e.text}`)
           .join('; '),
     ];
-  } catch {
+  } catch (error) {
     // Tree-sitter parse failed (no grammar, etc.) — silently skip
+    getLogger().debug(
+      `[ToolRouter] Post-edit syntax check parse failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return [];
   }
 }

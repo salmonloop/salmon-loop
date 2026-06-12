@@ -1,3 +1,5 @@
+import { getLogger } from '../../../../observability/logger.js';
+
 export interface RgMatch {
   file: string;
   line: number;
@@ -33,8 +35,11 @@ export function parseRgJson(
           snippet: data.data.lines.text.trimEnd(),
         });
       }
-    } catch {
+    } catch (error) {
       // Ignore malformed JSON lines
+      getLogger().debug(
+        `[CodeSearch] Failed to parse rg JSON line: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

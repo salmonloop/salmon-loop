@@ -351,8 +351,11 @@ export class Logger {
       await this.fileAdapter.appendFile(this.logFile, content);
       // Only remove from queue if write was successful
       this.logQueue.splice(0, contentToFlush.length);
-    } catch {
+    } catch (error) {
       // Keep logs in queue for next retry
+      this.debug(
+        `[Logger] Failed to flush logs to file: ${error instanceof Error ? error.message : String(error)}`,
+      );
     } finally {
       this.isFlushing = false;
       if (this.logQueue.length > 0) {

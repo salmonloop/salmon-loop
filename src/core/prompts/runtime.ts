@@ -1,3 +1,4 @@
+import { getLogger } from '../observability/logger.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import { resolvePhaseVisibleTools, type ToolVisibilityRuntime } from '../tools/tool-visibility.js';
 import type { ToolSpec } from '../tools/types.js';
@@ -19,7 +20,10 @@ function extractTargetFiles(plan: string): string | undefined {
     if (!Array.isArray(parsed.files)) return undefined;
     const files = parsed.files.filter((f): f is string => typeof f === 'string');
     return files.length > 0 ? files.join(', ') : undefined;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[PromptRuntime] Failed to extract target files from plan JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return undefined;
   }
 }

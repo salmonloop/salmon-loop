@@ -13,6 +13,7 @@ import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import type { TaskEvent, TaskEventBus } from '../../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../../interaction/model/index.js';
 import type { TaskArtifact } from '../../../interaction/model/types.js';
+import { getLogger } from '../../../observability/logger.js';
 import {
   buildCanonicalExecutionRequest,
   buildInstructionFromParts,
@@ -431,7 +432,10 @@ export function createA2AInteractionExecutor(
           kind: 'data',
           data: JSON.parse(artifact.content),
         };
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[A2AExecutor] Failed to parse artifact content as JSON: ${error instanceof Error ? error.message : String(error)}`,
+        );
         // Fall through to text
       }
     }

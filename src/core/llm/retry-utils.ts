@@ -1,6 +1,9 @@
 /**
  * Utility for retrying asynchronous operations with exponential backoff.
  */
+import { LIMITS } from '../config/limits.js';
+import { getLogger } from '../observability/logger.js';
+
 export interface RetryOptions {
   maxRetries?: number;
   initialDelayMs?: number;
@@ -11,8 +14,6 @@ export interface RetryOptions {
   onRetry?: (info: { attempt: number; delayMs: number; error: unknown }) => void | Promise<void>;
   signal?: AbortSignal;
 }
-
-import { LIMITS } from '../config/limits.js';
 
 const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'signal'>> = {
   maxRetries: LIMITS.retry.api.maxAttempts,
@@ -61,8 +62,11 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
       const effectiveDelay = withJitter(delay, opts.jitterRatio);
       try {
         await opts.onRetry({ attempt: attempt + 1, delayMs: effectiveDelay, error });
-      } catch {
+      } catch (retryHandlerError) {
         // Ignore onRetry handler failures.
+        getLogger().debug(
+          `[RetryUtils] onRetry handler failed: ${retryHandlerError instanceof Error ? retryHandlerError.message : String(retryHandlerError)}`,
+        );
       }
 
       await new Promise((resolve, reject) => {
@@ -122,8 +126,11 @@ export async function* withStreamRetry<T>(
       const effectiveDelay = withJitter(delay, opts.jitterRatio);
       try {
         await opts.onRetry({ attempt: attempt + 1, delayMs: effectiveDelay, error });
-      } catch {
+      } catch (retryHandlerError) {
         // Ignore onRetry handler failures.
+        getLogger().debug(
+          `[RetryUtils] onRetry handler failed (stream): ${retryHandlerError instanceof Error ? retryHandlerError.message : String(retryHandlerError)}`,
+        );
       }
 
       await new Promise((resolve, reject) => {

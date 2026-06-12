@@ -815,8 +815,11 @@ export class GitAdapter {
       // CRITICAL: Resolve symlinks in tmpdir() itself
       // Example: /tmp -> /private/tmp on macOS
       tmpReal = realpathSync(tmpResolved);
-    } catch {
+    } catch (error) {
       // Fall back to resolved path. If tmp is not realpath-resolvable, prefer denying shadow checks elsewhere.
+      getLogger().debug(
+        `[GitAdapter] realpath resolve failed for tmpdir: ${error instanceof Error ? error.message : String(error)}`,
+      );
       tmpReal = tmpResolved;
     }
     return path.join(tmpReal, 's8p-wt');
@@ -827,7 +830,10 @@ export class GitAdapter {
     let repoReal = repoResolved;
     try {
       repoReal = realpathSync(repoResolved);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[GitAdapter] realpath resolve failed for repo: ${error instanceof Error ? error.message : String(error)}`,
+      );
       repoReal = repoResolved;
     }
     const parent = path.dirname(repoReal);
@@ -875,7 +881,10 @@ export class GitAdapter {
       // CRITICAL: Resolve symlinks in the repo path being checked
       // Prevents attacker from creating a symlink to main repo inside shadow root
       repo = realpathSync(repoResolved);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[GitAdapter] realpath resolve failed for shadow check: ${error instanceof Error ? error.message : String(error)}`,
+      );
       repo = repoResolved;
     }
     if (isPathWithinDirectory(expectedRoot, repo, { allowEqual: false })) return true;

@@ -1,3 +1,4 @@
+import { getLogger } from '../../observability/logger.js';
 import { ResourceCache } from '../cache/resource-cache.js';
 import type { McpConnectionManager } from '../client/connection-manager.js';
 import type { McpPolicyEngine } from '../policy/approval-policy.js';
@@ -396,7 +397,10 @@ function normalizeText(text: string, mimeType: string | undefined): string {
   if (!isJsonMime(mimeType)) return text;
   try {
     return JSON.stringify(JSON.parse(text), null, 2);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ResourceContextProvider] Failed to normalize JSON text: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return text;
   }
 }

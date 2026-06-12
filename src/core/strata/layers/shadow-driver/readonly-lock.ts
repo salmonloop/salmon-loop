@@ -145,7 +145,10 @@ async function removeLockByToken(lockPath: string, expectedToken: string): Promi
 
   try {
     await rename(lockPath, swapPath);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ReadonlyLock] Failed to rename lock file for atomic swap: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return false;
   }
 
@@ -158,16 +161,23 @@ async function removeLockByToken(lockPath: string, expectedToken: string): Promi
 
     try {
       await rename(swapPath, lockPath);
-    } catch {
-      // Best-effort rollback when concurrent updates happen.
+    } catch (rollbackError) {
+      getLogger().debug(
+        `[ReadonlyLock] Failed to rollback lock swap (token mismatch): ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+      );
       await unlink(swapPath).catch(() => null);
     }
     return false;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ReadonlyLock] Failed to verify lock token after swap: ${error instanceof Error ? error.message : String(error)}`,
+    );
     try {
       await rename(swapPath, lockPath);
-    } catch {
-      // Best-effort rollback when concurrent updates happen.
+    } catch (rollbackError) {
+      getLogger().debug(
+        `[ReadonlyLock] Failed to rollback lock swap (verification error): ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+      );
       await unlink(swapPath).catch(() => null);
     }
     return false;

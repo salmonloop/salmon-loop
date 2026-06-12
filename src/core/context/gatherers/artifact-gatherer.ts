@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
+import { getLogger } from '../../observability/logger.js';
 import type { RuntimeArtifacts } from '../../types/context.js';
 import { safeJoin } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
@@ -32,8 +33,11 @@ export class ArtifactGatherer {
       artifacts.buildDirs = rootEntries.filter((e) =>
         ArtifactGatherer.COMMON_BUILD_DIRS.includes(e),
       );
-    } catch {
-      /* Ignore */
+    } catch (error) {
+      /* Ignore - best-effort build dir detection */
+      getLogger().debug(
+        `[ArtifactGatherer] build dir scan failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     // 2. Lock Files & Hashes
@@ -47,8 +51,11 @@ export class ArtifactGatherer {
           const hash = createHash('md5').update(content.slice(0, 5000)).digest('hex');
           artifacts.lockFiles?.push({ path: lock, hash });
         }
-      } catch {
-        /* Ignore */
+      } catch (error) {
+        /* Ignore - best-effort lock file detection */
+        getLogger().debug(
+          `[ArtifactGatherer] lock file scan failed for ${lock}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 

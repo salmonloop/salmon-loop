@@ -2,6 +2,7 @@ import { realpathSync } from 'fs';
 import path from 'path';
 
 import { LIMITS } from '../../config/limits.js';
+import { getLogger } from '../../observability/logger.js';
 import { spawnCommand } from '../../runtime/process-runner.js';
 
 export interface GitRunLimits {
@@ -50,12 +51,18 @@ function assertCwdSandboxed(repoRoot: string, cwd: string): void {
   let realCwd = resolvedCwd;
   try {
     realRoot = realpathSync(resolvedRoot);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[GitRunner] realpath resolve failed for root: ${error instanceof Error ? error.message : String(error)}`,
+    );
     realRoot = resolvedRoot;
   }
   try {
     realCwd = realpathSync(resolvedCwd);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[GitRunner] realpath resolve failed for cwd: ${error instanceof Error ? error.message : String(error)}`,
+    );
     realCwd = resolvedCwd;
   }
 

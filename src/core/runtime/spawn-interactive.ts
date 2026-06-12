@@ -1,6 +1,8 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 
+import { getLogger } from '../observability/logger.js';
+
 import { getBunRuntime, normalizeSignal, toNodeReadableStream } from './bun-runtime.js';
 import { InteractiveProcess, SpawnInteractiveInput } from './process-types.js';
 
@@ -41,8 +43,10 @@ export function spawnInteractiveProcess(input: SpawnInteractiveInput): Interacti
       kill: (signal = 'SIGTERM') => {
         try {
           subprocess.kill(signal);
-        } catch {
-          // Ignore kill errors.
+        } catch (error) {
+          getLogger().debug(
+            `[SpawnInteractive] Failed to kill bun subprocess: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       },
       on: (event, listener) => {
@@ -81,8 +85,10 @@ export function spawnInteractiveProcess(input: SpawnInteractiveInput): Interacti
     kill: (signal = 'SIGTERM') => {
       try {
         child.kill(signal);
-      } catch {
-        // Ignore kill errors.
+      } catch (error) {
+        getLogger().debug(
+          `[SpawnInteractive] Failed to kill child process: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     },
     on: (event, listener) => {

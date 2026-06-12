@@ -3,6 +3,7 @@ import type { ModelMessage, ToolSet } from 'ai';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
+import { getLogger } from '../../observability/logger.js';
 import { toolToOpenAI } from '../../tools/mapper.js';
 import type { ToolSpec } from '../../tools/types.js';
 import type { LLMMessage } from '../../types/llm.js';
@@ -29,8 +30,11 @@ function formatOutputSchema(schema: z.ZodType | undefined): string {
       const { $schema: _$schema, ...cleanSchema } = jsonSchemaObj as Record<string, unknown>;
       return JSON.stringify(cleanSchema);
     }
-  } catch {
+  } catch (error) {
     // Fallback to generic description for invalid/unsupported schema.
+    getLogger().debug(
+      `[MessageMapper] Failed to format output schema to JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   return 'complex object';
@@ -40,8 +44,10 @@ function safeParseJsonObject(textValue: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(textValue);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-  } catch {
-    // ignored
+  } catch (error) {
+    getLogger().debug(
+      `[MessageMapper] Failed to parse JSON object: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   return {};
 }
@@ -51,7 +57,10 @@ function deepCloneJson(value: unknown, fallback: unknown): unknown {
     const serialized = JSON.stringify(value);
     if (serialized === undefined) return fallback;
     return JSON.parse(serialized);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[MessageMapper] deepCloneJson failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return fallback;
   }
 }
@@ -147,7 +156,10 @@ export function toAiSdkMessages(messages: LLMMessage[]): ModelMessage[] {
       let parsedContent: unknown;
       try {
         parsedContent = JSON.parse(m.content);
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[MessageMapper] Failed to parse tool message content as JSON: ${error instanceof Error ? error.message : String(error)}`,
+        );
         parsedContent = m.content;
       }
 
@@ -318,13 +330,18 @@ export function toOpenAiToolCalls(
         if (nested.startsWith('{') || nested.startsWith('[')) {
           try {
             parsed = JSON.parse(nested);
-          } catch {
-            // ignored
+          } catch (error) {
+            getLogger().debug(
+              `[MessageMapper] Failed to parse nested JSON string: ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
         }
       }
       return parsed;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[MessageMapper] Failed to normalize tool input JSON: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return raw;
     }
   };

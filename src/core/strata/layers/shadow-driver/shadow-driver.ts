@@ -45,7 +45,10 @@ async function pointsToExpectedDependency(
       realpath(targetPath),
     ]);
     return arePathsEquivalent(resolvedSourcePath, resolvedTargetPath);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ShadowDriver] Failed to verify dependency path equivalence: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return false;
   }
 }

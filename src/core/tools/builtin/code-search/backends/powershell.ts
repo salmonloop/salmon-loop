@@ -1,4 +1,5 @@
 import { LIMITS } from '../../../../config/limits.js';
+import { getLogger } from '../../../../observability/logger.js';
 import { Backend } from '../../../capability/types.js';
 import { parsePlainMatches } from '../parse/plain-grep.js';
 import { CodeSearchInputT, CodeSearchOutputT } from '../spec.js';
@@ -18,7 +19,10 @@ export const psBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
         },
       );
       return res.exitCode === 0;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[CodeSearch] PowerShell compatibility check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   },

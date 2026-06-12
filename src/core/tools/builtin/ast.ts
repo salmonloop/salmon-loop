@@ -7,6 +7,7 @@ import { readFile } from '../../adapters/fs/node-fs.js';
 import { AstParser } from '../../ast/parser.js';
 import { extractImportSpecifiers } from '../../context/ast/import-extractor.js';
 import { resolveImportCandidates } from '../../context/ast/module-resolver.js';
+import { getLogger } from '../../observability/logger.js';
 import { tryGetPluginRegistry } from '../../plugin/registry.js';
 import { spawnCommand } from '../../runtime/process-runner.js';
 import { Phase } from '../../types/runtime.js';
@@ -169,8 +170,11 @@ export async function executeCodeFindReferences(
           references.push({ file, name: ref.name, location: ref.location });
         }
       }
-    } catch {
+    } catch (error) {
       // Skip files that can't be parsed
+      getLogger().debug(
+        `[CodeAst] Failed to parse file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -213,7 +217,10 @@ async function rgFindCandidates(
       .split('\n')
       .map((line) => normalizePath(line.trim()).replace(/^(\.\/|\/)+/, ''))
       .filter((f) => f && f !== normalizedExclude);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[CodeAst] rg candidate search failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return [];
   }
 }

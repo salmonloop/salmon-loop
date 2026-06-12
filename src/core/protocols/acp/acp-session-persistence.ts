@@ -11,6 +11,7 @@ import {
 } from '../../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { getLogger } from '../../observability/logger.js';
 
 import {
   hashRepoPath,
@@ -330,7 +331,10 @@ export function createAcpSessionPersistence(options: {
           scope: 'session',
           phase: 'PREFLIGHT',
         });
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[AcpSessionPersistence] Failed to parse stale lock file: ${error instanceof Error ? error.message : String(error)}`,
+        );
         try {
           const lockStat = await stat(lockPath);
           const ageMs = Date.now() - lockStat.mtimeMs;
@@ -345,8 +349,10 @@ export function createAcpSessionPersistence(options: {
               { source: 'acp', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
             );
           }
-        } catch {
-          // ignore
+        } catch (innerError) {
+          getLogger().debug(
+            `[AcpSessionPersistence] Failed to stat lock file for age check: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
+          );
         }
       }
     };
@@ -364,7 +370,10 @@ export function createAcpSessionPersistence(options: {
             'utf8',
           );
           break;
-        } catch {
+        } catch (error) {
+          getLogger().debug(
+            `[AcpSessionPersistence] Lock acquire attempt failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
           await tryClearStaleLock();
           const delayMs = Math.min(250, 20 * (attempt + 1));
           await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -399,8 +408,10 @@ export function createAcpSessionPersistence(options: {
         try {
           const existingRaw = await readFile(options.path, 'utf8');
           existing = normalizePersistedSessionStore(JSON.parse(existingRaw));
-        } catch {
-          // ignore read failure; writing fresh payload is acceptable
+        } catch (error) {
+          getLogger().debug(
+            `[AcpSessionPersistence] Failed to read existing session store for merge: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
 
         const merged = new Map<string, PersistedAcpSessionStoreV2['sessions'][number]>();
@@ -438,13 +449,17 @@ export function createAcpSessionPersistence(options: {
       if (lockHandle) {
         try {
           await lockHandle.close();
-        } catch {
-          // ignore
+        } catch (error) {
+          getLogger().debug(
+            `[AcpSessionPersistence] Failed to close lock handle: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
         try {
           await unlink(lockPath);
-        } catch {
-          // ignore
+        } catch (error) {
+          getLogger().debug(
+            `[AcpSessionPersistence] Failed to unlink lock file: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
     }

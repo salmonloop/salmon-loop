@@ -1,6 +1,7 @@
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import type { ConfigFileV1 } from '../../config/types.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { getLogger } from '../../observability/logger.js';
 import type { PermissionGate } from '../../permission-gate/gate.js';
 
 import { resolveContextCachePath } from './path-resolver.js';
@@ -44,8 +45,11 @@ export async function createContextCacheStore(
   const cleanupFn: PersistentContextCacheStoreOptions['cleanupFn'] = async (details) => {
     try {
       await cleanupAdapter.deleteFile(details.filePath);
-    } catch {
+    } catch (error) {
       // best-effort cleanup only
+      getLogger().debug(
+        `[ContextCache] cleanup failed for ${details.filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 

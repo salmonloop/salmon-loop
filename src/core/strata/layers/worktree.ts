@@ -59,7 +59,10 @@ function normalizePathForCompare(value: string): string {
 async function tryRealpath(value: string): Promise<string | null> {
   try {
     return await realpath(value);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[Worktree] Failed to resolve realpath for ${value}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }

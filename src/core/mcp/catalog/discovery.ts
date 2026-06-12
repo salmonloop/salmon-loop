@@ -1,6 +1,7 @@
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { Prompt, Resource, ResourceTemplate, Tool } from '@modelcontextprotocol/sdk/types.js';
 
+import { getLogger } from '../../observability/logger.js';
 import type { McpCatalogSnapshot, ResolvedMcpServerV2 } from '../types.js';
 
 import { withPromptServer } from './prompt-catalog.js';
@@ -10,7 +11,10 @@ import { withToolServer } from './tool-catalog.js';
 async function safeList<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
     return await fn();
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[McpDiscovery] safeList call failed, returning fallback: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return fallback;
   }
 }

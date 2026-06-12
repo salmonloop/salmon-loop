@@ -40,7 +40,10 @@ export class RipgrepGatherer {
       let entries;
       try {
         entries = await fileAdapter.readdirWithTypes(absoluteCurrent);
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[RipgrepGatherer] readdir failed for ${absoluteCurrent}: ${error instanceof Error ? error.message : String(error)}`,
+        );
         continue;
       }
 
@@ -83,7 +86,10 @@ export class RipgrepGatherer {
             });
             if (results.length >= LIMITS.defaultSearchMatches) return results;
           }
-        } catch {
+        } catch (error) {
+          getLogger().debug(
+            `[RipgrepGatherer] file read failed for ${absoluteFile}: ${error instanceof Error ? error.message : String(error)}`,
+          );
           continue;
         }
       }
@@ -170,8 +176,11 @@ export class RipgrepGatherer {
             content: data.data.lines.text.replace(/\n$/, ''),
           });
         }
-      } catch {
+      } catch (error) {
         // Ignore malformed JSON.
+        getLogger().debug(
+          `[RipgrepGatherer] JSON parse failed for ripgrep output line: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
     return results;

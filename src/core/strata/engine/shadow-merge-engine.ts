@@ -355,7 +355,10 @@ export class ShadowMergeEngine {
       const buffer = await this.fsp.readFileBufferSafe(filePath, repoPath);
       if (!buffer) return false;
       return this.guardian.inspect(buffer).isBinary;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ShadowMergeEngine] Binary detection failed for ${relativePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }
@@ -373,7 +376,10 @@ export class ShadowMergeEngine {
     const git = repoPath === this.options.mainRepoPath ? this.gitAdapter : new GitAdapter(repoPath);
     try {
       return await git.show(ref, relativePath);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ShadowMergeEngine] git show failed for ${relativePath}@${ref}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }

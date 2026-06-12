@@ -107,8 +107,11 @@ function safeParseJson(argsText: unknown): { ok: true; value: any } | { ok: fals
       if (looksJsonObject) {
         try {
           value = JSON.parse(nested);
-        } catch {
+        } catch (error) {
           // Ignore: fall back to the first parse result to preserve observability.
+          getLogger().debug(
+            `[ToolSession] Double-decoded JSON parse fallback: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
     }
@@ -132,7 +135,10 @@ function formatToolResultForModel(result: ToolResult): string {
   };
   try {
     return JSON.stringify(payload);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ToolSession] Failed to serialize tool result: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return JSON.stringify({
       id: result.id,
       toolName: result.toolName,
@@ -149,7 +155,10 @@ function formatToolResultForModel(result: ToolResult): string {
 function safeStringifyForAudit(value: unknown): string {
   try {
     return redactJsonString(JSON.stringify(redactValue(value)));
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ToolSession] Failed to stringify value for audit: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return '[Unserializable]';
   }
 }
@@ -337,7 +346,10 @@ function serializeToolResultOutputForArtifact(output: unknown):
       mimeType: 'application/json',
       fileExt: 'json',
     };
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ToolSession] Failed to serialize tool output for artifact: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return undefined;
   }
 }
@@ -1108,7 +1120,10 @@ function coercePlanUpdatePatch(args: Record<string, unknown>): {
         args: { ...args, patch: parsed },
         coercedPatchSource: 'stringified',
       };
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ToolSession] Failed to parse plan.update patch JSON: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return { args, error: formatPlanUpdatePatchTypeError('string') };
     }
   }

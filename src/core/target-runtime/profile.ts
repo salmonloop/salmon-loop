@@ -1,5 +1,6 @@
 import { existsSync } from '../adapters/fs/node-fs.js';
 import { readFile } from '../adapters/fs/node-fs.js';
+import { getLogger } from '../observability/logger.js';
 import { ensureInSandbox, safeJoin } from '../utils/path.js';
 
 export type NodePackageManager = 'bun' | 'npm' | 'pnpm' | 'yarn';
@@ -78,7 +79,10 @@ export async function detectNodeRuntimeProfile(
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(await readFile(packageJsonPath, 'utf-8')) as Record<string, unknown>;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[TargetRuntime] Failed to parse package.json: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return undefined;
   }
 

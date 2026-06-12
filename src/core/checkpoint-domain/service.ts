@@ -1,3 +1,4 @@
+import { getLogger } from '../observability/logger.js';
 import { CheckpointManager } from '../strata/checkpoint/manager.js';
 
 import {
@@ -140,8 +141,11 @@ export class GitSnapshotCheckpointService implements CheckpointService {
       try {
         await this.checkpointManager.deleteSnapshot(input.repoPath, checkpointId);
         refsRemoved += 1;
-      } catch {
+      } catch (error) {
         // Best-effort ref reconciliation; manifest remains source of truth.
+        getLogger().debug(
+          `[CheckpointService] snapshot ref cleanup failed for ${checkpointId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
     return { removed: manifestGc.removed, refsRemoved };

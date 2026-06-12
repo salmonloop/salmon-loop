@@ -3,12 +3,16 @@ import * as os from 'os';
 import path from 'path';
 
 import { mkdir, readdir, rename, rm, stat } from '../adapters/fs/node-fs.js';
+import { getLogger } from '../observability/logger.js';
 
 async function pathExists(target: string): Promise<boolean> {
   try {
     await stat(target);
     return true;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[RuntimePaths] pathExists check failed for ${target}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return false;
   }
 }
@@ -68,7 +72,10 @@ export async function migrateLegacyRuntime(repoRoot: string): Promise<void> {
     try {
       await rename(legacyRoot, runtimeRoot);
       return;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[RuntimePaths] Failed to rename legacy runtime root: ${error instanceof Error ? error.message : String(error)}`,
+      );
       await mkdir(runtimeRoot, { recursive: true });
     }
   }
@@ -80,8 +87,10 @@ export async function migrateLegacyRuntime(repoRoot: string): Promise<void> {
     if (await pathExists(to)) continue;
     try {
       await rename(from, to);
-    } catch {
-      // Best-effort migration; keep legacy data if move fails.
+    } catch (error) {
+      getLogger().debug(
+        `[RuntimePaths] Failed to migrate legacy entry ${entry.name}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -90,7 +99,9 @@ export async function migrateLegacyRuntime(repoRoot: string): Promise<void> {
     if (remaining.length === 0) {
       await rm(legacyRoot, { recursive: true, force: true });
     }
-  } catch {
-    // Ignore cleanup failures; legacy folder can be removed manually.
+  } catch (error) {
+    getLogger().debug(
+      `[RuntimePaths] Failed to clean up legacy runtime folder: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }

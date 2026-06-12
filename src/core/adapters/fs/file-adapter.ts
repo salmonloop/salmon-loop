@@ -1,6 +1,8 @@
 import { promises as fs, constants, type Dirent, Stats } from 'fs';
 import * as path from 'path';
 
+import { getLogger } from '../../observability/logger.js';
+
 import { AtomicFileWriter } from './atomic-file-writer.js';
 
 /**
@@ -51,7 +53,10 @@ export class FileAdapter {
     try {
       await fs.access(filePath);
       return true;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[FileAdapter] exists check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }

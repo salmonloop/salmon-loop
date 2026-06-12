@@ -5,6 +5,7 @@
  * Keeps root structure and key names visible.
  */
 
+import { getLogger } from '../../../observability/logger.js';
 import type {
   TruncatedOutput,
   TruncationStrategy,
@@ -27,7 +28,10 @@ export class JsonStrategy implements TruncationStrategy {
     try {
       JSON.parse(output);
       return true;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[JsonStrategy] canHandle parse check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }
@@ -48,8 +52,11 @@ export class JsonStrategy implements TruncationStrategy {
     let parsed: unknown;
     try {
       parsed = JSON.parse(output);
-    } catch {
+    } catch (error) {
       // Not valid JSON, fall back to simple truncation
+      getLogger().debug(
+        `[JsonStrategy] JSON parse failed during truncation: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return this.simpleTruncate(output, budget);
     }
 

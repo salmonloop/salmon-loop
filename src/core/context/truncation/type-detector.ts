@@ -5,6 +5,8 @@
  * truncation strategy.
  */
 
+import { getLogger } from '../../observability/logger.js';
+
 import type { OutputType, TypeDetectionResult } from './types.js';
 
 /**
@@ -98,8 +100,11 @@ export function detectOutputType(output: string): TypeDetectionResult {
   if (bestType === 'json') {
     try {
       JSON.parse(output);
-    } catch {
+    } catch (error) {
       // Not valid JSON, downgrade to generic
+      getLogger().debug(
+        `[TypeDetector] JSON validation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       bestType = 'generic';
       bestScore = 0;
     }

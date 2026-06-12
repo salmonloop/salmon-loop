@@ -747,7 +747,10 @@ export class SubAgentManager implements IExecutable<
         mimeType: 'application/json',
         fileExt: 'json',
       });
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[SubAgentManager] Failed to persist audit artifact: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return undefined;
     }
   }

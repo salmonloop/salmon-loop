@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { getLogger } from '../observability/logger.js';
 import type { FlowMode, LLM, LLMMessage } from '../types/index.js';
 
 export type ChatIntent = 'answer' | FlowMode;
@@ -191,8 +192,11 @@ async function routeByLlm(
 
     try {
       return JSON.parse(candidate);
-    } catch {
+    } catch (error) {
       // Best-effort: extract the first JSON object from mixed output.
+      getLogger().debug(
+        `[ChatIntent] Primary JSON parse failed, attempting extraction: ${error instanceof Error ? error.message : String(error)}`,
+      );
       const start = candidate.indexOf('{');
       const end = candidate.lastIndexOf('}');
       if (start >= 0 && end > start) {

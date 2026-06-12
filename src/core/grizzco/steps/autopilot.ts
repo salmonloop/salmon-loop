@@ -503,7 +503,10 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   if (supportsTools) {
     try {
       workspaceFingerprintBefore = await captureWorkspaceFingerprintForContext(ctx);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[Autopilot] Workspace fingerprint capture failed (before): ${error instanceof Error ? error.message : String(error)}`,
+      );
       samplingFailedClosed = true;
     }
   }
@@ -613,7 +616,10 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
           workspaceFingerprintBefore.statusMetadata !== workspaceFingerprintAfter.statusMetadata ||
           workspaceFingerprintBefore.head !== workspaceFingerprintAfter.head ||
           workspaceFingerprintBefore.index !== workspaceFingerprintAfter.index;
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[Autopilot] Workspace fingerprint capture failed (after): ${error instanceof Error ? error.message : String(error)}`,
+        );
         mutated = true;
       }
     }

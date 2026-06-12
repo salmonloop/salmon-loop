@@ -1,4 +1,5 @@
 import { text } from '../../../locales/index.js';
+import { getLogger } from '../../observability/logger.js';
 import { normalizeDiff, validateDiff } from '../../patch/diff.js';
 import type { PermissionDecision, PermissionEffect } from '../../permission-gate/types.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
@@ -481,7 +482,10 @@ async function loadProposalChangedFiles(handle: string): Promise<string[] | null
     const normalized = normalizeDiff(read.content);
     const meta = validateDiff(normalized);
     return meta.changedFiles ?? [];
-  } catch {
+  } catch (error) {
+    getLogger().warn(
+      `[PermissionRules] Failed to load proposal changed files: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }

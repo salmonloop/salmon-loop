@@ -99,7 +99,10 @@ async function findDirectDependencies(
     }
 
     return dependencies;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[Dependencies] failed to find direct dependencies for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return [];
   }
 }

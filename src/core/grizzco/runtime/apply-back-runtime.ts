@@ -2,6 +2,7 @@ import { text } from '../../../locales/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { writeDebugArtifact } from '../../observability/debug-artifacts.js';
 import { buildErrorEnvelope, toSafeErrorSummary } from '../../observability/error-envelope.js';
+import { getLogger } from '../../observability/logger.js';
 import { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
 import type { ApplyBackTelemetry } from '../../strata/runtime/synchronizer.js';
 import type { CheckpointRef } from '../../types/loop.js';
@@ -175,8 +176,11 @@ export async function runApplyBackPhase(
           `errorMessage=${error instanceof Error ? error.message : String(error)}`,
         ].join('\n'),
       });
-    } catch {
+    } catch (artifactError) {
       // Best-effort: do not mask the primary failure if artifact writing fails.
+      getLogger().debug(
+        `[ApplyBackRuntime] Failed to write debug artifact: ${artifactError instanceof Error ? artifactError.message : String(artifactError)}`,
+      );
     }
 
     const envelope = buildErrorEnvelope({

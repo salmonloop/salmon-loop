@@ -175,7 +175,10 @@ export class ChatSessionManager {
       );
       this.currentSession = parsed;
       return this.currentSession;
-    } catch {
+    } catch (error) {
+      getLogger().warn(
+        `[SessionManager] Failed to load session ${targetId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }

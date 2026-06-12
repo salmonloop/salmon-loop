@@ -2,6 +2,7 @@ import { randomBytes, createHash } from 'crypto';
 import path from 'path';
 
 import { mkdir, readFile, rename, stat, writeFile } from '../adapters/fs/node-fs.js';
+import { getLogger } from '../observability/logger.js';
 
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]{6,64}$/;
 
@@ -42,8 +43,10 @@ async function resolveGitDir(repoRoot: string): Promise<string | null> {
   try {
     const st = await stat(dotGit);
     if (st.isDirectory()) return dotGit;
-  } catch {
-    // ignore
+  } catch (error) {
+    getLogger().debug(
+      `[PlanStorage] .git stat failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   try {
@@ -53,7 +56,10 @@ async function resolveGitDir(repoRoot: string): Promise<string | null> {
     if (!m) return null;
     const gitdir = m[1].trim();
     return path.isAbsolute(gitdir) ? gitdir : path.resolve(repoRoot, gitdir);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[PlanStorage] .git read failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }
@@ -71,7 +77,10 @@ export async function ensureSalmonloopIgnored(repoRoot: string): Promise<void> {
   let existing = '';
   try {
     existing = await readFile(excludePath, 'utf-8');
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[PlanStorage] Failed to read git exclude file: ${error instanceof Error ? error.message : String(error)}`,
+    );
     existing = '';
   }
 

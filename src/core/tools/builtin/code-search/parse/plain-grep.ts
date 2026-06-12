@@ -1,3 +1,5 @@
+import { getLogger } from '../../../../observability/logger.js';
+
 export interface PlainMatch {
   file: string;
   line: number;
@@ -41,8 +43,11 @@ function parsePsJson(stdout: string, maxMatches: number) {
         });
       }
     }
-  } catch {
+  } catch (error) {
     // If JSON parsing fails, fallback to empty
+    getLogger().debug(
+      `[CodeSearch] Failed to parse PowerShell JSON output: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   return { matches, truncated };

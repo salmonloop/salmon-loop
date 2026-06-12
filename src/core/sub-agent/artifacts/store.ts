@@ -156,8 +156,11 @@ export class ArtifactStore {
           `[ArtifactStore] GC removed ${result.removedFiles} files (${result.removedBytes} bytes)`,
         );
       }
-    } catch {
+    } catch (error) {
       // Best-effort only; never fail the caller.
+      getLogger().debug(
+        `[ArtifactStore] GC failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

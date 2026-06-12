@@ -1,6 +1,7 @@
 import { join } from 'path';
 
 import { FileAdapter } from '../adapters/fs/index.js';
+import { getLogger } from '../observability/logger.js';
 
 /**
  * Manages persistence of user input history isolated by Session.
@@ -30,7 +31,10 @@ export class InputHistoryManager {
     try {
       const data = await this.fileAdapter.readFile(filePath);
       return JSON.parse(data) as string[];
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[InputHistory] Failed to load history for session "${sessionId}": ${error instanceof Error ? error.message : String(error)}`,
+      );
       return [];
     }
   }

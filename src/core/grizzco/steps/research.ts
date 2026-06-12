@@ -2,6 +2,7 @@ import { text } from '../../../locales/index.js';
 import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { getLogger } from '../../observability/logger.js';
 import { getResearchPrompt, getResearchSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -61,7 +62,10 @@ function parseResearchResponse(
   let parsed: ResearchResponse | undefined;
   try {
     parsed = JSON.parse(content) as ResearchResponse;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[Research] Failed to parse research response as JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
     parsed = undefined;
   }
 

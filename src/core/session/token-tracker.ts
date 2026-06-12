@@ -3,6 +3,7 @@ import path from 'path';
 import { FileAdapter } from '../adapters/fs/index.js';
 import { estimateCost } from '../config/model-pricing.js';
 import { logIgnoredError } from '../observability/ignored-error.js';
+import { getLogger } from '../observability/logger.js';
 import type { LoopResult } from '../types/index.js';
 import type { TokenUsage } from '../types/usage.js';
 import { isRecord } from '../utils/serialize.js';
@@ -43,8 +44,10 @@ export class TokenTracker {
         if (line.trim().length === 0) continue;
         try {
           events.push(JSON.parse(line));
-        } catch {
-          // Skip malformed lines
+        } catch (error) {
+          getLogger().debug(
+            `[TokenTracker] Skipping malformed JSON line in events file: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
 

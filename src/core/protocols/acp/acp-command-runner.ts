@@ -1,5 +1,6 @@
 import type { AgentSideConnection, TerminalHandle } from '@agentclientprotocol/sdk';
 
+import { getLogger } from '../../observability/logger.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import type {
   ProcessFailure,
@@ -99,8 +100,10 @@ function computeOutputByteLimit(input: SpawnCommandInput): number | null {
 async function safeRelease(terminal: TerminalHandle): Promise<void> {
   try {
     await terminal.release();
-  } catch {
-    // Ignore release errors.
+  } catch (error) {
+    getLogger().debug(
+      `[AcpCommandRunner] Failed to release terminal: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -174,8 +177,10 @@ export function createAcpCommandRunner(params: {
           if (aborted) {
             try {
               await terminal.kill();
-            } catch {
-              // Ignore kill errors.
+            } catch (error) {
+              getLogger().debug(
+                `[AcpCommandRunner] Failed to kill terminal on abort: ${error instanceof Error ? error.message : String(error)}`,
+              );
             }
             break;
           }
@@ -184,8 +189,10 @@ export function createAcpCommandRunner(params: {
             timedOut = true;
             try {
               await terminal.kill();
-            } catch {
-              // Ignore kill errors.
+            } catch (error) {
+              getLogger().debug(
+                `[AcpCommandRunner] Failed to kill terminal on timeout: ${error instanceof Error ? error.message : String(error)}`,
+              );
             }
             break;
           }

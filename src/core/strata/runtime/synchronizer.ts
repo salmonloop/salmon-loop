@@ -95,7 +95,10 @@ export class WorkspaceSynchronizer {
   private async tryRealPath(value: string): Promise<string | null> {
     try {
       return await realpath(value);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[Synchronizer] realpath failed for ${value}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }
@@ -137,7 +140,10 @@ export class WorkspaceSynchronizer {
         isDirectory(): boolean;
         name: string;
       }[];
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[Synchronizer] Failed to read tmpdir for backup pruning: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return;
     }
 
@@ -154,8 +160,10 @@ export class WorkspaceSynchronizer {
           if (backupStat.mtimeMs < cutoffTs) {
             await rm(backupPath, { recursive: true, force: true });
           }
-        } catch {
-          // Ignore stale cleanup failures; cleanup is best-effort.
+        } catch (error) {
+          getLogger().debug(
+            `[Synchronizer] Failed to prune stale backup ${entry.name}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }),
     );
@@ -224,8 +232,10 @@ export class WorkspaceSynchronizer {
           }
           symlinkedRoots.add(normalizedCandidate);
         }
-      } catch {
-        // Ignore non-existent dependency roots.
+      } catch (error) {
+        getLogger().debug(
+          `[Synchronizer] Dependency root probe failed for ${normalizedCandidate}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
@@ -493,10 +503,10 @@ export class WorkspaceSynchronizer {
         let oursContent: Buffer;
         try {
           oursContent = await readFile(mainAbsPath);
-        } catch {
-          // If file missing in main but modify in shadow -> conflict or re-create?
-          // Since we filtered for 'M', it implies it existed in Base. If missing in Main, User deleted it.
-          // Merge Modified vs Deleted -> Conflict.
+        } catch (error) {
+          getLogger().debug(
+            `[ExplicitMerge] Ours file missing in main workspace, treating as conflict: ${relativePath}: ${error instanceof Error ? error.message : String(error)}`,
+          );
           conflicts.push(relativePath);
           continue;
         }
@@ -760,7 +770,10 @@ export class WorkspaceSynchronizer {
             try {
               const content = await readFile(path.join(mainRepoPath, ...file.split('/')));
               entries.push(`${file}:${hashContent(content)}`);
-            } catch {
+            } catch (error) {
+              getLogger().debug(
+                `[Synchronizer] Fingerprint read failed for untracked file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+              );
               entries.push(`${file}:missing`);
             }
           }
@@ -817,8 +830,10 @@ export class WorkspaceSynchronizer {
               await mkdir(path.dirname(dst), { recursive: true });
               try {
                 await copyFile(src, dst);
-              } catch {
-                // Ignore backup failure for deleted files
+              } catch (error) {
+                getLogger().debug(
+                  `[Synchronizer] Failed to backup dirty file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+                );
               }
             }
           }
@@ -931,8 +946,10 @@ export class WorkspaceSynchronizer {
             current.index !== originalFingerprint.index ||
             current.working !== originalFingerprint.working ||
             current.untracked !== originalFingerprint.untracked;
-        } catch {
-          // If fingerprinting fails, assume changed to be safe.
+        } catch (error) {
+          getLogger().debug(
+            `[Synchronizer] Workspace fingerprint comparison failed, assuming changed: ${error instanceof Error ? error.message : String(error)}`,
+          );
           workspaceChanged = true;
         }
       }
@@ -1001,8 +1018,10 @@ export class WorkspaceSynchronizer {
                 path.join(untrackedDir, ...file.split('/')),
                 path.join(mainRepoPath, ...file.split('/')),
               );
-            } catch {
-              // Ignore restore errors for untracked files
+            } catch (error) {
+              getLogger().debug(
+                `[Synchronizer] Failed to restore untracked file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+              );
             }
           }
         }

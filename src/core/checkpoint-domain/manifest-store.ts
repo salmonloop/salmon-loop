@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { mkdir, open, readFile, rename, stat, unlink, writeFile } from '../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
+import { getLogger } from '../observability/logger.js';
 import { getUserCheckpointManifestDir } from '../runtime/paths.js';
 
 import type { CheckpointHandle, SessionCheckpointLink } from './types.js';
@@ -199,7 +200,10 @@ async function withManifestLock<T>(
         },
         { source: 'runtime', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
       );
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ManifestStore] Stale lock reclaim failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       try {
         const lockStat = await stat(lockPath);
         const ageMs = Date.now() - lockStat.mtimeMs;
@@ -215,8 +219,11 @@ async function withManifestLock<T>(
             { source: 'runtime', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
           );
         }
-      } catch {
+      } catch (error) {
         // Ignore lock probe failures; retry loop handles contention.
+        getLogger().debug(
+          `[ManifestStore] Lock probe failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   };
@@ -227,7 +234,10 @@ async function withManifestLock<T>(
       handle = await open(lockPath, 'wx');
       await handle.writeFile(JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }), 'utf8');
       break;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ManifestStore] Lock acquisition attempt failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       await tryClearStaleLock();
       await new Promise((resolve) => setTimeout(resolve, 30 * (attempt + 1)));
     }
@@ -265,13 +275,17 @@ async function withManifestLock<T>(
   } finally {
     try {
       await handle.close();
-    } catch {
-      // ignore
+    } catch (error) {
+      getLogger().debug(
+        `[ManifestStore] Failed to close lock handle: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     try {
       await unlink(lockPath);
-    } catch {
-      // ignore
+    } catch (error) {
+      getLogger().debug(
+        `[ManifestStore] Failed to unlink lock file: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }
@@ -283,7 +297,10 @@ export async function readCheckpointManifest(repoPath: string): Promise<Checkpoi
     const raw = await readFile(manifestV2Path, 'utf8');
     try {
       return normalizeManifest(JSON.parse(raw));
-    } catch {
+    } catch (error) {
+      getLogger().warn(
+        `[ManifestStore] v2 manifest parse error, triggering self-heal: ${error instanceof Error ? error.message : String(error)}`,
+      );
       await selfHealCorruptedManifest({
         repoPath,
         manifestPath: manifestV2Path,
@@ -292,14 +309,19 @@ export async function readCheckpointManifest(repoPath: string): Promise<Checkpoi
         schemaHint: 'v2',
       });
     }
-  } catch {
-    // fallback to legacy v1 file
+  } catch (error) {
+    getLogger().debug(
+      `[ManifestStore] v2 manifest read failed, falling back to v1: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   try {
     const raw = await readFile(manifestV1Path, 'utf8');
     try {
       return normalizeManifest(JSON.parse(raw));
-    } catch {
+    } catch (error) {
+      getLogger().warn(
+        `[ManifestStore] v1 manifest parse error, triggering self-heal: ${error instanceof Error ? error.message : String(error)}`,
+      );
       await selfHealCorruptedManifest({
         repoPath,
         manifestPath: manifestV1Path,
@@ -309,7 +331,10 @@ export async function readCheckpointManifest(repoPath: string): Promise<Checkpoi
       });
       return createEmptyManifest();
     }
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ManifestStore] v1 manifest read failed, returning empty manifest: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return createEmptyManifest();
   }
   return createEmptyManifest();
@@ -450,7 +475,10 @@ export async function probeCheckpointHandle(
     const handle = manifest.checkpoints[checkpointId] ?? null;
     if (!handle) return { handle: null, reason: 'not_found' };
     return { handle, reason: 'ok' };
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ManifestStore] Manifest parse failed during probe: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return { handle: null, reason: 'manifest_parse_error' };
   }
 }

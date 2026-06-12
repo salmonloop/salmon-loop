@@ -5,6 +5,7 @@ import path from 'path';
 import { readFile, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { AstParser } from '../../ast/index.js';
+import { getLogger } from '../../observability/logger.js';
 import { convertDiffToShadowOperations } from '../../patch/diff.js';
 import { tryGetPluginRegistry } from '../../plugin/registry.js';
 import { OpType, type ShadowOperation } from '../domain/grizzco-types.js';
@@ -104,7 +105,10 @@ async function defaultBuildProposedSource(
     const showResult = await git.execMeta(['show', `:${operation.path}`], { env });
     if (!showResult.ok) return null;
     return showResult.stdout.toString('utf8');
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[AstValidationService] Failed to build proposed source for "${operation.path}": ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   } finally {
     await rm(tempIndex, { force: true }).catch(() => undefined);

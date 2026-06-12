@@ -1,3 +1,5 @@
+import { getLogger } from '../observability/logger.js';
+
 /**
  * Sanitizes any error input (object, string, or mixed) to prevent leakage
  * of sensitive technical data like Zod dumps or stack traces.
@@ -9,7 +11,10 @@ export function sanitizeErrorMessage(err: unknown): string {
   let msg = '';
   try {
     msg = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err);
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[Sanitizer] Failed to convert error to string: ${error instanceof Error ? error.message : String(error)}`,
+    );
     msg = String(err);
   }
 
@@ -100,7 +105,10 @@ export function sanitizeObject(obj: any, maxDepth = MAX_DEPTH, depth = 0): any {
       // Avoid circular references for safety during deep recursion
       try {
         result[key] = sanitizeObject(value, maxDepth, depth + 1);
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[Sanitizer] Circular reference detected during object sanitization: ${error instanceof Error ? error.message : String(error)}`,
+        );
         result[key] = '[CIRCULAR]';
       }
     } else {

@@ -2,6 +2,7 @@ import { promisify } from 'util';
 import { gzip, gunzip } from 'zlib';
 
 import { FileAdapter } from '../adapters/fs/index.js';
+import { getLogger } from '../observability/logger.js';
 
 import { normalizeSessionArtifactState, type SessionArtifactState } from './artifact-state.js';
 import {
@@ -462,7 +463,10 @@ export class CompressedSessionStore {
       const filepath = `${this.storageDir}/${filename}`;
       const data = await this.readFile(filepath);
       return await this.compressor.decompressFromBinary(data);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[SessionCompression] Failed to load compressed session ${filename}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }

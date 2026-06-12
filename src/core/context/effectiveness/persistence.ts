@@ -9,6 +9,7 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
+import { getLogger } from '../../observability/logger.js';
 
 import { getEffectivenessTracker } from './tracker.js';
 import type { SerializedEffectiveness } from './tracker.js';
@@ -47,7 +48,10 @@ export async function restoreEffectiveness(repoRoot: string): Promise<void> {
       const tracker = getEffectivenessTracker();
       tracker.deserialize(data);
     }
-  } catch {
+  } catch (error) {
     // File missing or corrupted — start fresh
+    getLogger().debug(
+      `[Effectiveness] restore failed, starting fresh: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }

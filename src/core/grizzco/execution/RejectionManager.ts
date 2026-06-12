@@ -1,6 +1,7 @@
 import * as path from 'path';
 
 import * as fs from '../../adapters/fs/node-fs.js';
+import { getLogger } from '../../observability/logger.js';
 import { TransactionContext } from '../domain/grizzco-types.js';
 
 export interface Rejection {
@@ -62,13 +63,18 @@ export class RejectionManager {
             filePath: file.replace('.rej', '').replace(/_/g, '/'), // Approximate restoration
             ...header,
           });
-        } catch {
-          // Ignore malformed files
+        } catch (error) {
+          getLogger().debug(
+            `[RejectionManager] Malformed rejection file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
 
       return rejections;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[RejectionManager] Failed to read rejection directory: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return [];
     }
   }
@@ -79,8 +85,10 @@ export class RejectionManager {
   async clear(): Promise<void> {
     try {
       await fs.rm(this.rejectDir, { recursive: true, force: true });
-    } catch {
-      // Ignore
+    } catch (error) {
+      getLogger().warn(
+        `[RejectionManager] Failed to clear rejection directory: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

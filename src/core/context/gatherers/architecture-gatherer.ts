@@ -22,8 +22,11 @@ export class ArchitectureGatherer {
       if (parsed.modules && Array.isArray(parsed.modules)) {
         return parsed;
       }
-    } catch {
+    } catch (error) {
       // Cache miss or corrupted, proceed to scan
+      getLogger().debug(
+        `[ArchitectureGatherer] cache read failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     const topology: ProjectTopology = {

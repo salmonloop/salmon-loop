@@ -1,3 +1,5 @@
+import { getLogger } from '../observability/logger.js';
+
 export interface SafeStringifyOptions {
   /** Pretty-print with given number of spaces (default: 0 = compact) */
   indent?: number;
@@ -16,10 +18,16 @@ export function safeStringify(value: unknown, options?: SafeStringifyOptions): s
       return `${raw.slice(0, options.maxLength)}...`;
     }
     return raw;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[Serialize] JSON.stringify failed, falling back to String(): ${error instanceof Error ? error.message : String(error)}`,
+    );
     try {
       return String(value);
-    } catch {
+    } catch (innerError) {
+      getLogger().debug(
+        `[Serialize] String() conversion also failed: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
+      );
       return '[Unserializable]';
     }
   }

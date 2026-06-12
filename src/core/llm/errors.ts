@@ -1,3 +1,4 @@
+import { getLogger } from '../observability/logger.js';
 import { SalmonError } from '../types/errors.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 import { isRecord } from '../utils/serialize.js';
@@ -80,8 +81,10 @@ function extractProviderDetails(err: unknown): {
         } else if (parsed?.message) {
           details.providerMessage = sanitizeError(parsed.message);
         }
-      } catch {
-        // ignore
+      } catch (error) {
+        getLogger().debug(
+          `[LlmErrors] Failed to parse responseBody as JSON: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     } else if (candidate.responseBody) {
       details.responseBody = truncate(JSON.stringify(candidate.responseBody));
@@ -107,8 +110,10 @@ function extractProviderDetails(err: unknown): {
           if (parsed?.error?.message) {
             details.providerMessage = sanitizeError(parsed.error.message);
           }
-        } catch {
-          // ignore
+        } catch (error) {
+          getLogger().debug(
+            `[LlmErrors] Failed to parse embedded JSON in message: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
     }

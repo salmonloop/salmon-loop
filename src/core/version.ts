@@ -1,5 +1,7 @@
 import { createRequire } from 'module';
 
+import { getLogger } from './observability/logger.js';
+
 const require = createRequire(import.meta.url);
 
 function readPackageVersion(): string {
@@ -8,8 +10,11 @@ function readPackageVersion(): string {
     if (typeof pkg.version === 'string' && pkg.version.trim()) {
       return pkg.version;
     }
-  } catch {
+  } catch (error) {
     // Fall back for non-package runtime embeddings.
+    getLogger().debug(
+      `[Version] Failed to read package.json: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   return '0.0.0';
 }

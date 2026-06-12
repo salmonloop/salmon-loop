@@ -86,7 +86,10 @@ export class CheckpointManager {
         if (step === 'write-tree') {
           try {
             writeTreeProbe = await probeWriteTreeFailure(git);
-          } catch {
+          } catch (probeError) {
+            getLogger().debug(
+              `[CheckpointManager] probeWriteTreeFailure failed: ${probeError instanceof Error ? probeError.message : String(probeError)}`,
+            );
             writeTreeProbe = {};
           }
         }
@@ -156,7 +159,10 @@ export class CheckpointManager {
     let meta: { staged: string };
     try {
       meta = JSON.parse(msg);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[CheckpointManager] Invalid snapshot metadata for ${snapshotHash}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new Error(`Invalid snapshot metadata for ${snapshotHash}`);
     }
 
@@ -321,8 +327,10 @@ export class CheckpointManager {
       // Cleanup temporary index
       try {
         await rm(tempIndexFile, { force: true });
-      } catch {
-        // Ignore cleanup errors
+      } catch (error) {
+        getLogger().debug(
+          `[CheckpointManager] Failed to cleanup temp index: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }
@@ -350,7 +358,10 @@ export class CheckpointManager {
     let meta: { staged: string };
     try {
       meta = JSON.parse(msg);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[CheckpointManager] Invalid snapshot metadata for ${snapshotHash}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new Error(`Invalid snapshot metadata for ${snapshotHash}`);
     }
 
@@ -409,7 +420,10 @@ export class CheckpointManager {
           const message = parts.slice(5).join(' ');
           return { hash, timestamp, message, ref };
         });
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[CheckpointManager] Failed to list snapshots: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return [];
     }
   }
@@ -424,8 +438,10 @@ export class CheckpointManager {
     try {
       await git.exec(['update-ref', '-d', `refs/s8p/snapshots/${snapshotHash}`]);
       return;
-    } catch {
-      // If direct deletion fails (maybe hash mismatch or short hash), try to find the ref
+    } catch (error) {
+      getLogger().debug(
+        `[CheckpointManager] Direct snapshot deletion failed, trying ref search: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     // Fallback: find the ref pointing to this hash
@@ -466,7 +482,10 @@ export class CheckpointManager {
     let meta: { staged: string };
     try {
       meta = JSON.parse(msg);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[CheckpointManager] Invalid snapshot metadata for ${snapshotHash}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new Error(`Invalid snapshot metadata for ${snapshotHash}`);
     }
 
@@ -568,7 +587,10 @@ export class CheckpointManager {
     let meta: { staged: string };
     try {
       meta = JSON.parse(msg);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[CheckpointManager] Invalid backup metadata for ${backupHash}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new Error(`Invalid backup metadata for ${backupHash}`);
     }
 

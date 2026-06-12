@@ -1,3 +1,4 @@
+import { getLogger } from '../observability/logger.js';
 import type { LLMStreamChunk } from '../types/llm.js';
 
 function normalizeToolInput(raw: unknown): unknown {
@@ -13,13 +14,18 @@ function normalizeToolInput(raw: unknown): unknown {
       if (nested.startsWith('{') || nested.startsWith('[')) {
         try {
           parsed = JSON.parse(nested);
-        } catch {
-          // ignored
+        } catch (error) {
+          getLogger().debug(
+            `[StreamUtils] Failed to parse nested JSON string: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
     }
     return parsed;
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[StreamUtils] Failed to normalize tool input JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return raw;
   }
 }

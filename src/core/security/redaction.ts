@@ -1,3 +1,5 @@
+import { getLogger } from '../observability/logger.js';
+
 const DEFAULT_REDACTION_MARK = '[REDACTED]';
 
 export interface RedactionOptions {
@@ -52,8 +54,10 @@ export function setRedactionConfig(options?: Partial<RedactionConfig>): Redactio
     for (const pattern of currentConfig.patterns) {
       try {
         compiledPatterns.push(new RegExp(pattern, 'g'));
-      } catch {
-        // Ignore invalid patterns to avoid breaking runtime.
+      } catch (error) {
+        getLogger().debug(
+          `[SecurityRedaction] Skipping invalid redaction pattern "${pattern}": ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }

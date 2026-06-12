@@ -1,3 +1,5 @@
+import { getLogger } from '../observability/logger.js';
+
 import { ExecutionPhase, RiskLevel } from './types.js';
 
 /**
@@ -134,7 +136,10 @@ export class BudgetGuard {
     try {
       // This is expensive for large objects, but safe for checking limits
       return JSON.stringify(obj).length;
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[Budget] Failed to estimate size: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return 0; // Circular structure or otherwise un-stringifiable
     }
   }

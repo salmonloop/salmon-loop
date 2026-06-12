@@ -3,6 +3,7 @@ import path from 'path';
 import { text } from '../../../locales/index.js';
 import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { getLogger } from '../../observability/logger.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -135,8 +136,11 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
                 if (typeof filePath === 'string') {
                   capturedFiles.set(filePath, content);
                 }
-              } catch {
+              } catch (error) {
                 // Ignore parsing errors, just don't capture
+                getLogger().debug(
+                  `[Explore] Failed to parse tool arguments for file capture: ${error instanceof Error ? error.message : String(error)}`,
+                );
               }
             }
           }
@@ -224,8 +228,11 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
         if (typeof content === 'string' && content.trim()) {
           capturedFiles.set(rel, content);
         }
-      } catch {
+      } catch (error) {
         // Best-effort; failure here should not abort exploration.
+        getLogger().debug(
+          `[Explore] Failed to read inferred file "${rel}": ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }

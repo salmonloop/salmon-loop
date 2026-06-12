@@ -1,4 +1,5 @@
 import { LIMITS } from '../../../config/limits.js';
+import { getLogger } from '../../../observability/logger.js';
 import type { ExecutionPhase, LoopIteration, StepLog } from '../../../types/runtime.js';
 
 export class LoopTelemetry {
@@ -16,10 +17,16 @@ export class LoopTelemetry {
       outputStr = (() => {
         try {
           return JSON.stringify(output);
-        } catch {
+        } catch (error) {
+          getLogger().debug(
+            `[LoopTelemetry] JSON.stringify failed, falling back to String(): ${error instanceof Error ? error.message : String(error)}`,
+          );
           try {
             return String(output);
-          } catch {
+          } catch (stringError) {
+            getLogger().debug(
+              `[LoopTelemetry] String() conversion also failed: ${stringError instanceof Error ? stringError.message : String(stringError)}`,
+            );
             return '[Unserializable]';
           }
         }

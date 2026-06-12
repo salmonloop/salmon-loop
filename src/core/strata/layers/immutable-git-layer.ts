@@ -5,6 +5,7 @@
  * for L1 Git snapshot and worktree operations.
  */
 
+import { getLogger } from '../../observability/logger.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import type { ImmutableGitLayer } from '../types.js';
 
@@ -44,7 +45,10 @@ export class ImmutableGitLayerImpl implements ImmutableGitLayer {
         path,
       );
       return Buffer.from(content);
-    } catch {
+    } catch (error) {
+      getLogger().debug(
+        `[ImmutableGitLayer] Failed to get file from snapshot: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }

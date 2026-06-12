@@ -1,5 +1,6 @@
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { LIMITS } from '../../config/limits.js';
+import { getLogger } from '../../observability/logger.js';
 import { ensureInSandbox, normalizePath, safeJoin } from '../../utils/path.js';
 import { detectLang } from '../ast/skeleton-extractor.js';
 import { outlineSourceAsync } from '../ast/source-outline.js';
@@ -27,7 +28,10 @@ async function readMatchedFileContent(
     const stat = await fileAdapter.stat(fullPath);
     if (!stat.isFile() || stat.size > LIMITS.largeFileThresholdBytes) return null;
     return await fileAdapter.readFile(fullPath, 'utf-8');
-  } catch {
+  } catch (error) {
+    getLogger().debug(
+      `[ContextGather] readMatchedFileContent failed for ${file}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }

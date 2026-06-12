@@ -669,6 +669,7 @@ const normalizeA2AExtensionHeadersByVersion: RequestHandler = (req, res, next) =
   next();
 };
 
+import { getLogger } from '../../../observability/logger.js';
 import { isRecord } from '../../../utils/serialize.js';
 
 const isObjectRecord = isRecord;
@@ -1160,7 +1161,10 @@ function normalizeSseJsonRpcChunkByMethod(chunk: string, method: string): string
       try {
         const payload = JSON.parse(line.slice('data: '.length));
         return `data: ${JSON.stringify(normalizeJsonRpcPayloadByMethod(method, payload))}`;
-      } catch {
+      } catch (error) {
+        getLogger().debug(
+          `[A2AServer] Failed to parse SSE JSON-RPC chunk: ${error instanceof Error ? error.message : String(error)}`,
+        );
         return line;
       }
     })
