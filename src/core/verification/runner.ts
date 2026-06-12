@@ -116,6 +116,98 @@ export function isRetryable(error: ErrorType): boolean {
   }
 }
 
+/**
+ * Extract test summary counts from runner output.
+ * Supports jest/vitest, pytest, bun test, and go test formats.
+ */
+export function parseTestSummary(
+  output: string,
+): { total: number; passed: number; failed: number; skipped: number } | undefined {
+  const lower = output.toLowerCase();
+  let passed = 0;
+  let failed = 0;
+  let skipped = 0;
+  let found = false;
+
+  // jest/vitest: "Tests: 2 failed, 5 passed, 7 total"
+  const jestMatch = lower.match(
+    /tests:\s+(?:(\d+)\s+failed,\s*)?(?:(\d+)\s+passed,\s*)?(\d+)\s+total/,
+  );
+  if (jestMatch) {
+    failed = parseInt(jestMatch[1] || '0');
+    passed = parseInt(jestMatch[2] || '0');
+    const total = parseInt(jestMatch[3]);
+    skipped = total - passed - failed;
+    found = true;
+  }
+
+  // jest/vitest: "Test Suites: 1 failed, 3 passed, 4 total"
+  if (!found) {
+    const suiteMatch = lower.match(
+      /test suites:\s+(?:(\d+)\s+failed,\s*)?(?:(\d+)\s+passed,\s*)?(\d+)\s+total/,
+    );
+    if (suiteMatch) {
+      failed = parseInt(suiteMatch[1] || '0');
+      passed = parseInt(suiteMatch[2] || '0');
+      const total = parseInt(suiteMatch[3]);
+      skipped = total - passed - failed;
+      found = true;
+    }
+  }
+
+  // pytest: "2 failed, 5 passed"
+  if (!found) {
+    const pytestMatch = lower.match(
+      /(?:(\d+)\s+failed,?\s*)?(?:(\d+)\s+passed,?\s*)?(?:(\d+)\s+skipped)?/,
+    );
+    if (pytestMatch && (pytestMatch[1] || pytestMatch[2])) {
+      failed = parseInt(pytestMatch[1] || '0');
+      passed = parseInt(pytestMatch[2] || '0');
+      skipped = parseInt(pytestMatch[3] || '0');
+      found = true;
+    }
+  }
+
+  // bun test: "5 pass | 1 fail"
+  if (!found) {
+    const bunMatch = lower.match(/(\d+)\s+pass\s*\|\s*(\d+)\s+fail/);
+    if (bunMatch) {
+      passed = parseInt(bunMatch[1]);
+      failed = parseInt(bunMatch[2]);
+      found = true;
+    }
+  }
+
+  // go test: "ok" / "FAIL" with counts
+  if (!found) {
+    const goMatch = lower.match(/(\d+)\s+of\s+(\d+)\s+tests?\s+passed/);
+    if (goMatch) {
+      passed = parseInt(goMatch[1]);
+      const total = parseInt(goMatch[2]);
+      failed = total - passed;
+      found = true;
+    }
+  }
+
+  // Generic: "N passed" / "N failed" / "N skipped"
+  if (!found) {
+    const passMatch = lower.match(/(\d+)\s+pass(?:ed|ing)/);
+    const failMatch = lower.match(/(\d+)\s+fail(?:ed|ing)/);
+    const skipMatch = lower.match(/(\d+)\s+skip(?:ped)/);
+    if (passMatch || failMatch) {
+      passed = passMatch ? parseInt(passMatch[1]) : 0;
+      failed = failMatch ? parseInt(failMatch[1]) : 0;
+      skipped = skipMatch ? parseInt(skipMatch[1]) : 0;
+      found = true;
+    }
+  }
+
+  if (!found) return undefined;
+
+  const total = passed + failed + Math.max(skipped, 0);
+  return { total, passed, failed, skipped: Math.max(skipped, 0) };
+}
+
 export async function runCommand(
   repoPath: string,
   command: string,

@@ -152,10 +152,60 @@ export function parsePytestOutput(output: string): Diagnostic[] {
   return diagnostics;
 }
 
+export function parseJestOutput(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const lines = output.split('\n');
+
+  // Pattern 1: FAIL src/foo.test.ts
+  const suiteFailRegex = /^(?:FAIL|✗|✘)\s+(\S+)$/;
+  // Pattern 2: ● Test suite failed to run / ● test_name
+  const bulletRegex = /^\s*●\s+(.+)$/;
+  // Pattern 3: inline error: src/foo.ts:10:5 - error TS2322: ...
+  const inlineRegex = /^(\S+\.tsx?):(\d+):(\d+)\s+-\s+(error|warning)\s+(.+)$/;
+
+  let currentSuite: string | null = null;
+
+  for (const line of lines) {
+    const suiteMatch = line.match(suiteFailRegex);
+    if (suiteMatch) {
+      currentSuite = suiteMatch[1];
+      continue;
+    }
+
+    const inlineMatch = line.match(inlineRegex);
+    if (inlineMatch) {
+      diagnostics.push({
+        file: inlineMatch[1],
+        line: parseInt(inlineMatch[2]),
+        column: parseInt(inlineMatch[3]),
+        severity: inlineMatch[4] as 'error' | 'warning',
+        message: inlineMatch[5],
+        source: 'jest',
+      });
+      continue;
+    }
+
+    const bulletMatch = line.match(bulletRegex);
+    if (bulletMatch && currentSuite) {
+      diagnostics.push({
+        file: currentSuite,
+        severity: 'error',
+        message: bulletMatch[1],
+        source: 'jest',
+      });
+    }
+  }
+
+  return diagnostics;
+}
+
 export function parseGenericOutput(output: string): Diagnostic[] {
   // Try pytest first (SWE-bench's primary test runner)
   const pytest = parsePytestOutput(output);
   if (pytest.length > 0) return pytest;
+
+  const jest = parseJestOutput(output);
+  if (jest.length > 0) return jest;
 
   const tsc = parseTscOutput(output);
   if (tsc.length > 0) return tsc;
