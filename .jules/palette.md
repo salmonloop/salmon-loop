@@ -1,0 +1,3 @@
+## 2025-02-06 - Improve CLI Scannability with Symbol-Based Microcopy
+**Learning:** Verbose sentence-based navigation hints in terminal UIs (e.g., "Use Up/Down to navigate, Enter to select, Esc to cancel.") consume critical horizontal space and are harder to parse quickly compared to symbol-based hints.
+**Action:** Used explicit, symbol-based microcopy (`↑↓ nav · ↵ confirm · esc cancel`) consistently across selection interfaces and overlays to improve scannability and save horizontal space.
