@@ -6,7 +6,12 @@ import { defineTool } from '../types.js';
 
 import { artifactReadSpec, executeArtifactRead } from './artifact.js';
 import { astGrepSpec, executeAstGrep } from './ast-grep.js';
-import { astDefsRefsSpec, executeAstDefsRefs } from './ast.js';
+import {
+  astDefsRefsSpec,
+  executeAstDefsRefs,
+  codeFindReferencesSpec,
+  executeCodeFindReferences,
+} from './ast.js';
 import {
   benchmarkReportSpec,
   executeBenchmarkReport,
@@ -28,6 +33,7 @@ import { CodeSearchSpec } from './code-search/spec.js';
 import {
   codeReadSpec,
   executeFsCreateDirectory,
+  executeFsEditFile,
   executeFsList,
   executeFsListDirectory,
   executeFsListFiles,
@@ -36,6 +42,7 @@ import {
   executeFsWriteFile,
   fsCreateDirectorySpec,
   fsDeleteFileSpec,
+  fsEditFileSpec,
   fsListSpec,
   fsListDirectorySpec,
   fsListFilesSpec,
@@ -70,6 +77,7 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   // Code search & AST
   registry.register(defineTool(CodeSearchSpec, codeSearchExecutor));
   registry.register(defineTool(astDefsRefsSpec, executeAstDefsRefs));
+  registry.register(defineTool(codeFindReferencesSpec, executeCodeFindReferences));
   registry.register(defineTool(astGrepSpec, executeAstGrep));
 
   // Git
@@ -92,6 +100,7 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   registry.register(defineTool(fsListDirectorySpec, executeFsListDirectory));
   registry.register(defineTool(fsListFilesSpec, executeFsListFiles));
   registry.register(defineTool(fsWriteFileSpec, executeFsWriteFile));
+  registry.register(defineTool(fsEditFileSpec, executeFsEditFile));
   registry.register(defineTool(fsCreateDirectorySpec, executeFsCreateDirectory));
   registry.register(defineTool(fsDeleteFileSpec, executeFsDeleteFile));
 
@@ -111,6 +120,8 @@ export {
   codeSearchExecutor,
   astDefsRefsSpec as codeAstSpec,
   executeAstDefsRefs as executeCodeAst,
+  codeFindReferencesSpec,
+  executeCodeFindReferences,
   gitCatSpec,
   executeGitCat,
   gitStatusSpec,

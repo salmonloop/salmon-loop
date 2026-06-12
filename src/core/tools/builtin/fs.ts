@@ -420,6 +420,99 @@ export async function executeFsWriteFile(
   };
 }
 
+// ── fs.edit_file ──────────────────────────────────────────────────────
+
+const fsEditFileInputSchema = z.preprocess(
+  (raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+    const input = raw as Record<string, unknown>;
+    if (typeof input.file === 'string') return input;
+
+    const alias = input.path ?? input.file_path ?? input.filePath;
+    if (typeof alias !== 'string') return input;
+
+    return {
+      ...input,
+      file: alias,
+    };
+  },
+  z.object({
+    file: z.string().describe('Relative path to the file from the repository root'),
+    old_string: z.string().describe('The exact text to find in the file'),
+    new_string: z.string().describe('The replacement text'),
+    replace_all: z
+      .boolean()
+      .optional()
+      .describe('Replace all occurrences instead of just the first one'),
+  }),
+);
+
+export const fsEditFileSpec: Omit<ToolSpec, 'executor'> = {
+  name: 'fs.edit_file',
+  source: 'builtin',
+  intent: 'WRITE',
+  description: text.tools.fsEditFileDescription,
+  riskLevel: 'high',
+  sideEffects: ['fs_write'],
+  concurrency: 'serial_only',
+  computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
+  allowedPhases: [Phase.SLASH, Phase.AUTOPILOT],
+  inputSchema: fsEditFileInputSchema,
+  outputSchema: z.object({
+    ok: z.boolean(),
+    path: z.string(),
+    replacements: z.number().int().nonnegative(),
+  }),
+  summarizeArgsForAuthorization: async (args) => {
+    const a = isRecord(args) ? args : {};
+    return JSON.stringify({
+      file: typeof a.file === 'string' ? a.file : undefined,
+      oldString: String(a.old_string ?? '').slice(0, 80),
+      newString: String(a.new_string ?? '').slice(0, 80),
+      replaceAll: Boolean(a.replace_all),
+    });
+  },
+};
+
+export async function executeFsEditFile(
+  input: z.infer<typeof fsEditFileSpec.inputSchema>,
+  ctx: ToolRuntimeCtx,
+) {
+  if (ctx.dryRun) {
+    return { ok: true, path: input.file, replacements: 0 };
+  }
+
+  const { absolutePath } = resolveRepoRelativePath(ctx.repoRoot, input.file);
+  const content = await readFile(absolutePath, 'utf-8');
+
+  const count = input.old_string ? content.split(input.old_string).length - 1 : 0;
+
+  if (count === 0) {
+    throw new Error(
+      `old_string not found in file "${input.file}". Ensure the string matches exactly, including whitespace and indentation.`,
+    );
+  }
+
+  if (count > 1 && !input.replace_all) {
+    throw new Error(
+      `old_string found ${count} times in "${input.file}", expected exactly 1. Use replace_all: true to replace all occurrences, or provide more surrounding context to uniquely identify the location.`,
+    );
+  }
+
+  const updated = input.replace_all
+    ? content.replaceAll(input.old_string, input.new_string)
+    : content.replace(input.old_string, input.new_string);
+
+  const writer = new AtomicFileWriter();
+  await writer.writeAtomic(absolutePath, Buffer.from(updated, 'utf8'));
+
+  return {
+    ok: true,
+    path: input.file,
+    replacements: count,
+  };
+}
+
 const fsCreateDirectoryInputSchema = z.preprocess(
   (raw) => {
     if (typeof raw === 'string') return { path: raw };

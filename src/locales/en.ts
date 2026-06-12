@@ -696,11 +696,15 @@ Please return the patch in PURE unified diff format:`;
       'List directory entries (files and subdirectories) under a repository path',
     fsListFilesDescription: 'List files (excluding subdirectories) under a repository path',
     fsWriteFileDescription: 'Write a UTF-8 text file atomically (slash-only)',
+    fsEditFileDescription:
+      'Replace exact occurrences of a string in a file (slash-only). old_string must appear exactly once unless replace_all is set.',
     fsCreateDirectoryDescription: 'Create a directory under the repository root (slash-only)',
     fsDeleteFileDescription: 'Delete a file under the repository root (slash-only)',
     gitStatusDescription: 'Show the working tree status',
     gitCatDescription: 'Read file content from a specific git revision',
     codeAstDescription: 'Query AST definitions and references for symbols',
+    codeFindReferencesDescription:
+      'Find all references to a symbol across the codebase using ripgrep pre-filter + tree-sitter precise matching',
     testRunDescription: 'Run verification command (test/lint/build) and classify errors',
     shellExecDescription: 'Execute a shell command in an isolated workspace (slash-only)',
     artifactReadDescription: 'Read salmonloop (s8p) artifacts by handle',

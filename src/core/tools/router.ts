@@ -3,6 +3,7 @@ import path from 'path';
 
 import { z } from 'zod';
 
+import { readFile } from '../adapters/fs/node-fs.js';
 import { AstParser } from '../ast/parser.js';
 import { LIMITS } from '../config/limits.js';
 import { getLogger } from '../observability/logger.js';
@@ -698,13 +699,24 @@ async function checkPostEditSyntax(
   rawOutput: unknown,
   ctx: ToolRuntimeCtx,
 ): Promise<string[]> {
-  // Only check fs.write_file
-  if (spec.name !== 'fs.write_file') return [];
+  if (spec.name !== 'fs.write_file' && spec.name !== 'fs.edit_file') return [];
   if (!isRecord(rawOutput) || typeof rawOutput.path !== 'string') return [];
-  if (!isRecord(args) || typeof args.content !== 'string') return [];
 
   const filePath = rawOutput.path as string;
-  const content = args.content as string;
+  let content: string;
+
+  if (spec.name === 'fs.write_file') {
+    if (!isRecord(args) || typeof args.content !== 'string') return [];
+    content = args.content;
+  } else {
+    // fs.edit_file — read post-edit content from disk
+    try {
+      const absolutePath = path.resolve(ctx.repoRoot, filePath);
+      content = await readFile(absolutePath, 'utf-8');
+    } catch {
+      return [];
+    }
+  }
 
   // Detect language from extension
   const ext = path.extname(filePath).toLowerCase().replace('.', '');
