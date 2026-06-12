@@ -1,0 +1,4 @@
+## 2024-05-24 - Timing Attack Vulnerability in Token Validation
+**Vulnerability:** `crypto.timingSafeEqual` was preceded by a buffer length check (`tokenBuffer.length === authTokenBuffer.length`), which created a short-circuit fast path that leaked the token's length via timing differences.
+**Learning:** Checking buffer lengths before constant-time comparison defeats the purpose of constant-time execution by introducing a non-constant time failure path.
+**Prevention:** Always hash both secrets to a fixed length (e.g., using `crypto.createHash('sha256')`) before comparison to ensure true constant-time evaluation, without checking original lengths.
