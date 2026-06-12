@@ -5,8 +5,7 @@
  * Data is stored in `.salmonloop/runtime/effectiveness.json`.
  */
 
-import { mkdir, readFile, writeFile } from 'fs/promises';
-
+import { mkdir, readFile, writeFile } from '../../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { getLogger } from '../../observability/logger.js';

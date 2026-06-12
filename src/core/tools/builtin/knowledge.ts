@@ -1,8 +1,6 @@
-import { readdir, readFile } from 'fs/promises';
-
 import { z } from 'zod';
 
-import { writeFile, mkdir } from '../../adapters/fs/node-fs.js';
+import { readdir, readFile, writeFile, mkdir } from '../../adapters/fs/node-fs.js';
 import { getDefaultIndexPath } from '../../config/paths.js';
 import { getLogger, tryGetLogger } from '../../observability/logger.js';
 import { Phase } from '../../types/runtime.js';
