@@ -14,6 +14,7 @@ import path from 'path';
 import { resolveConfig } from '../../../src/core/config/resolve.js';
 import { createRuntimeLlm } from '../../../src/core/llm/factory.js';
 import { ToolCallingStubLLM, type StubTurn } from '../../../src/core/llm/tool-calling-stub.js';
+import { getMonitor, type MonitorStructuredReport } from '../../../src/core/observability/monitor.js';
 import { runSalmonLoop } from '../../../src/core/runtime/loop.js';
 import { createSubAgentController } from '../../../src/core/sub-agent/controller.js';
 import type { LLM } from '../../../src/core/types/llm.js';
@@ -271,6 +272,13 @@ export function createSalmonLoopProvider(realLlm?: RealLlmConfig): EvalProvider 
         const totalAgentToolCalls = agents.reduce((sum, a) => sum + a.toolCallCount, 0);
         const totalAgentTokenUsage = agents.reduce((sum, a) => sum + a.tokenUsage, 0);
 
+        let monitorMetrics: MonitorStructuredReport | undefined;
+        try {
+          monitorMetrics = getMonitor().getStructuredReport();
+        } catch {
+          // Monitor not initialized
+        }
+
         const evalResult: EvalResult = {
           taskId: task.id,
           provider: 'salmon-loop',
@@ -278,7 +286,7 @@ export function createSalmonLoopProvider(realLlm?: RealLlmConfig): EvalProvider 
           reasonCode: result.reasonCode,
           attempts: result.attempts,
           tokenUsage: result.usage,
-          durationMs: Date.now() - startedAt,
+          durationMs: result.durationMs ?? (Date.now() - startedAt),
           providerMeta: {
             profile: meta.profile,
             dispatchMode: meta.dispatchMode,
@@ -286,6 +294,7 @@ export function createSalmonLoopProvider(realLlm?: RealLlmConfig): EvalProvider 
             agentCount: agents.length,
             agentToolCalls: totalAgentToolCalls,
             agentTokenUsage: totalAgentTokenUsage,
+            monitorMetrics,
           },
         };
 

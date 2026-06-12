@@ -30,6 +30,11 @@ function toRootCauseCode(code: unknown): RootCauseCode | undefined {
     : undefined;
 }
 
+function applyPassthroughFields(result: LoopResult, options: LoopOptions): void {
+  if (options.tags) result.tags = options.tags;
+  if (options.providerMeta) result.providerMeta = options.providerMeta;
+}
+
 interface BuildLoopResultParams {
   executionReport: FlowTransactionReport;
   flowMode: FlowMode;
@@ -132,7 +137,7 @@ export function buildLoopResultFromTransaction({
     const usage = getTokenUsageFromAuditTrail() ?? undefined;
     const budgetSummary = getBudgetRunSummary() ?? undefined;
     if (options.dryRun || profile.readOnly) {
-      return {
+      const result: LoopResult = {
         success: true,
         reason: text.loop.operationCompleted,
         reasonCode: options.dryRun ? 'DRY_RUN' : 'SUCCESS',
@@ -154,9 +159,11 @@ export function buildLoopResultFromTransaction({
         fsMode: executionReport.flowReport.fsMode ?? flowMode,
         budgetSummary,
       };
+      applyPassthroughFields(result, options);
+      return result;
     }
 
-    return {
+    const result: LoopResult = {
       success: true,
       reason: text.loop.operationCompleted,
       reasonCode: 'SUCCESS',
@@ -178,6 +185,8 @@ export function buildLoopResultFromTransaction({
       fsMode: executionReport.flowReport.fsMode ?? flowMode,
       budgetSummary,
     };
+    applyPassthroughFields(result, options);
+    return result;
   }
 
   const retryFailureReason = executionReport.history.at(-1)?.error ?? text.loop.loopExecutionFailed;
@@ -209,7 +218,7 @@ export function buildLoopResultFromTransaction({
     remediationSteps,
     fallbackMessage: failureReason,
   });
-  return {
+  const result: LoopResult = {
     success: false,
     reason: resultReason,
     reasonCode,
@@ -241,6 +250,8 @@ export function buildLoopResultFromTransaction({
         ? executionReport.terminalInputRequired
         : undefined,
   };
+  applyPassthroughFields(result, options);
+  return result;
 }
 
 export function buildLoopFailureResult({

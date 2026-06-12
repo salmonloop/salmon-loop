@@ -156,6 +156,7 @@ export interface LoopResult {
   remediationSteps?: string[];
   errorEnvelope?: ErrorEnvelope;
   attempts: number;
+  durationMs?: number;
   contextHash?: string;
   logs: StepLog[];
   usage?: TokenUsage;
@@ -181,6 +182,8 @@ export interface LoopResult {
   fsMode?: FlowMode;
   budgetSummary?: BudgetRunSummary;
   inputRequired?: LoopInputRequired;
+  tags?: string[];
+  providerMeta?: Record<string, unknown>;
 }
 
 /**
@@ -531,6 +534,8 @@ export interface LoopOptions {
    * Passed through to ToolRuntimeCtx so team tools can identify the caller.
    */
   agentId?: string;
+  tags?: string[];
+  providerMeta?: Record<string, unknown>;
 }
 
 export interface ExecutionWorkspace {

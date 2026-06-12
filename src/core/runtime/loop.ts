@@ -35,6 +35,7 @@ export class SalmonLoop {
   constructor(private readonly config: ResolvedConfig) {}
 
   async run(options: LoopOptions): Promise<LoopResult> {
+    const runStartedAt = Date.now();
     const lifecycle = initializeLoopLifecycle(options);
     let latestAuditPath: string | undefined;
     let finalResult: LoopResult | undefined;
@@ -87,6 +88,9 @@ export class SalmonLoop {
       });
       latestAuditPath = finalized.latestAuditPath;
       finalResult = finalized.finalResult;
+      if (finalResult) {
+        finalResult.durationMs = Date.now() - runStartedAt;
+      }
     }
   }
 }

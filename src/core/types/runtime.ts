@@ -26,3 +26,4 @@ export type {
   StepLog,
   UserInputProvider,
 } from './loop.js';
+export type { BatchRunOptions, BatchRunReport, DimensionStats } from './batch.js';

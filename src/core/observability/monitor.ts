@@ -231,6 +231,31 @@ export class Monitor {
   /**
    * Generate metrics report
    */
+  getStructuredReport(): MonitorStructuredReport {
+    const durations = [...this.applyBackMetrics.durations].sort((a, b) => a - b);
+    return {
+      checkpoint: {
+        createAttempts: this.checkpointMetrics.createAttempts,
+        createFailures: this.checkpointMetrics.createFailures,
+        createFailureRate: this.getCheckpointCreateFailureRate(),
+        cleanupAttempts: this.checkpointMetrics.cleanupAttempts,
+        cleanupFailures: this.checkpointMetrics.cleanupFailures,
+      },
+      applyBack: {
+        attempts: this.applyBackMetrics.attempts,
+        failures: this.applyBackMetrics.failures,
+        avgDurationMs: this.getApplyBackAvgDuration(),
+        p50DurationMs: durations.length > 0 ? durations[Math.floor(durations.length * 0.5)] : 0,
+        p95DurationMs: durations.length > 0 ? durations[Math.floor(durations.length * 0.95)] : 0,
+      },
+      errors: this.errorHistory.toArray().map((e) => ({
+        type: e.type,
+        message: e.message,
+        timestamp: e.timestamp.toISOString(),
+      })),
+    };
+  }
+
   getMetricsReport(): string {
     let report = `\n${text.monitor.metricsTitle}\n`;
 
@@ -277,6 +302,28 @@ export class Monitor {
       durations: [],
     };
   }
+}
+
+export interface MonitorStructuredReport {
+  checkpoint: {
+    createAttempts: number;
+    createFailures: number;
+    createFailureRate: number;
+    cleanupAttempts: number;
+    cleanupFailures: number;
+  };
+  applyBack: {
+    attempts: number;
+    failures: number;
+    avgDurationMs: number;
+    p50DurationMs: number;
+    p95DurationMs: number;
+  };
+  errors: Array<{
+    type: ErrorType;
+    message: string;
+    timestamp: string;
+  }>;
 }
 
 export function createMonitor(): Monitor {

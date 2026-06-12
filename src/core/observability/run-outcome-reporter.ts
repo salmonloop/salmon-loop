@@ -19,6 +19,7 @@ export interface RunOutcomeReport {
   safeHint?: string;
   remediationSteps?: string[];
   attempts: number;
+  durationMs?: number;
   failurePhase?: ExecutionPhase;
   errorCode?: string;
   changedFiles?: string[];
@@ -37,6 +38,7 @@ export function buildRunOutcomeReport(result: LoopResult): RunOutcomeReport {
     safeHint: result.safeHint,
     remediationSteps: result.remediationSteps,
     attempts: result.attempts,
+    durationMs: result.durationMs,
     failurePhase: result.failurePhase,
     errorCode: result.errorCode,
     changedFiles: result.changedFiles,
