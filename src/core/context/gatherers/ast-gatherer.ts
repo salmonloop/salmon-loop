@@ -36,13 +36,6 @@ export interface AstResult {
   parseError?: string;
 }
 
-interface QueryCapture {
-  name: string;
-  text: string;
-  line: number;
-  column: number;
-}
-
 const AST_DEEP_TRIGGER_PATTERN =
   /\b(refactor|rename|migrate|cross[- ]?file|across|dependency|dependencies|module|architecture|global)\b/i;
 

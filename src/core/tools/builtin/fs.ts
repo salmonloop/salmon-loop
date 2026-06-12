@@ -438,7 +438,7 @@ const fsEditFileInputSchema = z.preprocess(
   },
   z.object({
     file: z.string().describe('Relative path to the file from the repository root'),
-    old_string: z.string().describe('The exact text to find in the file'),
+    old_string: z.string().min(1).describe('The exact text to find in the file'),
     new_string: z.string().describe('The replacement text'),
     replace_all: z
       .boolean()
