@@ -1,6 +1,7 @@
 import path from 'path';
 
 import { FileAdapter } from '../adapters/fs/index.js';
+import { estimateCost } from '../config/model-pricing.js';
 import { logIgnoredError } from '../observability/ignored-error.js';
 import type { LoopResult } from '../types/index.js';
 import type { TokenUsage } from '../types/usage.js';
@@ -80,11 +81,17 @@ export class TokenTracker {
   }
 
   /**
-   * Accumulate tokens into session metadata
+   * Accumulate tokens into session metadata.
+   * Computes estimated cost if model pricing is available.
    */
-  static accumulate(session: ChatSession, usage: TokenUsage): void {
+  static accumulate(session: ChatSession, usage: TokenUsage, modelId?: string): void {
     session.meta.totalTokens.input += usage.inputTokens;
     session.meta.totalTokens.output += usage.outputTokens;
+    const cost =
+      usage.estimatedCost ?? estimateCost(usage.inputTokens, usage.outputTokens, modelId);
+    if (cost !== undefined) {
+      session.meta.totalTokens.estimatedCost = (session.meta.totalTokens.estimatedCost ?? 0) + cost;
+    }
   }
 
   /**

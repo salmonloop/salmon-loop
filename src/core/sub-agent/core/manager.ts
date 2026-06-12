@@ -22,6 +22,8 @@ import { isReadOnlySubAgentContext, resolveSubAgentDryRun } from '../dispatch-po
 import { validateSharedPrefixConsistency } from '../prefix-consistency.js';
 import type { SubAgentRegistry } from '../registry.js';
 import { getSubAgentRegistry } from '../registry.js';
+import { generateSubAgentSummary, formatSubAgentSummary } from '../summary.js';
+import type { SubAgentSummary } from '../summary.js';
 import type {
   IExecutable,
   SubAgentContextSnapshot,
@@ -73,6 +75,7 @@ export class SubAgentManager implements IExecutable<
     string,
     { profile: SubAgentProfile; status: SubAgentStatus; result?: SubAgentResult }
   >();
+  private completedResults: Array<{ agentId: string; result: SubAgentResult }> = [];
   private readonly deps: SubAgentManagerDeps;
 
   constructor(
@@ -169,6 +172,24 @@ export class SubAgentManager implements IExecutable<
     });
   }
 
+  /**
+   * Get a summary of all completed sub-agent results.
+   * Includes conflict detection across patches.
+   */
+  getSummary(): SubAgentSummary | null {
+    if (this.completedResults.length === 0) return null;
+    return generateSubAgentSummary(this.completedResults);
+  }
+
+  /**
+   * Get a formatted summary string for LLM context injection.
+   */
+  getFormattedSummary(): string | null {
+    const summary = this.getSummary();
+    if (!summary) return null;
+    return formatSubAgentSummary(summary);
+  }
+
   private normalizeRequest(request: SubAgentRequest): SubAgentRequest {
     // Fork mode: no prefix consistency validation needed (it's a clone, not a shared session)
     if (request.session_target === 'fork') return request;
@@ -234,6 +255,9 @@ export class SubAgentManager implements IExecutable<
           taskId,
           state: result.success ? 'completed' : 'failed',
         });
+
+        // Track for summary generation
+        this.completedResults.push({ agentId, result });
 
         // Notify completion listener (for background auto-notify)
         this.deps.onSubAgentComplete?.(agentId, result);

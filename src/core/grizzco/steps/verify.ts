@@ -5,6 +5,7 @@ import {
   getGlobalAdjuster,
   recordBudgetAlert,
 } from '../../context/budget/integration.js';
+import { getEffectivenessTracker } from '../../context/effectiveness/tracker.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ApplyCtx, VerifyCtx } from '../engine/pipeline/types.js';
@@ -48,7 +49,16 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
     },
   );
 
-  // Collect budget metrics after verification
+  // Collect budget metrics and effectiveness data after verification
+  const effectivenessTracker = getEffectivenessTracker();
+  effectivenessTracker.recordExecution(verifyResult.ok, 0);
+  if (!verifyResult.ok) {
+    effectivenessTracker.recordFailure(
+      'missing_context',
+      `Verification failed: ${verifyResult.output?.slice(0, 200) ?? 'unknown'}`,
+    );
+  }
+
   if (ctx.contextResult) {
     const metrics = collectBudgetMetrics({
       contextResult: ctx.contextResult,

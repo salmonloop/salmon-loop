@@ -1,3 +1,5 @@
+import { restoreEffectiveness } from '../context/effectiveness/persistence.js';
+import { getEffectivenessTracker } from '../context/effectiveness/tracker.js';
 import { buildFlowTransactionRunner, runFlowSession } from '../grizzco/engine/transaction/index.js';
 import type { LoopOptions, LoopResult } from '../types/runtime.js';
 
@@ -13,6 +15,10 @@ export async function executeLoopSession(params: {
   lifecycle: LoopLifecycleContext;
   latestAuditPath?: string;
 }): Promise<LoopSessionExecutionResult> {
+  // Restore effectiveness data from previous sessions
+  await restoreEffectiveness(params.options.repoPath).catch(() => {});
+  getEffectivenessTracker().startSession();
+
   const hostContext = await params.lifecycle.hostRunner.boot();
   const runner = buildFlowTransactionRunner({
     flowMode: hostContext.flowMode,

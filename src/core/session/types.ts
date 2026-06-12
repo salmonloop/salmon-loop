@@ -78,6 +78,7 @@ export interface SessionMetadata {
   totalTokens: {
     input: number;
     output: number;
+    estimatedCost?: number;
   };
 
   // Snapshot tracking (links to CheckpointManager)

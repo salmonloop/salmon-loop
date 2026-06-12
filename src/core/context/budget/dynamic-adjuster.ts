@@ -1,3 +1,5 @@
+import { getEffectivenessTracker } from '../effectiveness/tracker.js';
+
 /**
  * Dynamic Budget Adjuster
  *
@@ -132,6 +134,23 @@ export class DynamicBudgetAdjuster {
     // Strategy 4: Stable and successful → No change
     if (successRate > 0.7 && truncationRate < 0.3) {
       return null; // Current budget is working well
+    }
+
+    // Strategy 5: Effectiveness-based adjustment
+    // If context effectiveness is low, increase budget to allow more targeted context
+    try {
+      const effectivenessTracker = getEffectivenessTracker();
+      const metrics = effectivenessTracker.getMetrics();
+      if (metrics.totalSessions > 3 && metrics.tokenEfficiency < 0.3) {
+        const newBudget = Math.min(currentBudget * (1 + this.adjustmentStep * 0.5), this.maxBudget);
+        return {
+          newBudget: Math.round(newBudget),
+          reason: `Low context token efficiency (${metrics.tokenEfficiency.toFixed(2)})`,
+          confidence: 0.5,
+        };
+      }
+    } catch {
+      // Effectiveness tracker not available, skip
     }
 
     return null;

@@ -1,3 +1,5 @@
+import type { RunnerKind } from '../verification/detect-runner.js';
+
 import { Diagnostic } from './types.js';
 
 export function parseTscOutput(output: string): Diagnostic[] {
@@ -198,6 +200,208 @@ export function parseJestOutput(output: string): Diagnostic[] {
 
   return diagnostics;
 }
+
+// ── Structured JSON parsers ──────────────────────────────────────────────────
+
+/** Parse jest --json output (single JSON object). */
+export function parseJestJson(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  let parsed: JestJsonResult;
+  try {
+    parsed = JSON.parse(output) as JestJsonResult;
+  } catch {
+    return [];
+  }
+
+  for (const suite of parsed.testResults ?? []) {
+    for (const assertion of suite.assertionResults ?? []) {
+      if (assertion.status === 'failed') {
+        diagnostics.push({
+          file: suite.name,
+          severity: 'error',
+          message:
+            (assertion.failureMessages ?? []).join('\n') ||
+            `Test failed: ${(assertion.ancestorTitles ?? []).join(' > ')} > ${assertion.fullName ?? assertion.title}`,
+          source: 'jest',
+        });
+      }
+    }
+  }
+  return diagnostics;
+}
+
+interface JestJsonResult {
+  numPassedTests?: number;
+  numFailedTests?: number;
+  numTotalTests?: number;
+  testResults?: Array<{
+    name: string;
+    assertionResults?: Array<{
+      status: 'passed' | 'failed' | 'pending';
+      fullName?: string;
+      title?: string;
+      ancestorTitles?: string[];
+      failureMessages?: string[];
+    }>;
+  }>;
+}
+
+/** Extract test summary from jest --json output. */
+export function parseJestJsonSummary(
+  output: string,
+): { total: number; passed: number; failed: number; skipped: number } | undefined {
+  try {
+    const parsed = JSON.parse(output) as JestJsonResult;
+    if (typeof parsed.numTotalTests === 'number') {
+      const passed = parsed.numPassedTests ?? 0;
+      const failed = parsed.numFailedTests ?? 0;
+      const total = parsed.numTotalTests;
+      return { total, passed, failed, skipped: total - passed - failed };
+    }
+  } catch {
+    /* not JSON */
+  }
+  return undefined;
+}
+
+/** Parse eslint --format json output (JSON array). */
+export function parseEslintJson(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  let parsed: EslintJsonResult[];
+  try {
+    parsed = JSON.parse(output) as EslintJsonResult[];
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  for (const file of parsed) {
+    for (const msg of file.messages ?? []) {
+      diagnostics.push({
+        file: file.filePath,
+        line: msg.line,
+        column: msg.column,
+        severity: msg.severity === 2 ? 'error' : 'warning',
+        message: msg.message + (msg.ruleId ? ` (${msg.ruleId})` : ''),
+        source: 'eslint',
+      });
+    }
+  }
+  return diagnostics;
+}
+
+interface EslintJsonResult {
+  filePath: string;
+  messages: Array<{
+    line?: number;
+    column?: number;
+    message: string;
+    severity: number; // 1=warn, 2=error
+    ruleId?: string | null;
+  }>;
+}
+
+/** Parse bun test --json NDJSON output. */
+export function parseBunTestNdjson(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('{')) continue;
+    try {
+      const evt = JSON.parse(trimmed) as BunTestEvent;
+      if (evt.type === 'test-fail' || evt.data?.status === 'fail') {
+        const data = evt.data ?? {};
+        diagnostics.push({
+          file: data.file ?? data.sourceFile ?? 'unknown',
+          severity: 'error',
+          message: data.error?.message ?? data.message ?? 'Test failed',
+          source: 'bun',
+        });
+      }
+    } catch {
+      /* skip non-JSON lines */
+    }
+  }
+  return diagnostics;
+}
+
+interface BunTestEvent {
+  type?: string;
+  data?: {
+    status?: string;
+    file?: string;
+    sourceFile?: string;
+    message?: string;
+    error?: { message?: string };
+  };
+}
+
+/** Parse go test -json NDJSON output. */
+export function parseGoTestNdjson(output: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('{')) continue;
+    try {
+      const evt = JSON.parse(trimmed) as GoTestEvent;
+      if (evt.Action === 'fail' && evt.Test) {
+        diagnostics.push({
+          file: evt.Package ?? 'unknown',
+          severity: 'error',
+          message: `Test failed: ${evt.Test}`,
+          source: 'go',
+        });
+      }
+    } catch {
+      /* skip non-JSON lines */
+    }
+  }
+  return diagnostics;
+}
+
+interface GoTestEvent {
+  Action: string;
+  Package?: string;
+  Test?: string;
+  Output?: string;
+}
+
+/** Dispatch to the correct structured parser based on runner type. */
+export function parseRunnerOutput(output: string, runner: RunnerKind): Diagnostic[] {
+  switch (runner) {
+    case 'jest':
+    case 'vitest':
+      return parseJestJson(output);
+    case 'eslint':
+      return parseEslintJson(output);
+    case 'bun':
+      return parseBunTestNdjson(output);
+    case 'go':
+      return parseGoTestNdjson(output);
+    case 'pytest':
+    case 'tsc':
+    case 'unknown':
+    default:
+      return parseGenericOutput(output);
+  }
+}
+
+/** Extract test summary from structured JSON output when available. */
+export function parseStructuredSummary(
+  output: string,
+  runner: RunnerKind,
+): { total: number; passed: number; failed: number; skipped: number } | undefined {
+  switch (runner) {
+    case 'jest':
+    case 'vitest':
+      return parseJestJsonSummary(output);
+    default:
+      return undefined;
+  }
+}
+
+// ── Text-based heuristic dispatcher (fallback) ──────────────────────────────
 
 export function parseGenericOutput(output: string): Diagnostic[] {
   // Try pytest first (SWE-bench's primary test runner)

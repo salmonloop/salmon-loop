@@ -23,8 +23,8 @@ describe('Knowledge Tool Integration', () => {
   });
 
   test('should set project rules (append-only, last-writer-wins)', async () => {
-    const rules1 = ['Rule 1'];
-    const rules2 = ['Rule 2', 'Rule 3'];
+    const rules1 = ['Always use TypeScript strict mode for new files'];
+    const rules2 = ['Use camelCase for variable names', 'Prefer const over let when possible'];
 
     await executeUpdateKnowledge({ category: 'project_rules', rules: rules1 }, mockCtx);
     // Successive calls should create separate files
@@ -45,7 +45,7 @@ describe('Knowledge Tool Integration', () => {
     await executeUpdateKnowledge(
       {
         category: 'architectural_decisions',
-        decision: 'First decision',
+        decision: 'Use dependency injection for all service classes',
       },
       mockCtx,
     );
@@ -53,7 +53,7 @@ describe('Knowledge Tool Integration', () => {
     await executeUpdateKnowledge(
       {
         category: 'architectural_decisions',
-        decision: 'Second decision',
+        decision: 'Prefer composition over inheritance for components',
       },
       mockCtx,
     );
@@ -62,8 +62,12 @@ describe('Knowledge Tool Integration', () => {
     const result = await gatherer.gather({ repoPath: testRepo, instruction: '' });
 
     expect(result.architectural_decisions).toHaveLength(2);
-    expect(result.architectural_decisions?.[0].decision).toBe('First decision');
-    expect(result.architectural_decisions?.[1].decision).toBe('Second decision');
+    expect(result.architectural_decisions?.[0].decision).toBe(
+      'Use dependency injection for all service classes',
+    );
+    expect(result.architectural_decisions?.[1].decision).toBe(
+      'Prefer composition over inheritance for components',
+    );
   });
 
   test('should set user preferences (append-only, replacement)', async () => {

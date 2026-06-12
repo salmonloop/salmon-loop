@@ -9,6 +9,7 @@ export class KnowledgeGatherer {
   private static readonly KNOWLEDGE_SUBDIR = 'knowledge';
   private static readonly SNAPSHOT_FILE = 'snapshot.json';
   private static readonly COMPACTION_THRESHOLD = 20; // Compact after 20 events
+  private static readonly MAX_DECISIONS = 50; // Keep only the most recent N decisions
   private readonly fileAdapter = new FileAdapter();
 
   async gather(req: ContextRequest): Promise<ProjectKnowledge> {
@@ -20,6 +21,7 @@ export class KnowledgeGatherer {
       project_rules: undefined,
       architectural_decisions: [],
       user_preferences: undefined,
+      lessons_learned: [],
     };
     const allDeprecated = new Set<string>();
 
@@ -69,6 +71,12 @@ export class KnowledgeGatherer {
           if (data.user_preferences) {
             aggregated.user_preferences = data.user_preferences;
           }
+          if (data.lessons_learned && Array.isArray(data.lessons_learned)) {
+            if (!Array.isArray(aggregated.lessons_learned)) {
+              aggregated.lessons_learned = [];
+            }
+            aggregated.lessons_learned.push(...data.lessons_learned);
+          }
         } catch {
           // Skip corrupted files
         }
@@ -77,6 +85,16 @@ export class KnowledgeGatherer {
       // Filter out deprecated rules from aggregated project_rules
       if (aggregated.project_rules) {
         aggregated.project_rules = aggregated.project_rules.filter((r) => !allDeprecated.has(r));
+      }
+
+      // Prune stale architectural decisions (keep only the most recent N)
+      if (
+        aggregated.architectural_decisions &&
+        aggregated.architectural_decisions.length > KnowledgeGatherer.MAX_DECISIONS
+      ) {
+        aggregated.architectural_decisions = aggregated.architectural_decisions.slice(
+          -KnowledgeGatherer.MAX_DECISIONS,
+        );
       }
 
       // 3. Optional Compaction
@@ -96,6 +114,7 @@ export class KnowledgeGatherer {
         ? aggregated.architectural_decisions
         : undefined,
       user_preferences: aggregated.user_preferences,
+      lessons_learned: aggregated.lessons_learned?.length ? aggregated.lessons_learned : undefined,
     };
   }
 

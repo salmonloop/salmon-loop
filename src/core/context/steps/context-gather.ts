@@ -5,6 +5,7 @@ import { detectLang } from '../ast/skeleton-extractor.js';
 import { outlineSourceAsync } from '../ast/source-outline.js';
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
+import { getEffectivenessTracker } from '../effectiveness/tracker.js';
 import { extractKeywords } from '../keywords.js';
 import type { ContextServiceDeps } from '../service-deps.js';
 import { assertNotAborted } from '../service-helpers.js';
@@ -104,6 +105,14 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       },
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
+
+    // Record context usage for effectiveness tracking
+    const tracker = getEffectivenessTracker();
+    for (const file of astRes.relatedFiles) {
+      const tokens = file.content ? Math.ceil(file.content.length / 4) : 0;
+      const relevanceScore = file.mode === 'full' ? 80 : 40;
+      tracker.recordUsage(file.path, false, tokens, relevanceScore);
+    }
 
     return {
       req,

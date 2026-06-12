@@ -1,5 +1,6 @@
 import { text } from '../../locales/index.js';
 import type { ResolvedConfig } from '../config/types.js';
+import { persistEffectiveness } from '../context/effectiveness/persistence.js';
 import { HostRunner } from '../grizzco/runtime/host/index.js';
 import { appendAuditTrailToAuditFile } from '../observability/audit-file.js';
 import {
@@ -93,6 +94,10 @@ export async function finalizeLoopRun(params: {
       latestAuditPath = appendedPath;
       if (finalResult) finalResult.auditPath = appendedPath;
     }
+
+    // Persist effectiveness data for cross-session learning
+    await persistEffectiveness(options.repoPath).catch(() => {});
+
     clearAuditContext();
   }
 

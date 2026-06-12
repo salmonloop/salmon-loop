@@ -363,8 +363,8 @@ export class FlowTransactionRunner {
           { phase: successPhase, severity: 'low', scope: 'session' },
         );
 
-        // Reflection Mechanism: trigger when multiple attempts were needed
-        if (attempt > 1 && this.params.options.llm) {
+        // Reflection Mechanism
+        if (this.params.options.llm) {
           const reflectionEngine = new ReflectionEngine(this.params.options.llm);
           const reflectionInput: ReflectionInput = {
             instruction: this.params.options.instruction,
@@ -374,11 +374,21 @@ export class FlowTransactionRunner {
             finalPlan: shrinkCtx?.plan,
             finalPatch: shrinkCtx?.diff,
           };
-          reflectionEngine
-            .reflect(reflectionInput, this.params.options.repoPath)
-            .catch((e: unknown) =>
-              recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
-            );
+          if (attempt > 1) {
+            // Failures followed by success — full reflection
+            reflectionEngine
+              .reflect(reflectionInput, this.params.options.repoPath)
+              .catch((e: unknown) =>
+                recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
+              );
+          } else {
+            // First-try success — extract positive patterns
+            reflectionEngine
+              .reflectOnSuccess(reflectionInput, this.params.options.repoPath)
+              .catch((e: unknown) =>
+                recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
+              );
+          }
         }
 
         return mapSuccessReport({
@@ -448,6 +458,21 @@ export class FlowTransactionRunner {
           break;
         }
 
+        // Reflect on terminal failure to extract lessons
+        if (this.params.options.llm) {
+          const reflectionEngine = new ReflectionEngine(this.params.options.llm);
+          const reflectionInput: ReflectionInput = {
+            instruction: this.params.options.instruction,
+            history: this.historyEntries,
+            success: false,
+          };
+          reflectionEngine
+            .reflectOnFailure(reflectionInput, this.params.options.repoPath)
+            .catch((e: unknown) =>
+              recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
+            );
+        }
+
         return mapTerminalFailureReport({
           attempt,
           flowReport: result,
@@ -478,6 +503,21 @@ export class FlowTransactionRunner {
 
     if (!lastReport) {
       throw new Error('SalmonLoop execution terminated without a FlowReport');
+    }
+
+    // Reflect on retry-exhausted failure to extract lessons
+    if (this.params.options.llm) {
+      const reflectionEngine = new ReflectionEngine(this.params.options.llm);
+      const reflectionInput: ReflectionInput = {
+        instruction: this.params.options.instruction,
+        history: this.historyEntries,
+        success: false,
+      };
+      reflectionEngine
+        .reflectOnFailure(reflectionInput, this.params.options.repoPath)
+        .catch((e: unknown) =>
+          recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
+        );
     }
 
     return mapRetryExhaustedReport({

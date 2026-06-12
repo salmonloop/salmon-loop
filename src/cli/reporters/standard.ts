@@ -138,6 +138,16 @@ export class StandardReporter implements SalmonReporter {
       );
     }
 
+    if (result.usage) {
+      const u = result.usage;
+      const tokenLine = `Tokens: ${u.inputTokens.toLocaleString()} in / ${u.outputTokens.toLocaleString()} out (${u.totalTokens.toLocaleString()} total)`;
+      if (u.estimatedCost !== undefined && u.estimatedCost > 0) {
+        getLogger().info(`${tokenLine} | Est. cost: $${u.estimatedCost.toFixed(2)}`);
+      } else {
+        getLogger().info(tokenLine);
+      }
+    }
+
     if (this.verbose && result.logs) {
       getLogger().log('\n' + chalk.bold(text.cli.stepLogs));
       result.logs.forEach((log) => {

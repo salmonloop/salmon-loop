@@ -27,6 +27,8 @@ export {
   resetEffectivenessTracker,
 } from './tracker.js';
 
+export type { SerializedEffectiveness } from './tracker.js';
+
 export type {
   ContextUsageRecord,
   ContextFailureRecord,

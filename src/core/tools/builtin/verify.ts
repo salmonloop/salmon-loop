@@ -1,8 +1,13 @@
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import { parseGenericOutput } from '../../feedback/parsers.js';
+import { parseRunnerOutput, parseStructuredSummary } from '../../feedback/parsers.js';
 import { Phase } from '../../types/runtime.js';
+import {
+  detectRunner,
+  injectJsonFlags,
+  type RunnerKind,
+} from '../../verification/detect-runner.js';
 import {
   runVerify,
   classifyError,
@@ -23,6 +28,10 @@ export const verifyRunSpec: Omit<ToolSpec, 'executor'> = {
   computeResources: (_input, ctx) => [repoResource(ctx), processResource(ctx)],
   inputSchema: z.object({
     command: z.string().describe('The shell command to run for verification'),
+    runner: z
+      .enum(['jest', 'vitest', 'pytest', 'tsc', 'eslint', 'bun', 'go'])
+      .optional()
+      .describe('Test runner type. Auto-detected from command if omitted.'),
   }),
   outputSchema: z.object({
     ok: z.boolean(),
@@ -62,12 +71,19 @@ export async function executeVerifyRun(
   ctx: ToolRuntimeCtx,
 ) {
   const { command } = input;
+  const runner: RunnerKind = input.runner ?? detectRunner(command);
+  const effectiveCommand = injectJsonFlags(command, runner);
+
   const activePath = ctx.worktreeRoot || ctx.repoRoot;
-  const result = await runVerify(activePath, command, ctx.env, ctx.signal);
+  const result = await runVerify(activePath, effectiveCommand, ctx.env, ctx.signal);
 
   const errorType = !result.ok ? classifyError(result.output) : undefined;
-  const diagnostics = !result.ok ? parseGenericOutput(result.output) : [];
-  const summary = parseTestSummary(result.output);
+
+  // Structured parsing when we know the runner; generic text heuristics otherwise
+  const diagnostics = !result.ok ? parseRunnerOutput(result.output, runner) : [];
+
+  // Prefer structured JSON summary; fall back to regex-based text parser
+  const summary = parseStructuredSummary(result.output, runner) ?? parseTestSummary(result.output);
 
   return {
     ...result,

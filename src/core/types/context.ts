@@ -186,6 +186,7 @@ export interface ProjectKnowledge {
     related_files?: string[];
   }>;
   user_preferences?: string;
+  lessons_learned?: string[];
 }
 
 export interface ProjectTopology {

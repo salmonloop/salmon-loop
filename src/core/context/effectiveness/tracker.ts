@@ -15,6 +15,18 @@ import type {
 import { DEFAULT_EFFECTIVENESS_CONFIG } from './types.js';
 
 /**
+ * Serialized effectiveness state for persistence.
+ */
+export interface SerializedEffectiveness {
+  usageRecords: ContextUsageRecord[];
+  failureRecords: ContextFailureRecord[];
+  totalTokensUsed: number;
+  successfulExecutions: number;
+  totalExecutions: number;
+  sessionCount: number;
+}
+
+/**
  * Context effectiveness tracker.
  *
  * Provides insights into context quality:
@@ -219,6 +231,32 @@ export class ContextEffectivenessTracker {
     this.successfulExecutions = 0;
     this.totalExecutions = 0;
     this.sessionCount = 0;
+  }
+
+  /**
+   * Serialize tracker state for persistence.
+   */
+  serialize(): SerializedEffectiveness {
+    return {
+      usageRecords: this.usageRecords,
+      failureRecords: this.failureRecords,
+      totalTokensUsed: this.totalTokensUsed,
+      successfulExecutions: this.successfulExecutions,
+      totalExecutions: this.totalExecutions,
+      sessionCount: this.sessionCount,
+    };
+  }
+
+  /**
+   * Restore tracker state from serialized data.
+   */
+  deserialize(data: SerializedEffectiveness): void {
+    this.usageRecords = data.usageRecords ?? [];
+    this.failureRecords = data.failureRecords ?? [];
+    this.totalTokensUsed = data.totalTokensUsed ?? 0;
+    this.successfulExecutions = data.successfulExecutions ?? 0;
+    this.totalExecutions = data.totalExecutions ?? 0;
+    this.sessionCount = data.sessionCount ?? 0;
   }
 
   /**
