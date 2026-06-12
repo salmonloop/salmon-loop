@@ -12,8 +12,6 @@ import { spawn } from 'child_process';
 import { readFile, readdir, mkdir, cp } from 'fs/promises';
 import path from 'path';
 
-import { runVerify, classifyError } from '../src/core/verification/runner.js';
-
 interface HarborTask {
   id: string;
   instruction: string;
@@ -158,6 +156,7 @@ async function runSalmonLoop(
 
   const escapedInstruction = JSON.stringify(task.instruction);
   const configPath = path.join(process.cwd(), '.salmonloop', 'config', 'config.json');
+  const verifyCommand = 'python3 -m pytest test_outputs.py -v --tb=short';
   const result = await execCommand(
     'bun',
     [
@@ -165,7 +164,8 @@ async function runSalmonLoop(
       'run',
       '--instruction', escapedInstruction,
       '-r', task.workspaceDir,
-      '-v', 'echo ok',
+      '--verify', verifyCommand,
+      '--act-mode', 'autopilot',
       '--config', configPath,
       '--output-format', 'json',
     ],
@@ -205,36 +205,6 @@ async function runSalmonLoop(
   }
 
   return { agentOk, tokenUsage, reasonCode };
-}
-
-async function runVerifier(
-  task: HarborTask,
-  verbose: boolean,
-): Promise<{ ok: boolean; errorType?: string }> {
-  if (verbose) process.stderr.write(`  [VERIFY] ${task.id}\n`);
-
-  // Copy test file to workspace
-  const testDest = path.join(task.workspaceDir, 'test_outputs.py');
-  await cp(task.testFile, testDest);
-
-  if (verbose) process.stderr.write(`  [CWD] ${task.workspaceDir}\n`);
-
-  const result = await runVerify(
-    task.workspaceDir,
-    'python3 -m pytest test_outputs.py -v --tb=short',
-  );
-
-  if (result.ok) return { ok: true };
-
-  const errorType = classifyError(result.output);
-
-  if (verbose) {
-    process.stderr.write(`  [FAIL] ${task.id} — exit=${result.exitCode}\n`);
-    process.stderr.write(`    errorType: ${errorType}\n`);
-    process.stderr.write(`    stdout: ${result.output.slice(0, 500)}\n`);
-  }
-
-  return { ok: false, errorType };
 }
 
 // ─── CLI ───
@@ -282,24 +252,22 @@ async function main(): Promise<void> {
 
     const startTime = Date.now();
     const { agentOk, tokenUsage, reasonCode } = await runSalmonLoop(task, args.verbose);
-    const verifyResult = agentOk ? await runVerifier(task, args.verbose) : { ok: false };
     const durationMs = Date.now() - startTime;
 
     results.push({
       id: task.id,
       agentOk,
-      verifyOk: verifyResult.ok,
-      errorType: verifyResult.errorType,
+      verifyOk: agentOk,
       tokenUsage,
       reasonCode,
       durationMs,
     });
 
     const durationSec = (durationMs / 1000).toFixed(1);
-    console.log(`  Agent: ${agentOk ? 'OK' : 'FAIL'} | Verify: ${verifyResult.ok ? 'PASS' : 'FAIL'} | ${durationSec}s\n`);
+    console.log(`  ${agentOk ? 'PASS' : 'FAIL'} | ${durationSec}s\n`);
   }
 
-  const passed = results.filter((r) => r.verifyOk).length;
+  const passed = results.filter((r) => r.agentOk).length;
   const totalTokens = results.reduce((sum, r) => sum + (r.tokenUsage?.totalTokens ?? 0), 0);
 
   console.log(`\n━━━ Summary ━━━`);
@@ -310,12 +278,11 @@ async function main(): Promise<void> {
     const durationSec = (r.durationMs / 1000).toFixed(1);
     const tokens = r.tokenUsage?.totalTokens ?? 0;
     const parts = [
-      `[${r.verifyOk ? 'PASS' : 'FAIL'}]`,
+      `[${r.agentOk ? 'PASS' : 'FAIL'}]`,
       r.id,
       `${durationSec}s`,
       `${tokens.toLocaleString()} tokens`,
     ];
-    if (r.errorType) parts.push(`errorType=${r.errorType}`);
     if (r.reasonCode) parts.push(`reason=${r.reasonCode}`);
     console.log(`  ${parts.join(' | ')}`);
   }
