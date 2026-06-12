@@ -164,6 +164,7 @@ export class ContextBuilder {
       snapshotHash: options.snapshotHash,
       checkpointManager: options.checkpointManager,
       signal: options.signal,
+      contextFiles: options.contextFiles,
     });
 
     return result;

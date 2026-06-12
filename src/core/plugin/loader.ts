@@ -1,5 +1,6 @@
 import { join } from 'path';
 
+import { pythonPlugin } from '../../languages/python/index.js';
 import { typescriptPlugin, tsxPlugin, javascriptPlugin } from '../../languages/typescript/index.js';
 import { readdir } from '../adapters/fs/node-fs.js';
 import { getLogger } from '../observability/logger.js';
@@ -27,12 +28,13 @@ export class PluginLoader {
       // Phase 1: Manually register TypeScript/JavaScript plugins
       getLogger().debug('Loading built-in plugins...');
 
+      this.registerWithValidation(registry, pythonPlugin);
       this.registerWithValidation(registry, typescriptPlugin);
       this.registerWithValidation(registry, tsxPlugin);
       this.registerWithValidation(registry, javascriptPlugin);
 
       getLogger().debug(
-        `Plugins loaded: ${typescriptPlugin.meta.name}, ${tsxPlugin.meta.name}, ${javascriptPlugin.meta.name}`,
+        `Plugins loaded: ${pythonPlugin.meta.name}, ${typescriptPlugin.meta.name}, ${tsxPlugin.meta.name}, ${javascriptPlugin.meta.name}`,
       );
 
       // Phase 2: Load user plugins from .salmonloop/languages/

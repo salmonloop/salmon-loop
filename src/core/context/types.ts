@@ -20,6 +20,7 @@ export interface ContextRequest {
   diffScope?: DiffScope;
   budgetChars?: number;
   signal?: AbortSignal;
+  contextFiles?: string[];
 }
 
 export interface ContextBag {

@@ -42,7 +42,9 @@ export function outlineSource(sourceCode: string): string {
 
     if (
       /^\s*(?:export\s+)?(?:declare\s+)?(interface|type|class|enum|function)\b/.test(line) ||
-      /^\s*(?:export\s+)?(?:const|let|var)\s+[A-Za-z0-9_$]+\s*[:=]/.test(line)
+      /^\s*(?:export\s+)?(?:const|let|var)\s+[A-Za-z0-9_$]+\s*[:=]/.test(line) ||
+      /^\s*(?:async\s+)?(?:def|class)\s+\w+/.test(line) ||
+      /^\s*(?:from|import)\s+\w+/.test(line)
     ) {
       include(line);
     }

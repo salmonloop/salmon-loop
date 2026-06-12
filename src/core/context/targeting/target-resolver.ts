@@ -24,6 +24,8 @@ function reasonRank(reason: ContextTarget['reason']): number {
   switch (reason) {
     case 'explicit_path':
       return 100;
+    case 'context_file':
+      return 95;
     case 'symbol_definition':
       return 90;
     case 'diff_included':
@@ -174,6 +176,21 @@ function buildExplicitTargets(req: ContextRequest): ContextTarget[] {
       confidence: 'high',
       evidence: 'instruction_path',
     })),
+  );
+}
+
+function buildContextFileTargets(contextFiles: string[] | undefined): ContextTarget[] {
+  if (!contextFiles || contextFiles.length === 0) return [];
+  return dedupeTargets(
+    contextFiles
+      .map((f) => normalizePath(f).replace(/^(\.\/|\/)+/, ''))
+      .filter(Boolean)
+      .map((path) => ({
+        path,
+        reason: 'context_file' as const,
+        confidence: 'high' as const,
+        evidence: 'context_files_option',
+      })),
   );
 }
 
@@ -497,6 +514,7 @@ export class TargetResolver {
     diffusionDepth?: number;
     maxDiffusionTargets?: number;
     churnByFile?: Record<string, number>;
+    contextFiles?: string[];
   }): Promise<{
     targets: ContextTarget[];
     strategy: 'explicit' | 'symbol' | 'diff' | 'default';
@@ -513,6 +531,7 @@ export class TargetResolver {
       diffusionDepth,
       maxDiffusionTargets,
       churnByFile,
+      contextFiles,
     } = params;
 
     const runner = new MicroTaskRunner<TargetingDslContext>({
@@ -522,7 +541,8 @@ export class TargetResolver {
         if (key === 'explicitTargets') {
           const primary = buildPrimaryTarget(ctx.primaryFile);
           const explicit = buildExplicitTargets(req);
-          return dedupeTargets([...primary, ...explicit]);
+          const contextFileTargets = buildContextFileTargets(contextFiles);
+          return dedupeTargets([...primary, ...explicit, ...contextFileTargets]);
         }
 
         if (key === 'diffTargets') {
@@ -566,15 +586,28 @@ export class TargetResolver {
         return [];
       },
       strategy: (engine: DecisionEngine<TargetingDslContext>) => {
+        const hasExplicitSignal = (
+          data: Record<string, unknown> | undefined,
+          key: string,
+        ): boolean =>
+          ((data?.[key] as ContextTarget[] | undefined) || []).some(
+            (t) => t.reason === 'explicit_path' || t.reason === 'context_file',
+          );
+        const hasSymbolTargets = (data: Record<string, unknown> | undefined): boolean =>
+          ((data?.symbolTargets as ContextTarget[] | undefined) || []).some(
+            (t) => t.reason === 'symbol_definition',
+          );
+        const hasDiffTargets = (data: Record<string, unknown> | undefined): boolean =>
+          ((data?.diffTargets as ContextTarget[] | undefined) || []).some(
+            (t) => t.reason === 'diff_included',
+          );
+
         return engine
           .phase('Dependencies')
           .requireData(['explicitTargets', 'symbolTargets', 'diffTargets', 'defaultTargets'])
           .phase('Selection')
           .when(
-            (c) =>
-              ((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'explicit_path',
-              ),
+            (c) => hasExplicitSignal(c.data, 'explicitTargets'),
             (p) => {
               p.addAction('SET_TARGETS', {
                 strategy: 'explicit',
@@ -583,13 +616,7 @@ export class TargetResolver {
             },
           )
           .when(
-            (c) =>
-              !((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'explicit_path',
-              ) &&
-              ((c.data?.symbolTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'symbol_definition',
-              ),
+            (c) => !hasExplicitSignal(c.data, 'explicitTargets') && hasSymbolTargets(c.data),
             (p) => {
               p.addAction('SET_TARGETS', {
                 strategy: 'symbol',
@@ -599,15 +626,9 @@ export class TargetResolver {
           )
           .when(
             (c) =>
-              !((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'explicit_path',
-              ) &&
-              !((c.data?.symbolTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'symbol_definition',
-              ) &&
-              ((c.data?.diffTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'diff_included',
-              ),
+              !hasExplicitSignal(c.data, 'explicitTargets') &&
+              !hasSymbolTargets(c.data) &&
+              hasDiffTargets(c.data),
             (p) => {
               p.addAction('SET_TARGETS', {
                 strategy: 'diff',
@@ -617,15 +638,9 @@ export class TargetResolver {
           )
           .unless(
             (c) =>
-              ((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'explicit_path',
-              ) ||
-              ((c.data?.symbolTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'symbol_definition',
-              ) ||
-              ((c.data?.diffTargets as ContextTarget[] | undefined) || []).some(
-                (t) => t.reason === 'diff_included',
-              ),
+              hasExplicitSignal(c.data, 'explicitTargets') ||
+              hasSymbolTargets(c.data) ||
+              hasDiffTargets(c.data),
             (p) => {
               p.addAction('SET_TARGETS', {
                 strategy: 'default',

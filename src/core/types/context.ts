@@ -21,6 +21,7 @@ export interface RelatedFileContext {
 export type ContextTargetReason =
   | 'primary'
   | 'explicit_path'
+  | 'context_file'
   | 'symbol_definition'
   | 'diff_included'
   | 'failed_file'
