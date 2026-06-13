@@ -82,6 +82,7 @@ export interface SmokeReport {
     gitApplyCheck: GateResult;
     behavior: GateResult;
     regression: GateResult;
+    verify: GateResult;
     submission: GateResult;
   };
   quality: {
@@ -246,6 +247,7 @@ export function buildQualitySummary(params: {
   const behaviorVerified =
     params.gates.verifyStrength.status === 'pass' && params.gates.behavior.status === 'pass';
   const regressionVerified = params.gates.regression.status === 'pass';
+  const verifyPassed = params.gates.verify.status === 'pass';
   const submitted = params.gates.submission.status === 'pass';
 
   return {
@@ -260,7 +262,7 @@ export function buildQualitySummary(params: {
       params.flowSuccess &&
       reproductionPrepared &&
       patchApplyable &&
-      behaviorVerified &&
+      (behaviorVerified || verifyPassed) &&
       regressionVerified,
   };
 }
@@ -893,11 +895,12 @@ function unavailablePatchedGate(name: string, gate: GateResult): GateResult {
 export async function runPatchedShellGates(params: {
   behaviorCommand?: string;
   regressionCommand?: string;
+  verifyCommand?: string;
   repoDir: string;
   patchPath: string;
   artifactDir: string;
   timeoutMs: number;
-}): Promise<Pick<SmokeReport['gates'], 'behavior' | 'regression'>> {
+}): Promise<Pick<SmokeReport['gates'], 'behavior' | 'regression' | 'verify'>> {
   const missingBehavior = fail(
     'BEHAVIOR_COMMAND_MISSING',
     'No reproduction behavior command was provided; behavior cannot be verified.',
@@ -906,9 +909,13 @@ export async function runPatchedShellGates(params: {
     'REGRESSION_COMMAND_MISSING',
     'No PASS_TO_PASS regression command was provided.',
   );
+  const missingVerify = skip(
+    'VERIFY_COMMAND_MISSING',
+    'No verify command was provided.',
+  );
 
-  if (!params.behaviorCommand && !params.regressionCommand) {
-    return { behavior: missingBehavior, regression: missingRegression };
+  if (!params.behaviorCommand && !params.regressionCommand && !params.verifyCommand) {
+    return { behavior: missingBehavior, regression: missingRegression, verify: missingVerify };
   }
 
   const patched = await createPatchedWorktree({
@@ -925,6 +932,9 @@ export async function runPatchedShellGates(params: {
       regression: params.regressionCommand
         ? unavailablePatchedGate('regression', patched.gate)
         : missingRegression,
+      verify: params.verifyCommand
+        ? unavailablePatchedGate('verify', patched.gate)
+        : missingVerify,
     };
   }
 
@@ -945,7 +955,15 @@ export async function runPatchedShellGates(params: {
       timeoutMs: params.timeoutMs,
       missing: missingRegression,
     });
-    return { behavior, regression };
+    const verify = await runShellGate({
+      command: params.verifyCommand,
+      repoDir: patched.worktreeDir,
+      artifactDir: params.artifactDir,
+      name: 'verify',
+      timeoutMs: params.timeoutMs,
+      missing: missingVerify,
+    });
+    return { behavior, regression, verify };
   } finally {
     await removePatchedWorktree({
       repoDir: params.repoDir,
@@ -1252,15 +1270,13 @@ async function main(): Promise<void> {
       '--repo',
       repoDir,
       '--instruction',
-      buildInstructionWithHints(String(instance.problem_statement ?? '')),
+      String(instance.problem_statement ?? ''),
       '--output-format',
       'json',
       '--act-mode',
       options.actMode,
       '--checkpoint-strategy',
       options.checkpointStrategy,
-      '--verify',
-      verifyCommand,
       '--export-patch',
       patchPath,
       '--swe-bench-instance-id',
@@ -1293,6 +1309,7 @@ async function main(): Promise<void> {
     const patchedShellGates = await runPatchedShellGates({
       behaviorCommand: mergedOverlay.behaviorCommand,
       regressionCommand: mergedOverlay.regressionCommand,
+      verifyCommand,
       repoDir,
       patchPath,
       artifactDir,
@@ -1304,6 +1321,7 @@ async function main(): Promise<void> {
       verifyStrength: classifyVerifyStrength(verifyCommand),
       ...preSubmit.gates,
       behavior: patchedShellGates.behavior,
+      verify: patchedShellGates.verify,
       regression: patchedShellGates.regression,
       submission: skip('SUBMISSION_NOT_EVALUATED', 'Submission gate is evaluated after local gates.'),
     };

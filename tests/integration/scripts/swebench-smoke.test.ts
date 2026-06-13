@@ -35,6 +35,7 @@ describe('SWE-bench smoke harness semantics', () => {
       gitApplyCheck: { status: 'pass' as const, code: 'x', message: 'x' },
       behavior: { status: 'pass' as const, code: 'x', message: 'x' },
       regression: { status: 'pass' as const, code: 'x', message: 'x' },
+      verify: { status: 'skip' as const, code: 'x', message: 'x' },
       submission: { status: 'skip' as const, code: 'x', message: 'x' },
     };
 
@@ -61,6 +62,7 @@ describe('SWE-bench smoke harness semantics', () => {
       gitApplyCheck: { status: 'pass' as const, code: 'x', message: 'x' },
       behavior: { status: 'pass' as const, code: 'x', message: 'x' },
       regression: { status: 'skip' as const, code: 'x', message: 'x' },
+      verify: { status: 'skip' as const, code: 'x', message: 'x' },
       submission: { status: 'skip' as const, code: 'x', message: 'x' },
     };
 
@@ -219,6 +221,7 @@ describe('SWE-bench smoke harness semantics', () => {
           ...result.gates,
           behavior: { status: 'pass', code: 'x', message: 'x' },
           regression: { status: 'pass', code: 'x', message: 'x' },
+          verify: { status: 'skip', code: 'x', message: 'x' },
           submission: { status: 'skip', code: 'x', message: 'x' },
         },
       }).patchApplyable,
