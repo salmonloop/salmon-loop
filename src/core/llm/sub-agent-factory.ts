@@ -30,6 +30,9 @@ function resolveModelId(alias: string): string {
  */
 export function createSubAgentLlmFactory(baseProvider: ResolvedLlmProvider): SubAgentLlmFactory {
   return (modelAlias: string): LLM | undefined => {
+    // 'inherit' means use the parent LLM — don't create a new instance.
+    if (!modelAlias || modelAlias === 'inherit') return undefined;
+
     const modelId = resolveModelId(modelAlias);
 
     if (baseProvider.type === 'openai-compatible' || baseProvider.type === 'openai') {
