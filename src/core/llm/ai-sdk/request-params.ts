@@ -162,9 +162,7 @@ export function buildAiSdkRequestParams(params: {
     responseFormat: resolveResponseFormat(params.options),
     toolChoice: (params.options.toolChoice === 'none'
       ? 'none'
-      : params.tools
-        ? 'auto'
-        : undefined) as GenerateToolChoice,
+      : params.options.toolChoice ?? (params.tools ? 'auto' : undefined)) as GenerateToolChoice,
     providerOptions: mergeProviderOptions({
       providerOptions: params.options.providerOptions,
       providerHints: params.options.providerHints,

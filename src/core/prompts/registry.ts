@@ -207,7 +207,7 @@ export class PromptRegistry {
   }
 
   renderAutopilotSystem(): string {
-    return this.render('autopilot_system', {});
+    return this.render('autopilot_system', { tools: this.getToolsForTemplate() });
   }
 
   renderAnswerSystem(): string {
