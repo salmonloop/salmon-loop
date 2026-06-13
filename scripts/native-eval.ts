@@ -9,7 +9,7 @@
  */
 
 import { spawn } from 'child_process';
-import { readFile, readdir, mkdir, cp } from 'fs/promises';
+import { readFile, readdir, mkdir, cp, rm } from 'fs/promises';
 import path from 'path';
 
 interface HarborTask {
@@ -80,6 +80,8 @@ async function loadHarborTasks(baseDir: string): Promise<HarborTask[]> {
 }
 
 async function setupWorkspace(task: HarborTask): Promise<void> {
+  // Clean stale workspace to prevent residue from previous runs
+  await rm(task.workspaceDir, { recursive: true, force: true });
   await mkdir(task.workspaceDir, { recursive: true });
 
   // Initialize git repo (required by salmon-loop)
@@ -88,7 +90,11 @@ async function setupWorkspace(task: HarborTask): Promise<void> {
   await execCommand('git', ['config', 'user.name', 'Eval'], { cwd: task.workspaceDir });
 
   // Create initial commit so salmon-loop has a clean base
-  await execCommand('bash', ['-c', 'touch .gitkeep && git add . && git commit -m "init" --allow-empty'], { cwd: task.workspaceDir });
+  await execCommand(
+    'bash',
+    ['-c', 'touch .gitkeep && git add . && git commit -m "init" --allow-empty'],
+    { cwd: task.workspaceDir },
+  );
 
   // Copy salmon-loop config (LLM credentials)
   const configDir = path.join(task.workspaceDir, '.salmonloop', 'config');
@@ -113,6 +119,9 @@ async function setupWorkspace(task: HarborTask): Promise<void> {
   } catch {
     // No environment directory
   }
+
+  // Copy test file into workspace
+  await cp(task.testFile, path.join(task.workspaceDir, 'test_outputs.py'));
 }
 
 function execCommand(
@@ -130,11 +139,17 @@ function execCommand(
 
     let stdout = '';
     let stderr = '';
-    child.stdout?.on('data', (data: Buffer) => { stdout += data.toString(); });
-    child.stderr?.on('data', (data: Buffer) => { stderr += data.toString(); });
+    child.stdout?.on('data', (data: Buffer) => {
+      stdout += data.toString();
+    });
+    child.stderr?.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
 
     const timer = options?.timeoutMs
-      ? setTimeout(() => { child.kill('SIGTERM'); }, options.timeoutMs)
+      ? setTimeout(() => {
+          child.kill('SIGTERM');
+        }, options.timeoutMs)
       : null;
 
     child.on('close', (code: number | null) => {
@@ -162,12 +177,18 @@ async function runSalmonLoop(
     [
       'src/cli/index.ts',
       'run',
-      '--instruction', escapedInstruction,
-      '-r', task.workspaceDir,
-      '--verify', verifyCommand,
-      '--act-mode', 'autopilot',
-      '--config', configPath,
-      '--output-format', 'json',
+      '--instruction',
+      escapedInstruction,
+      '-r',
+      task.workspaceDir,
+      '--verify',
+      verifyCommand,
+      '--act-mode',
+      'autopilot',
+      '--config',
+      configPath,
+      '--output-format',
+      'json',
     ],
     {
       cwd: process.cwd(),
@@ -218,9 +239,18 @@ interface CliArgs {
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = { tasksDir: '', verbose: false };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--tasks' || argv[i] === '-t') { args.tasksDir = argv[++i]; continue; }
-    if (argv[i] === '--filter' || argv[i] === '-f') { args.taskFilter = argv[++i]; continue; }
-    if (argv[i] === '--verbose' || argv[i] === '-v') { args.verbose = true; continue; }
+    if (argv[i] === '--tasks' || argv[i] === '-t') {
+      args.tasksDir = argv[++i];
+      continue;
+    }
+    if (argv[i] === '--filter' || argv[i] === '-f') {
+      args.taskFilter = argv[++i];
+      continue;
+    }
+    if (argv[i] === '--verbose' || argv[i] === '-v') {
+      args.verbose = true;
+      continue;
+    }
   }
   if (!args.tasksDir) {
     console.error('Usage: npx tsx scripts/native-eval.ts --tasks <path> [--verbose]');

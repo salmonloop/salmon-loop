@@ -49,6 +49,31 @@
       "id": "text-justifier",
       "file": "eval-tasks/text-justifier/task.json",
       "instruction": "Write a Python file `justifier.py` in the current directory. Define `justify(text: str, width: int) -> str` that takes a paragraph and returns it with each line (except the last) justified to exactly `width` characters by distributing extra spaces between words. Last line should be left-justified. Words should not be broken."
+    },
+    {
+      "id": "priority-queue",
+      "file": "eval-tasks/priority-queue/task.json",
+      "instruction": "Write a Python file `priority_queue.py` in the current directory. Implement a thread-safe priority queue using `heapq` and `threading`. Define class `PriorityQueue` with:\n- `__init__(self, mode='max')` — 'max' returns highest priority first, 'min' returns lowest\n- `put(self, item, priority)` — O(log n) insertion\n- `get(self, timeout=None) -> item` — blocks if empty, raises exception on timeout expiry\n- `peek(self) -> item` — returns next item without removing\n- `__len__(self) -> int`\nAll operations must be thread-safe using locks. Use `threading.Condition` for blocking get."
+    },
+    {
+      "id": "connection-pool",
+      "file": "eval-tasks/connection-pool/task.json",
+      "instruction": "Write a Python file `connection_pool.py` in the current directory. Implement a generic connection pool. Define class `ConnectionPool` with:\n- `__init__(self, factory, max_size, min_size=0, max_idle_time=None, health_check=None)` — factory is a callable that creates connections, health_check is an optional callable(conn)->bool\n- `acquire(self, timeout=None) -> context manager` — returns a connection; blocks if pool is full until timeout\n- `release(self, conn)` — returns connection to pool; closes it if idle time exceeded\n- `close(self)` — closes all connections and prevents further acquire\nThread-safe. Use `threading.Condition` for waiting. Support context manager protocol on acquired connections."
+    },
+    {
+      "id": "trie-autocomplete",
+      "file": "eval-tasks/trie-autocomplete/task.json",
+      "instruction": "Write a Python file `trie.py` in the current directory. Implement a trie-based autocomplete engine. Define class `Trie` with:\n- `insert(self, word, weight)` — insert word with numeric weight\n- `search(self, prefix) -> list[str]` — return all words matching prefix, sorted by weight descending\n- `delete(self, word) -> bool` — remove word, return True if existed\n- `autocomplete(self, prefix, k) -> list[str]` — top-k matches by weight\n- `bulk_insert(self, words)` — words is list of (word, weight) tuples\n- `save(self, path)` — serialize to JSON file\n- `@staticmethod load(path) -> Trie` — deserialize from JSON file\nMust handle 100k words efficiently (bulk_insert < 3s)."
+    },
+    {
+      "id": "expr-eval",
+      "file": "eval-tasks/expr-eval/task.json",
+      "instruction": "Write a Python file `expr_eval.py` in the current directory. Implement a recursive-descent expression parser and evaluator. Define:\n- `parse(expr: str) -> AST` — parse into AST node objects\n- `evaluate(expr: str, context=None) -> float` — parse and evaluate\nSupport: `+`, `-`, `*`, `/`, `%`, `**` (right-associative), parentheses, unary negation, variables via context dict, function calls (`abs`, `min`, `max`, `sqrt` as builtins). Raise `SyntaxError` for bad syntax, `ZeroDivisionError` for division by zero, `NameError` for undefined variables."
+    },
+    {
+      "id": "task-scheduler",
+      "file": "eval-tasks/task-scheduler/task.json",
+      "instruction": "Write a Python file `task_scheduler.py` in the current directory. Implement a DAG-based task scheduler with concurrent execution. Define class `TaskScheduler` with:\n- `add_task(self, task_id, fn, deps=None)` — fn is a callable, deps is list of task_id strings\n- `run(self) -> dict[str, dict]` — execute all tasks respecting dependencies, return {task_id: {'status': 'ok'|'error', 'value': ..., 'error': ...}}\nUse `concurrent.futures.ThreadPoolExecutor` — independent tasks must run in parallel. Detect circular dependencies and raise `ValueError`. On task failure, mark all downstream dependents as error without executing them."
     }
   ]
 }
