@@ -15,7 +15,7 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     maxAttempts: 3,
     timeoutMs: 60_000,
     maxTurns: 20,
-    model: 'haiku',
+    model: 'inherit',
   },
   {
     id: 'surgeon',
@@ -45,7 +45,7 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     maxAttempts: 2,
     timeoutMs: 60_000,
     maxTurns: 15,
-    model: 'haiku',
+    model: 'inherit',
   },
   {
     id: 'cleaner',
