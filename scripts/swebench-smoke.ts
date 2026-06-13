@@ -723,37 +723,18 @@ function isLikelyFilePath(p: string): boolean {
 }
 
 /**
- * Build an enhanced instruction with file path localization hints and
- * SWE-bench context (FAIL_TO_PASS tests, hints_text).
+ * Build an enhanced instruction with file path localization hints.
+ * Extracts file paths from the problem statement and prepends them
+ * so the agent knows which files to focus on.
  */
-export function buildInstructionWithHints(problemStatement: string, instance?: SweBenchInstance): string {
-  const parts: string[] = [];
-
-  // File path hints from the problem statement
+export function buildInstructionWithHints(problemStatement: string): string {
   const filePaths = extractFilePathsFromText(problemStatement);
-  if (filePaths.length > 0) {
-    const hints = filePaths.slice(0, 10);
-    parts.push(`Files mentioned in the problem statement (prioritize these):\n${hints.map((f) => `- ${f}`).join('\n')}`);
-  }
+  if (filePaths.length === 0) return problemStatement;
 
-  // FAIL_TO_PASS test IDs — the agent must make these pass
-  if (instance?.FAIL_TO_PASS) {
-    try {
-      const testIds = JSON.parse(instance.FAIL_TO_PASS);
-      if (Array.isArray(testIds) && testIds.length > 0) {
-        parts.push(`Tests that MUST pass after your fix (FAIL_TO_PASS):\n${testIds.map((t: string) => `- ${t}`).join('\n')}`);
-      }
-    } catch { /* ignore parse errors */ }
-  }
+  const hints = filePaths.slice(0, 10);
+  const hintBlock = `Files mentioned in the problem statement (prioritize these):\n${hints.map((f) => `- ${f}`).join('\n')}`;
 
-  // hints_text from the dataset
-  if (instance?.hints_text && instance.hints_text !== 'N/A') {
-    parts.push(`Dataset hints:\n${instance.hints_text}`);
-  }
-
-  parts.push(problemStatement);
-
-  return parts.join('\n\n');
+  return `${hintBlock}\n\n${problemStatement}`;
 }
 
 export async function applyOverlayAndCommit(params: {
@@ -1271,7 +1252,7 @@ async function main(): Promise<void> {
       '--repo',
       repoDir,
       '--instruction',
-      buildInstructionWithHints(String(instance.problem_statement ?? ''), instance),
+      buildInstructionWithHints(String(instance.problem_statement ?? '')),
       '--output-format',
       'json',
       '--act-mode',
