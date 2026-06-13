@@ -14,7 +14,6 @@ import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import type { Context } from '../../types/context.js';
 import type { LLM } from '../../types/index.js';
 import { Phase } from '../../types/runtime.js';
-import { classifyError, isRetryable } from '../../verification/runner.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import type { AutopilotCtx, PreflightCtx } from '../engine/pipeline/types.js';
 
@@ -509,81 +508,49 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
     }
   }
 
-  const maxRetries = LIMITS.maxRetries;
-  let retryCount = 0;
   let assistant: { content?: string } | null = null;
   let content = '';
-  let messages = shared.baseMessages;
+  const messages = shared.baseMessages;
 
-  while (retryCount <= maxRetries) {
-    assistant = supportsTools
-      ? await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
-          messages,
-          {
-            phase: AUTOPILOT_TOOL_PHASE,
-            providerHints: shared.envelope.providerHints,
-            temperature: 0.2,
-            signal: ctx.options.signal,
-          },
-          {
-            phase: AUTOPILOT_TOOL_PHASE,
-            llm: llmClient,
-            runtime: buildPhaseToolRuntimeContext(ctx, AUTOPILOT_TOOL_PHASE, shared.cacheSurface),
-            toolVisibility,
-            toolstack: ctx.toolstack!,
-            eventPayload: ctx.options.eventPayload,
-            toolCallingAudit: {
-              event: (entry) => {
-                localAudit.push(entry);
-              },
-            },
-            maxRounds: toolPolicy.maxRounds,
-            llmOutput: {
-              policy: ctx.options.llmOutput,
-              kind: 'assistant_message',
-              step: 'REPORT',
-            },
-            emit: (event) => ctx.emit({ ...event, timestamp: event.timestamp ?? new Date() }),
-          },
-        )
-      : await llmClient.chat(messages, {
-          phase: 'AUTOPILOT',
+  assistant = supportsTools
+    ? await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
+        messages,
+        {
+          phase: AUTOPILOT_TOOL_PHASE,
           providerHints: shared.envelope.providerHints,
           temperature: 0.2,
           signal: ctx.options.signal,
-          tools: [],
-          toolChoice: 'none',
-        });
-    content = String(assistant?.content ?? '').trim();
-
-    // Check for retryable tool_failure
-    const completion = resolveAutopilotCompletion({ content, mutated: false, localAudit });
-    if (completion.status !== 'tool_failure' || !completion.reason || retryCount >= maxRetries) {
-      break;
-    }
-
-    // Check if the error is retryable
-    const errorType = classifyError(completion.reason);
-    if (!isRetryable(errorType)) {
-      getLogger().debug(`[Autopilot] Non-retryable tool failure (${errorType}), not retrying.`);
-      break;
-    }
-
-    retryCount++;
-    getLogger().debug(
-      `[Autopilot] Retryable tool failure (${errorType}), retry ${retryCount}/${maxRetries}.`,
-    );
-
-    // Inject failure context as user message for retry
-    messages = [
-      ...messages,
-      { role: 'assistant' as const, content },
-      {
-        role: 'user' as const,
-        content: `The previous attempt failed: ${completion.reason}\n\nPlease try again with a different approach.`,
-      },
-    ];
-  }
+        },
+        {
+          phase: AUTOPILOT_TOOL_PHASE,
+          llm: llmClient,
+          runtime: buildPhaseToolRuntimeContext(ctx, AUTOPILOT_TOOL_PHASE, shared.cacheSurface),
+          toolVisibility,
+          toolstack: ctx.toolstack!,
+          eventPayload: ctx.options.eventPayload,
+          toolCallingAudit: {
+            event: (entry) => {
+              localAudit.push(entry);
+            },
+          },
+          maxRounds: toolPolicy.maxRounds,
+          llmOutput: {
+            policy: ctx.options.llmOutput,
+            kind: 'assistant_message',
+            step: 'REPORT',
+          },
+          emit: (event) => ctx.emit({ ...event, timestamp: event.timestamp ?? new Date() }),
+        },
+      )
+    : await llmClient.chat(messages, {
+        phase: 'AUTOPILOT',
+        providerHints: shared.envelope.providerHints,
+        temperature: 0.2,
+        signal: ctx.options.signal,
+        tools: [],
+        toolChoice: 'none',
+      });
+  content = String(assistant?.content ?? '').trim();
 
   if (!supportsTools) {
     emitLlmOutput({
@@ -677,16 +644,6 @@ export async function runAutopilotVerifyGate(ctx: AutopilotCtx): Promise<Autopil
     verify: ctx.options.verify,
     signal: ctx.options.signal,
   });
-
-  // If verify failed and error is retryable, record for potential parent-level retry
-  if (!verifyResult.ok && verifyResult.output) {
-    const errorType = classifyError(verifyResult.output);
-    if (isRetryable(errorType)) {
-      getLogger().debug(
-        `[Autopilot] Verify failed with retryable error (${errorType}): ${verifyResult.output.slice(0, 200)}`,
-      );
-    }
-  }
 
   const nextCtx: AutopilotCtx = {
     ...ctx,

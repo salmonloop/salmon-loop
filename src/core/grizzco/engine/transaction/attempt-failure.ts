@@ -112,6 +112,10 @@ export function resolveAttemptFailure(params: {
 }): AttemptFailureDetails | undefined {
   const { flowReport, context, flowMode } = params;
   const profile = resolveExecutionProfile(flowMode);
+
+  // Autopilot is one-shot: never retry at the transaction-runner level.
+  const finalize = (failure: AttemptFailureDetails): AttemptFailureDetails =>
+    flowMode === 'autopilot' ? { ...failure, retryable: false } : failure;
   const effectiveVerifyPolicy = params.verifyPolicy ?? profile.verifyPolicy;
   const interrupt = extractInterrupt(flowReport.error);
   const interruptCode = extractErrorCode(flowReport.error);
@@ -183,7 +187,7 @@ export function resolveAttemptFailure(params: {
       environmentMode,
       fallbackReason,
     });
-    return {
+    return finalize({
       reason: guidance.safeHint,
       reasonCode: 'VERIFY_FAILED',
       failurePhase: 'VERIFY',
@@ -192,7 +196,7 @@ export function resolveAttemptFailure(params: {
       diagnosticCode: guidance.diagnosticCode,
       safeHint: guidance.safeHint,
       remediationSteps: guidance.remediationSteps,
-    };
+    });
   }
 
   if (flowMode === 'autopilot' && autopilotCompletion) {
@@ -224,7 +228,7 @@ export function resolveAttemptFailure(params: {
       environmentMode,
       fallbackReason,
     });
-    return {
+    return finalize({
       reason: guidance.safeHint,
       reasonCode,
       failurePhase,
@@ -234,7 +238,7 @@ export function resolveAttemptFailure(params: {
       diagnosticCode: guidance.diagnosticCode,
       safeHint: guidance.safeHint,
       remediationSteps: guidance.remediationSteps,
-    };
+    });
   }
 
   if (errorCode === 'PREFLIGHT_NOT_GIT') {
@@ -329,7 +333,7 @@ export function resolveAttemptFailure(params: {
       environmentMode,
       fallbackReason,
     });
-    return {
+    return finalize({
       reason: guidance.safeHint,
       reasonCode: 'TOOL_CORRECTION_REQUIRED',
       failurePhase,
@@ -338,7 +342,7 @@ export function resolveAttemptFailure(params: {
       diagnosticCode: guidance.diagnosticCode,
       safeHint: guidance.safeHint,
       remediationSteps: guidance.remediationSteps,
-    };
+    });
   }
 
   const guidance = buildFailureGuidance({
@@ -364,7 +368,7 @@ export function resolveAttemptFailure(params: {
     };
   }
 
-  return {
+  return finalize({
     reason: guidance.safeHint,
     reasonCode: 'LOOP_FAILED',
     failurePhase,
@@ -373,5 +377,5 @@ export function resolveAttemptFailure(params: {
     diagnosticCode: guidance.diagnosticCode,
     safeHint: guidance.safeHint,
     remediationSteps: guidance.remediationSteps,
-  };
+  });
 }

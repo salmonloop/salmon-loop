@@ -75,7 +75,7 @@ describe('resolveAttemptFailure diagnostics', () => {
     expect((failure as any)?.inputRequired).toEqual(inputRequired);
   });
 
-  it('classifies recoverable tool input failures as correction-needed retryable failures', () => {
+  it('classifies recoverable tool input failures as correction-needed failures', () => {
     const failure = resolveAttemptFailure({
       flowReport: {
         success: false,
@@ -105,7 +105,7 @@ describe('resolveAttemptFailure diagnostics', () => {
     expect(failure).toBeTruthy();
     expect(failure?.failurePhase).toBe('PATCH');
     expect(failure?.errorCode).toBe('INVALID_INPUT');
-    expect(failure?.retryable).toBe(true);
+    expect(failure?.retryable).toBe(false);
     expect(failure?.reasonCode).not.toBe('LOOP_FAILED');
     expect(failure?.diagnosticCode).not.toBe(failure?.reasonCode);
     expect(failure?.safeHint).toBeTruthy();
@@ -140,7 +140,7 @@ describe('resolveAttemptFailure diagnostics', () => {
     expect(failure?.reasonCode).toBe('TOOL_CORRECTION_REQUIRED');
     expect(failure?.failurePhase).toBe('AUTOPILOT');
     expect(failure?.errorCode).toBe('INVALID_INPUT');
-    expect(failure?.retryable).toBe(true);
+    expect(failure?.retryable).toBe(false);
   });
 
   it('requires verification when autopilot changed the workspace', () => {
