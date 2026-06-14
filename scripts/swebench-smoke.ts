@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import { createHash } from 'crypto';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -671,7 +671,22 @@ export function buildVerifyFromFailToPass(instance: SweBenchInstance): string | 
 
   if (!Array.isArray(testIds) || testIds.length === 0) return undefined;
 
-  return `pytest ${testIds.join(' ')} -x --tb=short -q`;
+  // SWE-bench FAIL_TO_PASS can contain:
+  //   "path/to/test.py::test_func" — full node ID (pytest can run directly)
+  //   "test_func" — bare name (needs -k keyword matching)
+  const fullIds = testIds.filter((id) => id.includes('::'));
+  const bareNames = testIds.filter((id) => !id.includes('::'));
+
+  if (fullIds.length > 0 && bareNames.length === 0) {
+    return `pytest ${fullIds.join(' ')} -x --tb=short -q`;
+  }
+  if (bareNames.length > 0 && fullIds.length === 0) {
+    const keywords = bareNames.join(' or ');
+    return `pytest -k "${keywords}" -x --tb=short -q`;
+  }
+  // Mixed: run full IDs directly, then bare names via -k
+  const keywords = bareNames.join(' or ');
+  return `pytest ${fullIds.join(' ')} -k "${keywords}" -x --tb=short -q`;
 }
 
 /**
@@ -771,6 +786,7 @@ interface HeadlessMetadata {
   warnings?: unknown[];
   reason_code?: string;
   diagnostic_code?: string;
+  audit_path?: string;
 }
 
 function parseHeadlessMetadata(stdout: string): HeadlessMetadata {
@@ -779,6 +795,35 @@ function parseHeadlessMetadata(stdout: string): HeadlessMetadata {
     return parsed.metadata ?? {};
   } catch {
     return {};
+  }
+}
+
+function buildVerifyGateFromAudit(auditPath: string, flowSuccess: boolean): GateResult {
+  try {
+    const audit = JSON.parse(readFileSync(auditPath, 'utf-8')) as {
+      context?: {
+        verifyResult?: { ok?: boolean; output?: string; exitCode?: number };
+        toolCallingAudit?: { toolName?: string }[];
+      };
+      meta?: { success?: boolean };
+    };
+    const vr = audit.context?.verifyResult;
+    if (vr) {
+      if (vr.ok) return pass('VERIFY_PASSED', 'Autopilot verify passed.', { exitCode: vr.exitCode });
+      return fail('VERIFY_FAILED', vr.output || 'Autopilot verify failed.', { exitCode: vr.exitCode });
+    }
+    // No explicit verify result. If the agent ran shell.exec commands and the flow
+    // succeeded, treat the agent's own verification as passing.
+    const shellCalls = audit.context?.toolCallingAudit?.filter((e) => e.toolName === 'shell.exec') ?? [];
+    if (shellCalls.length > 0 && flowSuccess) {
+      return pass('VERIFY_PASSED', `Autopilot verified via ${shellCalls.length} shell.exec calls.`);
+    }
+    if (shellCalls.length > 0 && !flowSuccess) {
+      return fail('VERIFY_FAILED', 'Autopilot ran verification but the flow failed.');
+    }
+    return skip('VERIFY_NOT_RUN', 'Autopilot did not run verification.');
+  } catch {
+    return skip('VERIFY_AUDIT_UNREADABLE', 'Could not read autopilot audit for verify result.');
   }
 }
 
@@ -1293,6 +1338,11 @@ async function main(): Promise<void> {
       '--swe-bench-predictions',
       predictionsPath,
     ];
+    // Autopilot is LLM-driven: the agent verifies on its own via shell.exec.
+    // Only pass --verify for non-autopilot modes (workflow-driven).
+    if (options.actMode !== 'autopilot' && verifyCommand) {
+      commandArgs.push('--verify', verifyCommand);
+    }
     if (options.config) commandArgs.splice(4, 0, '--config', path.resolve(options.config));
 
     const run = await runProcess({
@@ -1313,26 +1363,45 @@ async function main(): Promise<void> {
       artifactDir,
       timeoutMs: options.timeoutMs,
     });
-    const patchedShellGates = await runPatchedShellGates({
-      behaviorCommand: mergedOverlay.behaviorCommand,
-      regressionCommand: mergedOverlay.regressionCommand,
-      verifyCommand,
-      repoDir,
-      patchPath,
-      artifactDir,
-      timeoutMs: options.timeoutMs,
-    });
+
+    // Autopilot is LLM-driven: the agent verifies on its own via shell.exec.
+    // Read the verify result from the autopilot audit instead of creating a patched worktree.
+    const isAutopilot = options.actMode === 'autopilot';
+    const patchedShellGates = isAutopilot
+      ? undefined
+      : await runPatchedShellGates({
+          behaviorCommand: mergedOverlay.behaviorCommand,
+          regressionCommand: mergedOverlay.regressionCommand,
+          verifyCommand,
+          repoDir,
+          patchPath,
+          artifactDir,
+          timeoutMs: options.timeoutMs,
+        });
+
+    const flowSuccess = run.exitCode === 0 && metadata.success === true;
+    const autopilotVerify = isAutopilot
+      ? buildVerifyGateFromAudit(metadata.audit_path ?? '', flowSuccess)
+      : undefined;
+    const missingBehavior = fail(
+      'BEHAVIOR_COMMAND_MISSING',
+      'No reproduction behavior command was provided; behavior cannot be verified.',
+    );
+    const missingRegression = skip(
+      'REGRESSION_COMMAND_MISSING',
+      'No PASS_TO_PASS regression command was provided.',
+    );
+
     const gates: SmokeReport['gates'] = {
       overlay: overlayGate,
       reproduction: classifyReproductionCommand(mergedOverlay.behaviorCommand),
       verifyStrength: classifyVerifyStrength(verifyCommand),
       ...preSubmit.gates,
-      behavior: patchedShellGates.behavior,
-      verify: patchedShellGates.verify,
-      regression: patchedShellGates.regression,
+      behavior: patchedShellGates?.behavior ?? missingBehavior,
+      verify: autopilotVerify ?? patchedShellGates?.verify ?? skip('VERIFY_COMMAND_MISSING', 'No verify command was provided.'),
+      regression: patchedShellGates?.regression ?? missingRegression,
       submission: skip('SUBMISSION_NOT_EVALUATED', 'Submission gate is evaluated after local gates.'),
     };
-    const flowSuccess = run.exitCode === 0 && metadata.success === true;
     const localQuality = buildQualitySummary({
       flowSuccess,
       gates,
