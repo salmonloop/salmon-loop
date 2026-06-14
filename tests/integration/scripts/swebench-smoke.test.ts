@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import {
   applyOverlayAndCommit,
   buildQualitySummary,
+  buildVerifyFromFailToPass,
   buildVerifyGateFromAudit,
   classifyVerifyStrength,
   deriveSmokeKind,
@@ -300,5 +301,50 @@ describe('buildVerifyGateFromAudit', () => {
     const result = buildVerifyGateFromAudit('/nonexistent/audit.json', true);
     expect(result.status).toBe('skip');
     expect(result.code).toBe('VERIFY_AUDIT_UNREADABLE');
+  });
+});
+
+describe('buildVerifyFromFailToPass', () => {
+  it('handles standard pytest node IDs', () => {
+    const result = buildVerifyFromFailToPass({
+      FAIL_TO_PASS: JSON.stringify([
+        'sklearn/linear_model/tests/test_ridge.py::test_ridge_classifier_cv_store_cv_values',
+      ]),
+    } as any);
+    expect(result).toBe(
+      'pytest sklearn/linear_model/tests/test_ridge.py::test_ridge_classifier_cv_store_cv_values -x --tb=short -q',
+    );
+  });
+
+  it('handles bare test names with -k', () => {
+    const result = buildVerifyFromFailToPass({
+      FAIL_TO_PASS: JSON.stringify(['test_issue_11617']),
+    } as any);
+    expect(result).toBe('pytest -k "test_issue_11617" -x --tb=short -q');
+  });
+
+  it('strips parenthetical suffixes from test names', () => {
+    const result = buildVerifyFromFailToPass({
+      FAIL_TO_PASS: JSON.stringify([
+        'test_ascii_validator (auth_tests.test_validators.UsernameValidatorsTests)',
+        'test_unicode_validator (auth_tests.test_validators.UsernameValidatorsTests)',
+      ]),
+    } as any);
+    expect(result).toBe(
+      'pytest -k "test_ascii_validator or test_unicode_validator" -x --tb=short -q',
+    );
+  });
+
+  it('filters out descriptive text entries with spaces', () => {
+    const result = buildVerifyFromFailToPass({
+      FAIL_TO_PASS: JSON.stringify(['test_foo', 'Named URLs should be reversible', 'test_bar']),
+    } as any);
+    expect(result).toBe('pytest -k "test_foo or test_bar" -x --tb=short -q');
+  });
+
+  it('returns undefined for empty or unparseable input', () => {
+    expect(buildVerifyFromFailToPass({ FAIL_TO_PASS: '[]' } as any)).toBeUndefined();
+    expect(buildVerifyFromFailToPass({ FAIL_TO_PASS: 'not json' } as any)).toBeUndefined();
+    expect(buildVerifyFromFailToPass({} as any)).toBeUndefined();
   });
 });

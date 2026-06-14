@@ -658,7 +658,7 @@ async function installDependencies(params: {
  * Build a pytest verify command from the FAIL_TO_PASS test IDs.
  * Returns a command like: pytest tests/test_foo.py::test_bar tests/test_baz.py::test_qux -x --tb=short
  */
-function buildVerifyFromFailToPass(instance: SweBenchInstance): string | undefined {
+export function buildVerifyFromFailToPass(instance: SweBenchInstance): string | undefined {
   const raw = instance.FAIL_TO_PASS;
   if (!raw) return undefined;
 
@@ -671,11 +671,17 @@ function buildVerifyFromFailToPass(instance: SweBenchInstance): string | undefin
 
   if (!Array.isArray(testIds) || testIds.length === 0) return undefined;
 
-  // SWE-bench FAIL_TO_PASS can contain:
-  //   "path/to/test.py::test_func" — full node ID (pytest can run directly)
-  //   "test_func" — bare name (needs -k keyword matching)
-  const fullIds = testIds.filter((id) => id.includes('::'));
-  const bareNames = testIds.filter((id) => !id.includes('::'));
+  // Normalize SWE-bench FAIL_TO_PASS entries:
+  //   "path/test.py::test_func"           — full node ID → pass directly
+  //   "test_func"                          — bare name → -k keyword
+  //   "test_func (module.Class)"           — strip parenthetical → bare name
+  //   "Named URLs should be reversible"    — descriptive text → skip
+  const normalized = testIds
+    .map((id) => id.replace(/\s*\(.*\)\s*$/, '').trim())
+    .filter((id) => id.length > 0 && !id.includes(' '));
+
+  const fullIds = normalized.filter((id) => id.includes('::'));
+  const bareNames = normalized.filter((id) => !id.includes('::'));
 
   if (fullIds.length > 0 && bareNames.length === 0) {
     return `pytest ${fullIds.join(' ')} -x --tb=short -q`;
@@ -684,9 +690,11 @@ function buildVerifyFromFailToPass(instance: SweBenchInstance): string | undefin
     const keywords = bareNames.join(' or ');
     return `pytest -k "${keywords}" -x --tb=short -q`;
   }
-  // Mixed: run full IDs directly, then bare names via -k
-  const keywords = bareNames.join(' or ');
-  return `pytest ${fullIds.join(' ')} -k "${keywords}" -x --tb=short -q`;
+  if (fullIds.length > 0 && bareNames.length > 0) {
+    const keywords = bareNames.join(' or ');
+    return `pytest ${fullIds.join(' ')} -k "${keywords}" -x --tb=short -q`;
+  }
+  return undefined;
 }
 
 /**
