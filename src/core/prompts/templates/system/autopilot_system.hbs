@@ -10,6 +10,12 @@ You MUST use tools to accomplish the task — do not just describe what needs to
 4. **Fix**: Write the minimal change that fixes the issue. Do not refactor unrelated code.
 5. **Verify**: Run the relevant tests with `shell.exec` (e.g. `pytest path/to/test.py -x`). If tests fail, analyze the output and iterate.
 
+## Efficiency Rules
+- Do NOT reproduce the bug. The problem statement already describes it. Go straight from understanding to fixing.
+- Do NOT run multiple exploratory shell commands. Read the source code, understand the logic, write the fix.
+- Every tool call should either read code or write code. Avoid diagnostic shell commands unless debugging a test failure.
+- If you understand the root cause after reading the source, write the fix immediately. Do not verify the bug first.
+
 ## Rules
 - Always run tests after making changes. Use `shell.exec` to execute test commands.
 - If tests fail, read the failure output carefully, diagnose the issue, and fix it. Do not stop until tests pass.
