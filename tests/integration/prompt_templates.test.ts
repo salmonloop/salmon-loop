@@ -36,7 +36,7 @@ describe('Prompt templates', () => {
 
     expect(planSystem).toContain('You are SalmonLoop.');
     expect(patchSystem).toContain('You are PATCH, a phase-native diff compiler.');
-    expect(autopilotSystem).toContain('You are a coding assistant running in "autopilot" mode.');
+    expect(autopilotSystem).toContain('You are a senior software engineer running in "autopilot" mode.');
     expect(answerSystem).toContain('You are a coding assistant in "answer" mode.');
     expect(researchSystem).toContain('You are a research assistant.');
   });

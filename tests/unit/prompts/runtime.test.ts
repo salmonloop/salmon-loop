@@ -204,7 +204,7 @@ describe('prompt runtime', () => {
     const researchUser = await getResearchPrompt('repo context', 'investigate a bug');
     const reviewUser = await getReviewPrompt('{"files":["src/index.ts"]}');
 
-    expect(autopilot).toContain('You are a coding assistant running in "autopilot" mode.');
+    expect(autopilot).toContain('You are a senior software engineer running in "autopilot" mode.');
     expect(autopilot).toContain('Treat simple repo-relative paths like "smoke.txt"');
     expect(answer).toContain('You are a coding assistant in "answer" mode.');
     expect(researchSystem).toContain('You are a research assistant.');
