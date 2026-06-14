@@ -1,4 +1,6 @@
+import { writeFileSync, mkdtempSync } from 'fs';
 import { readFile, rm } from 'fs/promises';
+import { tmpdir } from 'os';
 import path from 'path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -6,6 +8,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import {
   applyOverlayAndCommit,
   buildQualitySummary,
+  buildVerifyGateFromAudit,
   classifyVerifyStrength,
   deriveSmokeKind,
   resolveSmokeExitCode,
@@ -226,5 +229,76 @@ describe('SWE-bench smoke harness semantics', () => {
         },
       }).patchApplyable,
     ).toBe(false);
+  });
+});
+
+describe('buildVerifyGateFromAudit', () => {
+  function writeAudit(data: unknown): string {
+    const dir = mkdtempSync(path.join(tmpdir(), 'audit-test-'));
+    const auditPath = path.join(dir, 'audit.json');
+    writeFileSync(auditPath, JSON.stringify(data));
+    tempDirs.push(dir);
+    return auditPath;
+  }
+
+  it('returns VERIFY_PASSED when audit has verifyResult.ok=true', () => {
+    const auditPath = writeAudit({
+      context: { verifyResult: { ok: true, exitCode: 0 } },
+    });
+    const result = buildVerifyGateFromAudit(auditPath, false);
+    expect(result.status).toBe('pass');
+    expect(result.code).toBe('VERIFY_PASSED');
+  });
+
+  it('returns VERIFY_FAILED when audit has verifyResult.ok=false', () => {
+    const auditPath = writeAudit({
+      context: { verifyResult: { ok: false, output: 'test failed', exitCode: 1 } },
+    });
+    const result = buildVerifyGateFromAudit(auditPath, false);
+    expect(result.status).toBe('fail');
+    expect(result.code).toBe('VERIFY_FAILED');
+    expect(result.message).toBe('test failed');
+  });
+
+  it('infers VERIFY_PASSED from shell.exec calls when flow succeeded', () => {
+    const auditPath = writeAudit({
+      context: {
+        toolCallingAudit: [
+          { toolName: 'shell.exec' },
+          { toolName: 'shell.exec' },
+          { toolName: 'code.patch' },
+        ],
+      },
+    });
+    const result = buildVerifyGateFromAudit(auditPath, true);
+    expect(result.status).toBe('pass');
+    expect(result.code).toBe('VERIFY_PASSED');
+    expect(result.message).toContain('2 shell.exec');
+  });
+
+  it('returns VERIFY_FAILED when shell.exec calls present but flow failed', () => {
+    const auditPath = writeAudit({
+      context: {
+        toolCallingAudit: [{ toolName: 'shell.exec' }],
+      },
+    });
+    const result = buildVerifyGateFromAudit(auditPath, false);
+    expect(result.status).toBe('fail');
+    expect(result.code).toBe('VERIFY_FAILED');
+  });
+
+  it('returns VERIFY_NOT_RUN when no shell.exec and no verifyResult', () => {
+    const auditPath = writeAudit({
+      context: { toolCallingAudit: [{ toolName: 'code.patch' }] },
+    });
+    const result = buildVerifyGateFromAudit(auditPath, true);
+    expect(result.status).toBe('skip');
+    expect(result.code).toBe('VERIFY_NOT_RUN');
+  });
+
+  it('returns VERIFY_AUDIT_UNREADABLE for missing file', () => {
+    const result = buildVerifyGateFromAudit('/nonexistent/audit.json', true);
+    expect(result.status).toBe('skip');
+    expect(result.code).toBe('VERIFY_AUDIT_UNREADABLE');
   });
 });

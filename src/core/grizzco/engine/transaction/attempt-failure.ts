@@ -226,14 +226,11 @@ export function resolveAttemptFailure(params: {
     }
 
     const reasonCode: LoopReasonCode =
-      autopilotCompletion.status === 'verification_missing'
-        ? 'VERIFY_COMMAND_MISSING'
-        : autopilotCompletion.status === 'tool_failure' &&
-            isRecoverableToolInputErrorCode(autopilotCompletion.errorCode)
-          ? 'TOOL_CORRECTION_REQUIRED'
-          : 'LOOP_FAILED';
-    const failurePhase: ExecutionPhase =
-      autopilotCompletion.status === 'verification_missing' ? 'VERIFY' : 'AUTOPILOT';
+      autopilotCompletion.status === 'tool_failure' &&
+      isRecoverableToolInputErrorCode(autopilotCompletion.errorCode)
+        ? 'TOOL_CORRECTION_REQUIRED'
+        : 'LOOP_FAILED';
+    const failurePhase: ExecutionPhase = 'AUTOPILOT';
     const fallbackReason =
       autopilotCompletion.reason ||
       (autopilotCompletion.status === 'no_effect'

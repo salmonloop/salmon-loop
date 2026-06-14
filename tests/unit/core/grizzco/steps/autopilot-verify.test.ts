@@ -68,4 +68,29 @@ describe('runAutopilotVerifyGate', () => {
     expect(result.completion).toBeUndefined();
     expect(verificationRunner.runVerify).not.toHaveBeenCalled();
   });
+
+  it('returns ok=true when verify passes', async () => {
+    (verificationRunner.runVerify as ReturnType<typeof mock>).mockResolvedValue({
+      ok: true,
+      output: 'all tests passed',
+      exitCode: 0,
+    });
+
+    const { runAutopilotVerifyGate } =
+      await import('../../../../../src/core/grizzco/steps/autopilot.js');
+
+    const result = await runAutopilotVerifyGate({
+      mutated: true,
+      options: { verify: 'bun test', signal: undefined },
+      workspace: { workPath: '/repo', baseRepoPath: '/repo', strategy: 'direct' },
+      emit: () => {},
+    } as any);
+
+    expect(result.verifyResult).toEqual(
+      expect.objectContaining({
+        ok: true,
+        output: 'all tests passed',
+      }),
+    );
+  });
 });

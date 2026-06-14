@@ -587,7 +587,7 @@ async function checkoutInstanceRepo(params: {
  * exist in the repo before the agent runs. This is critical because the agent
  * needs to see the actual test failures to understand what to fix.
  */
-export async function applyTestPatch(params: {
+async function applyTestPatch(params: {
   instance: SweBenchInstance;
   repoDir: string;
   timeoutMs: number;
@@ -627,7 +627,7 @@ export async function applyTestPatch(params: {
  * Install project dependencies using the install command from the SWE-bench instance.
  * This ensures the project is in a runnable state before the agent attempts to verify.
  */
-export async function installDependencies(params: {
+async function installDependencies(params: {
   instance: SweBenchInstance;
   repoDir: string;
   timeoutMs: number;
@@ -658,7 +658,7 @@ export async function installDependencies(params: {
  * Build a pytest verify command from the FAIL_TO_PASS test IDs.
  * Returns a command like: pytest tests/test_foo.py::test_bar tests/test_baz.py::test_qux -x --tb=short
  */
-export function buildVerifyFromFailToPass(instance: SweBenchInstance): string | undefined {
+function buildVerifyFromFailToPass(instance: SweBenchInstance): string | undefined {
   const raw = instance.FAIL_TO_PASS;
   if (!raw) return undefined;
 
@@ -798,7 +798,7 @@ function parseHeadlessMetadata(stdout: string): HeadlessMetadata {
   }
 }
 
-function buildVerifyGateFromAudit(auditPath: string, flowSuccess: boolean): GateResult {
+export function buildVerifyGateFromAudit(auditPath: string, flowSuccess: boolean): GateResult {
   try {
     const audit = JSON.parse(readFileSync(auditPath, 'utf-8')) as {
       context?: {

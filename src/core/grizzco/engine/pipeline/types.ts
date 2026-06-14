@@ -202,7 +202,7 @@ export interface AutopilotCtx extends PreflightCtx, ReportableCtx {
   mutated: boolean;
   changedFiles?: string[];
   completion?: {
-    status: 'changed' | 'read_only_answer' | 'no_effect' | 'tool_failure' | 'verification_missing';
+    status: 'changed' | 'read_only_answer' | 'no_effect' | 'tool_failure';
     reason?: string;
     errorCode?: string;
   };

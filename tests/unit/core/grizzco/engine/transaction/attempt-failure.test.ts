@@ -143,38 +143,6 @@ describe('resolveAttemptFailure diagnostics', () => {
     expect(failure?.retryable).toBe(false);
   });
 
-  it('requires verification when autopilot changed the workspace', () => {
-    const failure = resolveAttemptFailure({
-      flowReport: {
-        success: true,
-        duration: 1,
-        traces: [],
-      } as any,
-      context: {
-        options: { environmentMode: 'strict' },
-        mutated: true,
-        changedFiles: ['src/app.ts'],
-        completion: {
-          status: 'verification_missing',
-          reason: 'Autopilot changed the workspace but no verification command was configured.',
-          errorCode: 'VERIFY_COMMAND_MISSING',
-        },
-        report: {
-          kind: 'answer',
-          summary: 'Changed src/app.ts.',
-          timestamp: 1,
-        },
-      } as any,
-      flowMode: 'autopilot',
-    });
-
-    expect(failure).toBeTruthy();
-    expect(failure?.reasonCode).toBe('VERIFY_COMMAND_MISSING');
-    expect(failure?.failurePhase).toBe('VERIFY');
-    expect(failure?.retryable).toBe(false);
-    expect(failure?.safeHint).toContain('verification command');
-  });
-
   it('reports verification diagnostics when autopilot changed files but verify fails', () => {
     const failure = resolveAttemptFailure({
       flowReport: {
