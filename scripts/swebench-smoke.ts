@@ -978,22 +978,49 @@ export async function runPatchedShellGates(params: {
     return { behavior: missingBehavior, regression: missingRegression, verify: missingVerify };
   }
 
-  const patched = await createPatchedWorktree({
+  // Validate patch with apply --check first (uses a clean worktree).
+  const check = await createPatchedWorktree({
     repoDir: params.repoDir,
     patchPath: params.patchPath,
     artifactDir: params.artifactDir,
     timeoutMs: params.timeoutMs,
+    checkOnly: true,
   });
-  if (!patched.worktreeDir) {
+  await removePatchedWorktree({
+    repoDir: params.repoDir,
+    worktreeDir: check.worktreeDir,
+    timeoutMs: params.timeoutMs,
+  });
+  if (check.gate.status !== 'pass') {
     return {
       behavior: params.behaviorCommand
-        ? unavailablePatchedGate('behavior', patched.gate)
+        ? unavailablePatchedGate('behavior', check.gate)
         : missingBehavior,
       regression: params.regressionCommand
-        ? unavailablePatchedGate('regression', patched.gate)
+        ? unavailablePatchedGate('regression', check.gate)
         : missingRegression,
       verify: params.verifyCommand
-        ? unavailablePatchedGate('verify', patched.gate)
+        ? unavailablePatchedGate('verify', check.gate)
+        : missingVerify,
+    };
+  }
+
+  // Run verify/behavior/regression in the original repoDir so installed
+  // dependencies (Python packages, C extensions) are available.
+  const gitDir = params.repoDir;
+  await git(['stash', '--quiet'], gitDir, params.timeoutMs);
+  const apply = await git(['apply', params.patchPath], gitDir, params.timeoutMs);
+  if (apply.exitCode !== 0) {
+    await git(['stash', 'pop', '--quiet'], gitDir, params.timeoutMs).catch(() => undefined);
+    return {
+      behavior: params.behaviorCommand
+        ? unavailablePatchedGate('behavior', fail('PATCH_APPLY_FAILED', apply.stderr || apply.stdout))
+        : missingBehavior,
+      regression: params.regressionCommand
+        ? unavailablePatchedGate('regression', fail('PATCH_APPLY_FAILED', apply.stderr || apply.stdout))
+        : missingRegression,
+      verify: params.verifyCommand
+        ? unavailablePatchedGate('verify', fail('PATCH_APPLY_FAILED', apply.stderr || apply.stdout))
         : missingVerify,
     };
   }
@@ -1001,7 +1028,7 @@ export async function runPatchedShellGates(params: {
   try {
     const behavior = await runShellGate({
       command: params.behaviorCommand,
-      repoDir: patched.worktreeDir,
+      repoDir: gitDir,
       artifactDir: params.artifactDir,
       name: 'behavior',
       timeoutMs: params.timeoutMs,
@@ -1009,7 +1036,7 @@ export async function runPatchedShellGates(params: {
     });
     const regression = await runShellGate({
       command: params.regressionCommand,
-      repoDir: patched.worktreeDir,
+      repoDir: gitDir,
       artifactDir: params.artifactDir,
       name: 'regression',
       timeoutMs: params.timeoutMs,
@@ -1017,7 +1044,7 @@ export async function runPatchedShellGates(params: {
     });
     const verify = await runShellGate({
       command: params.verifyCommand,
-      repoDir: patched.worktreeDir,
+      repoDir: gitDir,
       artifactDir: params.artifactDir,
       name: 'verify',
       timeoutMs: params.timeoutMs,
@@ -1025,11 +1052,8 @@ export async function runPatchedShellGates(params: {
     });
     return { behavior, regression, verify };
   } finally {
-    await removePatchedWorktree({
-      repoDir: params.repoDir,
-      worktreeDir: patched.worktreeDir,
-      timeoutMs: params.timeoutMs,
-    });
+    await git(['checkout', '.'], gitDir, params.timeoutMs).catch(() => undefined);
+    await git(['stash', 'pop', '--quiet'], gitDir, params.timeoutMs).catch(() => undefined);
   }
 }
 

@@ -131,14 +131,10 @@ describe('SWE-bench smoke harness semantics', () => {
     expect(diff.stdout.split('\n').filter(Boolean)).toEqual(['src/app.js']);
   });
 
-  it('runs behavior checks against the exported patch in a clean benchmark worktree', async () => {
+  it('runs behavior checks in the original repoDir so installed dependencies are available', async () => {
     const repo = await helper.createGitRepo({
       initialFiles: [{ path: 'src/app.js', content: 'export const value = 1;\n' }],
     });
-    await helper.writeFile(repo.path, '.gitignore', 'generated.txt\n');
-    await helper.createCommit(repo.path, 'Ignore generated files');
-
-    await helper.writeFile(repo.path, 'generated.txt', 'created outside model_patch\n');
     await helper.writeFile(repo.path, 'src/app.js', 'export const value = 2;\n');
     const artifactDir = await helper.createTempDir('salmon-swebench-artifacts-');
     const patchPath = path.join(artifactDir, 'model.patch');
@@ -152,8 +148,7 @@ describe('SWE-bench smoke harness semantics', () => {
     await helper.writeFile(artifactDir, 'model.patch', exportedPatch);
 
     const result = await runPatchedShellGates({
-      behaviorCommand:
-        'test "$(cat src/app.js)" = "export const value = 2;" && test -f generated.txt',
+      behaviorCommand: 'test "$(cat src/app.js)" = "export const value = 2;"',
       regressionCommand: 'test "$(cat src/app.js)" = "export const value = 2;"',
       repoDir: repo.path,
       patchPath,
@@ -162,8 +157,8 @@ describe('SWE-bench smoke harness semantics', () => {
     });
 
     expect(result.behavior).toMatchObject({
-      status: 'fail',
-      code: 'BEHAVIOR_FAILED',
+      status: 'pass',
+      code: 'BEHAVIOR_PASSED',
     });
     expect(result.regression).toMatchObject({
       status: 'pass',
