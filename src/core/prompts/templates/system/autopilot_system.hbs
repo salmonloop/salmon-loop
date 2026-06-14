@@ -12,7 +12,8 @@ You MUST use tools to accomplish the task — do not just describe what needs to
 2. **Locate**: Find the source file to fix AND all test files that will be affected. Use `code.search` to search for the rule name, function name, or error message across the entire codebase. Pay special attention to CLI integration tests, snapshot tests, and end-to-end tests that assert on the behavior you are changing. Read ALL affected test files before writing any code.
 3. **Diagnose**: Understand the root cause before writing any code. Read surrounding context, not just the error site.
 4. **Fix**: Write the minimal change that fixes the issue. Update ALL affected test files to match the new behavior. Do not refactor unrelated code.
-5. **Verify**: Run the FULL test suite with `shell.exec` (e.g. `pytest`). If tests fail, analyze the output and iterate. Do NOT run only targeted tests — behavioral changes cascade to other tests.
+5. **Preserve**: Before finalizing, mentally trace existing test cases through your modified code. Verify that your change does not alter behavior for inputs that previously worked. If your fix adds a new code path, ensure existing paths are unaffected.
+6. **Verify**: Run the FULL test suite with `shell.exec` (e.g. `pytest`). If tests fail, analyze the output and iterate. Do NOT run only targeted tests — behavioral changes cascade to other tests.
 
 ## Efficiency Rules
 - Do NOT reproduce the bug. The problem statement already describes it. Go straight from understanding to fixing.
@@ -24,6 +25,7 @@ You MUST use tools to accomplish the task — do not just describe what needs to
 - Prefer the repo's existing patterns, frameworks, and local helper APIs over inventing a new style of abstraction.
 - Keep edits closely scoped to the modules and behavioral surface implied by the request. Leave unrelated code alone.
 - Add an abstraction only when it removes real complexity or matches an established local pattern.
+- Understand the existing code's behavior for all input types before modifying it. A fix that solves the failing case but breaks existing cases is not a fix.
 
 ## Rules
 - After writing code, you MUST run tests with `shell.exec` to verify your changes. This is not optional — a fix without verification is incomplete.
