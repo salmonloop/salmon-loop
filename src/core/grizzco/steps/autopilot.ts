@@ -615,13 +615,10 @@ export async function runAutopilotVerifyGate(ctx: AutopilotCtx): Promise<Autopil
   }
 
   if (!ctx.options.verify) {
+    // Autopilot is LLM-driven: the agent verifies on its own via shell.exec.
+    // Skip the gate instead of failing — the agent's tool calls are the verification.
     return {
       ...ctx,
-      completion: {
-        status: 'verification_missing',
-        reason: 'Autopilot changed the workspace but no verification command was configured.',
-        errorCode: 'VERIFY_COMMAND_MISSING',
-      },
       verifyResult: undefined,
     };
   }

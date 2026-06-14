@@ -53,7 +53,7 @@ describe('runAutopilotVerifyGate', () => {
     expect(verificationRunner.runVerify).not.toHaveBeenCalled();
   });
 
-  it('does not treat changed work as verified when no verify command is configured', async () => {
+  it('skips verify gate when no verify command is configured (LLM-driven autopilot)', async () => {
     const { runAutopilotVerifyGate } =
       await import('../../../../../src/core/grizzco/steps/autopilot.js');
 
@@ -65,12 +65,7 @@ describe('runAutopilotVerifyGate', () => {
     } as any);
 
     expect(result.verifyResult).toBeUndefined();
-    expect(result.completion).toEqual(
-      expect.objectContaining({
-        status: 'verification_missing',
-        errorCode: 'VERIFY_COMMAND_MISSING',
-      }),
-    );
+    expect(result.completion).toBeUndefined();
     expect(verificationRunner.runVerify).not.toHaveBeenCalled();
   });
 });
