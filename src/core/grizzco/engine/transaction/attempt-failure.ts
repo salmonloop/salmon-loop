@@ -57,7 +57,7 @@ function inferFailurePhase(flowReport: FlowReport): ExecutionPhase {
   return 'VERIFY';
 }
 
-function extractErrorCode(error: unknown): string | undefined {
+export function extractErrorCode(error: unknown): string | undefined {
   if (typeof error === 'object' && error !== null) {
     const err = error as { llmCode?: string; code?: string; name?: string; errorCode?: string };
     // Prioritize code (from SalmonError) for better specificity
@@ -83,7 +83,21 @@ function extractInputRequired(error: unknown): LoopInputRequired | undefined {
   const value = 'inputRequired' in error ? error.inputRequired : error;
   if (!isRecord(value)) return undefined;
   if (typeof value.prompt !== 'string' || typeof value.type !== 'string') return undefined;
-  return value as unknown as LoopInputRequired;
+  const result: LoopInputRequired = { type: value.type, prompt: value.prompt };
+  if (
+    value.reason === 'approval' ||
+    value.reason === 'clarification' ||
+    value.reason === 'reopen'
+  ) {
+    result.reason = value.reason;
+  }
+  if (Array.isArray(value.questions)) {
+    result.questions = value.questions;
+  }
+  if (typeof value.responseFormat === 'string') {
+    result.responseFormat = value.responseFormat as LoopInputRequired['responseFormat'];
+  }
+  return result;
 }
 
 function extractInterrupt(error: unknown):
@@ -98,12 +112,14 @@ function extractInterrupt(error: unknown):
   const value = error.interrupt;
   if (!isRecord(value)) return undefined;
   if (typeof value.type !== 'string') return undefined;
-  return value as unknown as {
-    type: string;
-    reason?: string;
-    prompt?: string;
-    data?: Record<string, unknown>;
-  };
+  const result: { type: string; reason?: string; prompt?: string; data?: Record<string, unknown> } =
+    {
+      type: value.type,
+    };
+  if (typeof value.reason === 'string') result.reason = value.reason;
+  if (typeof value.prompt === 'string') result.prompt = value.prompt;
+  if (isRecord(value.data)) result.data = value.data as Record<string, unknown>;
+  return result;
 }
 
 export function resolveAttemptFailure(params: {

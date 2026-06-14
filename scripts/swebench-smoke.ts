@@ -766,9 +766,16 @@ export async function applyOverlayAndCommit(params: {
   });
 }
 
-function parseHeadlessMetadata(stdout: string): Record<string, any> {
+interface HeadlessMetadata {
+  success?: boolean;
+  warnings?: unknown[];
+  reason_code?: string;
+  diagnostic_code?: string;
+}
+
+function parseHeadlessMetadata(stdout: string): HeadlessMetadata {
   try {
-    const parsed = JSON.parse(stdout) as { metadata?: Record<string, any> };
+    const parsed = JSON.parse(stdout) as { metadata?: HeadlessMetadata };
     return parsed.metadata ?? {};
   } catch {
     return {};

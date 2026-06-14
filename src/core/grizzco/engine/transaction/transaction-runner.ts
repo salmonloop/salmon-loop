@@ -23,7 +23,7 @@ import { LoopTelemetry } from '../observability/loop-telemetry.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { InitCtx, ShrinkCtx, TerminalCtx } from '../pipeline/types.js';
 
-import { resolveAttemptFailure } from './attempt-failure.js';
+import { extractErrorCode, resolveAttemptFailure } from './attempt-failure.js';
 import { buildAuthorizationSummary } from './authorization-summary.js';
 import {
   mapRetryExhaustedReport,
@@ -349,40 +349,25 @@ export class FlowTransactionRunner {
           { phase: successPhase, severity: 'low', scope: 'session' },
         );
 
-        // Reflection Mechanism
-        if (this.params.options.llm) {
-          const reflectionEngine = new ReflectionEngine(this.params.options.llm);
-          const reflectionInput: ReflectionInput = {
+        this.emitReflection({
+          success: true,
+          attempt,
+          input: {
             instruction: this.params.options.instruction,
             history: this.historyEntries,
             success: true,
             metadata: shrinkCtx?.context?.projectMetadata,
             finalPlan: shrinkCtx?.plan,
             finalPatch: shrinkCtx?.diff,
-          };
-          if (attempt > 1) {
-            // Failures followed by success — full reflection
-            reflectionEngine
-              .reflect(reflectionInput, this.params.options.repoPath)
-              .catch((e: unknown) =>
-                recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
-              );
-          } else {
-            // First-try success — extract positive patterns
-            reflectionEngine
-              .reflectOnSuccess(reflectionInput, this.params.options.repoPath)
-              .catch((e: unknown) =>
-                recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
-              );
-          }
-        }
+          },
+        });
 
         return mapSuccessReport({
           attempt,
           flowReport: result,
           history: this.historyEntries,
           authorizationSummary: this.authorizationSummary,
-          lastErrorCode: this.extractErrorCode(result.error),
+          lastErrorCode: extractErrorCode(result.error),
           lastContext: terminalCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
           lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
@@ -444,27 +429,21 @@ export class FlowTransactionRunner {
           break;
         }
 
-        // Reflect on terminal failure to extract lessons
-        if (this.params.options.llm) {
-          const reflectionEngine = new ReflectionEngine(this.params.options.llm);
-          const reflectionInput: ReflectionInput = {
+        this.emitReflection({
+          success: false,
+          input: {
             instruction: this.params.options.instruction,
             history: this.historyEntries,
             success: false,
-          };
-          reflectionEngine
-            .reflectOnFailure(reflectionInput, this.params.options.repoPath)
-            .catch((e: unknown) =>
-              recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
-            );
-        }
+          },
+        });
 
         return mapTerminalFailureReport({
           attempt,
           flowReport: result,
           history: this.historyEntries,
           authorizationSummary: this.authorizationSummary,
-          lastErrorCode: attemptFailure.errorCode ?? this.extractErrorCode(result.error),
+          lastErrorCode: attemptFailure.errorCode ?? extractErrorCode(result.error),
           lastContext: terminalCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
           lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
@@ -491,20 +470,14 @@ export class FlowTransactionRunner {
       throw new Error('SalmonLoop execution terminated without a FlowReport');
     }
 
-    // Reflect on retry-exhausted failure to extract lessons
-    if (this.params.options.llm) {
-      const reflectionEngine = new ReflectionEngine(this.params.options.llm);
-      const reflectionInput: ReflectionInput = {
+    this.emitReflection({
+      success: false,
+      input: {
         instruction: this.params.options.instruction,
         history: this.historyEntries,
         success: false,
-      };
-      reflectionEngine
-        .reflectOnFailure(reflectionInput, this.params.options.repoPath)
-        .catch((e: unknown) =>
-          recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
-        );
-    }
+      },
+    });
 
     return mapRetryExhaustedReport({
       attempts: retries,
@@ -512,7 +485,7 @@ export class FlowTransactionRunner {
       history: this.historyEntries,
       authorizationSummary: this.authorizationSummary,
       failure: lastAttemptFailure,
-      lastErrorCode: this.extractErrorCode(lastReport.error),
+      lastErrorCode: extractErrorCode(lastReport.error),
       lastContext: this.lastContext,
       lastVerifyArtifact: this.lastVerifyArtifact,
       lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
@@ -522,14 +495,22 @@ export class FlowTransactionRunner {
     });
   }
 
-  private extractErrorCode(error: unknown): string | undefined {
-    if (typeof error === 'object' && error !== null) {
-      return (
-        (error as { llmCode?: string; code?: string; name?: string }).llmCode ??
-        (error as { llmCode?: string; code?: string; name?: string }).code ??
-        (error as { llmCode?: string; code?: string; name?: string }).name
-      );
+  private emitReflection(params: {
+    success: boolean;
+    attempt?: number;
+    input: ReflectionInput;
+  }): void {
+    if (!this.params.options.llm) return;
+    const engine = new ReflectionEngine(this.params.options.llm);
+    const { repoPath } = this.params.options;
+    const fallback = (e: unknown) =>
+      recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' });
+
+    if (params.success) {
+      const method = (params.attempt ?? 1) > 1 ? 'reflect' : 'reflectOnSuccess';
+      engine[method](params.input, repoPath).catch(fallback);
+    } else {
+      engine.reflectOnFailure(params.input, repoPath).catch(fallback);
     }
-    return undefined;
   }
 }
