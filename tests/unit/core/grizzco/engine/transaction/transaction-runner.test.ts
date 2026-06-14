@@ -98,105 +98,59 @@ describe('transaction-runner', () => {
     );
   });
 
-  it('carries autopilot verification debt across retries until preserved changes verify', async () => {
-    mockedExecute
-      .mockResolvedValueOnce({
-        success: true,
-        duration: 1,
-        traces: [],
-        data: {
-          report: {
-            kind: 'answer',
-            summary: 'changed file',
-            timestamp: Date.now(),
-          },
-          mutated: true,
-          changedFiles: ['data.txt'],
-          completion: { status: 'changed' },
-          verifyResult: { ok: false, output: 'AssertionError: expected sentinel', exitCode: 1 },
+  it('autopilot exits after first attempt when verify fails (one-shot, no retry)', async () => {
+    mockedExecute.mockResolvedValueOnce({
+      success: true,
+      duration: 1,
+      traces: [],
+      data: {
+        report: {
+          kind: 'answer',
+          summary: 'changed file',
+          timestamp: Date.now(),
         },
-      } as any)
-      .mockImplementationOnce(async (ctx: any) => ({
-        success: true,
-        duration: 1,
-        traces: [],
-        data: {
-          report: {
-            kind: 'answer',
-            summary: 'already changed',
-            timestamp: Date.now(),
-          },
-          mutated: true,
-          changedFiles: ctx.pendingVerification?.changedFiles,
-          pendingVerification: ctx.pendingVerification,
-          completion: { status: 'changed' },
-          verifyResult: { ok: true, output: 'ok', exitCode: 0 },
-        },
-      }));
-
-    const report = await createRunner(mock(), {}, 'autopilot').execute();
-
-    expect(report.success).toBe(true);
-    expect(report.attempts).toBe(2);
-    expect(mockedExecute).toHaveBeenCalledTimes(2);
-    expect(mockedExecute.mock.calls[1]?.[0]).toEqual(
-      expect.objectContaining({
-        pendingVerification: { changedFiles: ['data.txt'] },
-      }),
-    );
-    expect((report.lastContext as any)?.verifyResult).toEqual(
-      expect.objectContaining({ ok: true }),
-    );
-  });
-
-  it('does not let autopilot report success after retrying preserved changes that still fail verify', async () => {
-    mockedExecute
-      .mockResolvedValueOnce({
-        success: true,
-        duration: 1,
-        traces: [],
-        data: {
-          report: {
-            kind: 'answer',
-            summary: 'changed file',
-            timestamp: Date.now(),
-          },
-          mutated: true,
-          changedFiles: ['data.txt'],
-          completion: { status: 'changed' },
-          verifyResult: { ok: false, output: 'AssertionError: expected sentinel', exitCode: 1 },
-        },
-      } as any)
-      .mockImplementation(async (ctx: any) => ({
-        success: true,
-        duration: 1,
-        traces: [],
-        data: {
-          report: {
-            kind: 'answer',
-            summary: 'no further edits',
-            timestamp: Date.now(),
-          },
-          mutated: true,
-          changedFiles: ctx.pendingVerification?.changedFiles,
-          pendingVerification: ctx.pendingVerification,
-          completion: { status: 'changed' },
-          verifyResult: { ok: false, output: 'AssertionError: expected sentinel', exitCode: 1 },
-        },
-      }));
+        mutated: true,
+        changedFiles: ['data.txt'],
+        completion: { status: 'changed' },
+        verifyResult: { ok: false, output: 'AssertionError: expected sentinel', exitCode: 1 },
+      },
+    } as any);
 
     const report = await createRunner(mock(), {}, 'autopilot').execute();
 
     expect(report.success).toBe(false);
-    expect(report.retryExhausted).toBe(true);
-    expect(report.attempts).toBe(6); // 1 initial + 5 retries (LIMITS.maxRetries)
+    expect(report.retryExhausted).toBe(false);
+    expect(report.attempts).toBe(1);
     expect(report.terminalFailurePhase).toBe('VERIFY');
     expect(report.terminalReasonCode).toBe('VERIFY_FAILED');
-    expect(report.terminalDiagnosticCode).toBe('TEST_FAILED');
-    expect(mockedExecute.mock.calls[1]?.[0]).toEqual(
-      expect.objectContaining({
-        pendingVerification: { changedFiles: ['data.txt'] },
-      }),
+    expect(mockedExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it('autopilot does not retry after verify failure even with changed files', async () => {
+    mockedExecute.mockResolvedValueOnce({
+      success: true,
+      duration: 1,
+      traces: [],
+      data: {
+        report: {
+          kind: 'answer',
+          summary: 'changed file',
+          timestamp: Date.now(),
+        },
+        mutated: true,
+        changedFiles: ['data.txt'],
+        completion: { status: 'changed' },
+        verifyResult: { ok: false, output: 'AssertionError: expected sentinel', exitCode: 1 },
+      },
+    } as any);
+
+    const report = await createRunner(mock(), {}, 'autopilot').execute();
+
+    expect(report.success).toBe(false);
+    expect(report.attempts).toBe(1);
+    expect(mockedExecute).toHaveBeenCalledTimes(1);
+    expect((report.lastContext as any)?.verifyResult).toEqual(
+      expect.objectContaining({ ok: false }),
     );
   });
 

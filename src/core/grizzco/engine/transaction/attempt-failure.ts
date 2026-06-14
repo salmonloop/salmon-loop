@@ -28,6 +28,8 @@ export interface AttemptFailureDetails {
   inputRequired?: LoopInputRequired;
 }
 
+// Used by non-autopilot modes to determine retry eligibility.
+// Autopilot overrides via finalize() — this set has no effect there.
 const RETRYABLE_PHASES = new Set<ExecutionPhase>([
   'CONTEXT',
   'EXPLORE',

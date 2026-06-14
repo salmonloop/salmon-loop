@@ -590,26 +590,13 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
     }
   }
 
-  const pendingChangedFiles =
-    ctx.pendingVerification?.changedFiles && ctx.pendingVerification.changedFiles.length > 0
-      ? ctx.pendingVerification.changedFiles
-      : undefined;
-  const effectiveChangedFiles =
-    changedFiles && changedFiles.length > 0
-      ? changedFiles
-      : pendingChangedFiles && pendingChangedFiles.length > 0
-        ? pendingChangedFiles
-        : undefined;
-  const effectiveMutated = mutated || Boolean(ctx.pendingVerification);
+  const effectiveChangedFiles = changedFiles && changedFiles.length > 0 ? changedFiles : undefined;
 
   return {
     ...ctx,
-    mutated: effectiveMutated,
+    mutated,
     changedFiles: effectiveChangedFiles,
-    pendingVerification: effectiveMutated
-      ? { changedFiles: effectiveChangedFiles }
-      : ctx.pendingVerification,
-    completion: resolveAutopilotCompletion({ content, mutated: effectiveMutated, localAudit }),
+    completion: resolveAutopilotCompletion({ content, mutated, localAudit }),
     toolCallingAudit: mergedAudit,
     report: {
       kind: 'answer',
@@ -648,7 +635,6 @@ export async function runAutopilotVerifyGate(ctx: AutopilotCtx): Promise<Autopil
   const nextCtx: AutopilotCtx = {
     ...ctx,
     verifyResult,
-    pendingVerification: verifyResult.ok ? undefined : ctx.pendingVerification,
   };
 
   return verifyArtifact ? ({ ...nextCtx, verifyArtifact } as AutopilotCtx) : nextCtx;

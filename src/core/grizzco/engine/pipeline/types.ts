@@ -109,9 +109,6 @@ export interface InitCtx {
     }>;
   };
   replacementState?: ToolResultReplacementState;
-  pendingVerification?: {
-    changedFiles?: string[];
-  };
   /**
    * Optional shared cache parameters propagated from parent sessions.
    * Sub-agents can reuse these values to keep cache-critical prefixes stable.
