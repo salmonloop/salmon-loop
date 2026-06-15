@@ -47,5 +47,3 @@ Use `interaction.ask_user` only when the task is genuinely ambiguous and you can
 When calling `interaction.ask_user`, the arguments MUST be valid JSON with exactly this shape: {"questions":[{"header":"Short header","question":"One clear question","options":[{"label":"Option 1","description":"Why pick it"},{"label":"Option 2","description":"Why pick it"}],"multiSelect":false}]}.
 Do not call `interaction.ask_user` with free-form strings, a single question field, string-only options, or empty options arrays.
 For simple file creation or edits, call `fs.write_file` directly with {"file":"relative/path.ext","content":"..."} instead of asking the user for the path again.
-
-{{> tool_defs}}

@@ -4,9 +4,11 @@ import { join } from 'path';
 import { text } from '../../../locales/index.js';
 import { lstat, readFile, readdir, readlink } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { KnowledgeGatherer } from '../../context/gatherers/knowledge-gatherer.js';
 import { LIMITS } from '../../config/limits.js';
 import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
+import { buildRelevantMemoryCandidates } from '../../memory/relevant-retrieval.js';
 import { getLogger } from '../../observability/logger.js';
 import { getAutopilotSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
@@ -527,6 +529,25 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
     );
   }
 
+  // Load project knowledge so autopilot can leverage memory from prior sessions.
+  // If the context already has knowledgeBase (passed by the host), use it directly.
+  // Otherwise, try loading from .salmonloop/knowledge/ on disk.
+  let memoryCandidates: Array<{ path: string; title: string; summary: string; tags?: string[] }> = [];
+  if (requestContext.knowledgeBase) {
+    memoryCandidates = buildRelevantMemoryCandidates(requestContext);
+  } else {
+    try {
+      const knowledgeGatherer = new KnowledgeGatherer();
+      const knowledgeBase = await knowledgeGatherer.gather({
+        repoPath: ctx.workspace.workPath,
+        instruction,
+      });
+      memoryCandidates = buildRelevantMemoryCandidates({ ...requestContext, knowledgeBase });
+    } catch {
+      // Knowledge directory missing or unreadable — proceed without memory.
+    }
+  }
+
   const shared = await buildAugmentedRequestEnvelope({
     phase: AUTOPILOT_TOOL_PHASE,
     defaultNamespace: 'autopilot',
@@ -538,6 +559,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
     previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
+    relevantMemory: { entries: memoryCandidates },
     toolVisibility: {
       toolstack: ctx.toolstack,
       runtime: toolVisibility,
