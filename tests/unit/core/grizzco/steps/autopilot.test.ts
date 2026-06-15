@@ -52,6 +52,21 @@ mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
   readlink: hoisted.readlink,
 }));
 
+const noopLogger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  success: () => {},
+};
+
+mock.module('../../../../../src/core/observability/logger.js', () => ({
+  getLogger: () => noopLogger,
+  setLogger: () => {},
+  createLogger: () => noopLogger,
+  clearLogger: () => {},
+}));
+
 function okGitMetaResult(
   stdout: string,
   overrides: Partial<{
