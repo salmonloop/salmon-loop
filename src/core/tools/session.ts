@@ -1095,6 +1095,7 @@ export async function chatWithTools(
     }
 
     await executeToolCalls(session, phase, round, toolCalls, messages, chatOptions.signal);
+    maybeInjectTokenBudgetMessage(messages, round, maxRounds);
   }
 
   // If we reach here, the model is stuck in tool calling. Return the last assistant content.
@@ -1116,6 +1117,25 @@ export async function chatWithTools(
     });
   }
   return lastAssistant || { role: 'assistant', content: '' };
+}
+
+const TOKEN_BUDGET_THRESHOLDS = [25, 50, 75];
+
+function maybeInjectTokenBudgetMessage(
+  messages: LLMMessage[],
+  round: number,
+  maxRounds: number,
+): void {
+  const usagePercent = Math.round(((round + 1) / maxRounds) * 100);
+  const crossed = TOKEN_BUDGET_THRESHOLDS.find(
+    (t) => usagePercent >= t && round > 0 && Math.round((round / maxRounds) * 100) < t,
+  );
+  if (crossed === undefined) return;
+  const remaining = maxRounds - round - 1;
+  messages.push({
+    role: 'user',
+    content: `You have ${remaining} tool-calling rounds left in this session.`,
+  });
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -1948,6 +1968,7 @@ export async function chatWithToolsStreaming(
         }
 
         await executeToolCalls(session, phase, round, calls, messages, chatOptions.signal);
+        maybeInjectTokenBudgetMessage(messages, round, maxRounds);
 
         if (session.llmOutput) {
           emitLlmStreamEnd({
