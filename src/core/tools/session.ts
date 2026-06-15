@@ -20,6 +20,7 @@ import { extractNetworkCode, extractProvider, extractStatusCode } from '../utils
 import { isSafeRelativePath, normalizePath } from '../utils/path.js';
 import { isRecord } from '../utils/serialize.js';
 
+import { truncateOutput } from '../context/truncation/index.js';
 import { buildHeadlessToolInputPayload } from './headless-payload.js';
 import { toolToOpenAI } from './mapper.js';
 import { InMemoryLockManager } from './parallel/lock-manager.js';
@@ -122,14 +123,56 @@ function safeParseJson(argsText: unknown): { ok: true; value: any } | { ok: fals
   }
 }
 
+/** Per-field character budget for long text fields in tool results. */
+const TOOL_OUTPUT_FIELD_BUDGET = 8000;
+
+function truncateShellOutput(output: unknown): unknown {
+  if (!output || typeof output !== 'object') return output;
+  const obj = { ...(output as Record<string, unknown>) };
+  if (typeof obj.stdout === 'string' && obj.stdout.length > TOOL_OUTPUT_FIELD_BUDGET) {
+    obj.stdout = truncateOutput(obj.stdout, TOOL_OUTPUT_FIELD_BUDGET, 'test_result').content;
+  }
+  if (typeof obj.stderr === 'string' && obj.stderr.length > TOOL_OUTPUT_FIELD_BUDGET) {
+    obj.stderr = truncateOutput(obj.stderr, TOOL_OUTPUT_FIELD_BUDGET, 'error_stack').content;
+  }
+  // Empty output hint: help the agent distinguish "success with no output" from "stuck"
+  if (obj.ok && !obj.stdout && !obj.stderr) {
+    obj.stdout = '(command completed successfully with no output)';
+  }
+  return obj;
+}
+
+function truncateLargeOutput(output: unknown, toolName: string): unknown {
+  if (toolName === 'shell.exec') return truncateShellOutput(output);
+  if (typeof output === 'string' && output.length > TOOL_OUTPUT_FIELD_BUDGET) {
+    return truncateOutput(output, TOOL_OUTPUT_FIELD_BUDGET).content;
+  }
+  return output;
+}
+
+/** Max characters for error messages in tool results sent to the model. */
+const ERROR_MESSAGE_BUDGET = 500;
+
+function compactError(error: ToolResult['error']): ToolResult['error'] {
+  if (!error) return error;
+  if (!error.message || error.message.length <= ERROR_MESSAGE_BUDGET) return error;
+  return {
+    ...error,
+    message: error.message.slice(0, ERROR_MESSAGE_BUDGET) + '... [truncated]',
+  };
+}
+
 function formatToolResultForModel(result: ToolResult): string {
+  const output = truncateLargeOutput(result.output, result.toolName);
+  // Compact errors to prevent context pollution from failed attempts
+  const error = result.status === 'error' ? compactError(result.error) : result.error;
   const payload = {
     id: result.id,
     toolName: result.toolName,
     status: result.status,
-    output: result.output,
+    output,
     summary: result.summary,
-    error: result.error,
+    error,
     meta: result.meta,
     durationMs: result.durationMs,
   };

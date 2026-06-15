@@ -445,6 +445,47 @@ function resolveAutopilotCompletion(params: {
   };
 }
 
+const PREFLIGHT_FILE_LINES = 50;
+
+async function gatherAutopilotPreflightContext(
+  repoPath: string,
+  instruction: string,
+): Promise<string> {
+  // Inject contents of files mentioned in the instruction so the agent
+  // starts with relevant source code rather than discovering it via tool calls.
+  // Intentionally avoids git operations (ls-files, status) to prevent
+  // extra execMeta calls that would shift workspace fingerprint call indices.
+  const mentionedPaths = extractMentionedFilePaths(instruction);
+  if (mentionedPaths.length === 0) return '';
+
+  const fileParts: string[] = [];
+  for (const filePath of mentionedPaths.slice(0, 5)) {
+    try {
+      const content = await readFile(join(repoPath, filePath), 'utf-8');
+      const lines = content.split('\n').slice(0, PREFLIGHT_FILE_LINES).join('\n');
+      fileParts.push(`## ${filePath}\n${lines}`);
+    } catch { /* file not found, skip */ }
+  }
+  if (fileParts.length === 0) return '';
+
+  return `# Mentioned files\n${fileParts.join('\n\n')}`;
+}
+
+function extractMentionedFilePaths(text: string): string[] {
+  const paths = new Set<string>();
+  // Backtick-quoted paths
+  for (const m of text.matchAll(/`([^`]+\.[a-zA-Z]{1,6})`/g)) {
+    const p = m[1].replace(/:\d+$/, '');
+    if (p.includes('/') && !p.startsWith('http')) paths.add(p);
+  }
+  // Unquoted paths with directory separators
+  for (const m of text.matchAll(/(?:^|\s)([a-zA-Z0-9_/]+\.[a-zA-Z]{1,6})(?:\s|$|[,.\)])/g)) {
+    const p = m[1];
+    if (p.includes('/') && !p.startsWith('http') && !p.match(/^\d+\.\d+/)) paths.add(p);
+  }
+  return Array.from(paths);
+}
+
 function buildAutopilotRequestContext(ctx: PreflightCtx, instruction: string): Context {
   const maybeContext = (ctx as PreflightCtx & { context?: Context }).context;
   if (maybeContext?.repoPath && Array.isArray(maybeContext.rgSnippets)) {
@@ -471,12 +512,27 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
 
   const toolVisibility = buildToolVisibilityRuntime(ctx);
   const requestContext = buildAutopilotRequestContext(ctx, instruction);
+
+  // Gather lightweight preflight context so the agent starts with relevant
+  // source files from the instruction rather than discovering them via tool calls.
+  let baseContextPrompt = instruction;
+  try {
+    const preflight = await gatherAutopilotPreflightContext(ctx.workspace.workPath, instruction);
+    if (preflight) {
+      baseContextPrompt = `${preflight}\n\n---\n\n# Task\n${instruction}`;
+    }
+  } catch (error) {
+    getLogger().debug(
+      `[Autopilot] Preflight context gathering failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
   const shared = await buildAugmentedRequestEnvelope({
     phase: AUTOPILOT_TOOL_PHASE,
     defaultNamespace: 'autopilot',
     systemPrompt: await getAutopilotSystemPrompt(),
     context: requestContext,
-    baseContextPrompt: instruction,
+    baseContextPrompt,
     buildUserPrompt: async (contextPrompt) => contextPrompt,
     conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
