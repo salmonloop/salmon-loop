@@ -86,7 +86,7 @@ export function TodoDrawer({
   });
 
   const visibleTodos = useMemo(() => todos.slice(0, Math.max(0, maxVisible)), [todos, maxVisible]);
-  const toggleLabel = isExpanded ? '▲' : '▼';
+  const toggleLabel = isExpanded ? 'Collapse' : 'Expand';
 
   return (
     <Box
