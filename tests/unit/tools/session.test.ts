@@ -1,3 +1,6 @@
+import { EventEmitter } from 'events';
+
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { z } from 'zod';
 
 import { ToolAuditLogger } from '../../../src/core/tools/audit.js';
