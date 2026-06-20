@@ -1,0 +1,4 @@
+## 2025-02-18 - Prevent Timing Attack in Token Validation
+**Vulnerability:** The server authenticated tokens by comparing buffer lengths before calling `crypto.timingSafeEqual()`, which introduces a short-circuit fast path that leaks the secret's length.
+**Learning:** Checking length before performing a timing-safe equality check negates the timing-safe guarantees, allowing attackers to guess the token length and sequentially attack characters.
+**Prevention:** Always hash secrets to a fixed length (e.g., using `crypto.createHash('sha256')`) before comparison to ensure true constant-time evaluation, without checking buffer lengths.
