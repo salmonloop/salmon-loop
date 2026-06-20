@@ -93,13 +93,19 @@ export class ArtifactStore {
     const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
 
     const files: Array<{ name: string; path: string; mtimeMs: number; size: number }> = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const filePath = path.join(root, entry.name);
-      if (!isWithinDir(root, filePath)) continue;
-      const stat = await fs.stat(filePath).catch(() => null);
-      if (!stat) continue;
-      files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+    const fileEntries = entries.filter((entry) => entry.isFile());
+
+    for (let i = 0; i < fileEntries.length; i += 10) {
+      const chunk = fileEntries.slice(i, i + 10);
+      await Promise.all(
+        chunk.map(async (entry) => {
+          const filePath = path.join(root, entry.name);
+          if (!isWithinDir(root, filePath)) return;
+          const stat = await fs.stat(filePath).catch(() => null);
+          if (!stat) return;
+          files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+        }),
+      );
     }
 
     const maxAgeMs = options?.maxAgeMs ?? LIMITS.artifactTtlMs;
@@ -118,8 +124,9 @@ export class ArtifactStore {
       removedBytes += file.size;
     };
 
-    for (const file of expired) {
-      await removeFile(file);
+    for (let i = 0; i < expired.length; i += 10) {
+      const chunk = expired.slice(i, i + 10);
+      await Promise.all(chunk.map((file) => removeFile(file)));
     }
 
     // Recompute remaining after TTL removal (newest first).
@@ -130,15 +137,21 @@ export class ArtifactStore {
     let currentFiles = remaining.length;
     let currentBytes = remaining.reduce((acc, f) => acc + f.size, 0);
 
+    const excessFilesToRemove: typeof files = [];
     for (let i = remaining.length - 1; i >= 0; i--) {
       const tooManyFiles = currentFiles > maxFiles;
       const tooManyBytes = currentBytes > maxTotalBytes;
       if (!tooManyFiles && !tooManyBytes) break;
 
       const oldest = remaining[i];
-      await removeFile(oldest);
+      excessFilesToRemove.push(oldest);
       currentFiles -= 1;
       currentBytes -= oldest.size;
+    }
+
+    for (let i = 0; i < excessFilesToRemove.length; i += 10) {
+      const chunk = excessFilesToRemove.slice(i, i + 10);
+      await Promise.all(chunk.map((file) => removeFile(file)));
     }
 
     return { removedFiles, removedBytes };
