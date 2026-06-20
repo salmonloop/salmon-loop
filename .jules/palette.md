@@ -1,0 +1,3 @@
+## 2024-06-20 - Accessible Keyboard Navigation Hints
+**Learning:** Screen readers in CLI environments (like Ink) rely on raw text output and fail to announce symbolic characters (e.g., `↑↓`, `⏎`) properly. While concise, these symbols cause accessibility regressions.
+**Action:** Always use visually concise but screen-reader-friendly text (e.g., 'Up/Down', 'Enter') for navigation hints instead of purely symbolic characters.
