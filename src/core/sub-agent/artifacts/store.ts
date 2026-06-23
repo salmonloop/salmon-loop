@@ -93,13 +93,27 @@ export class ArtifactStore {
     const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
 
     const files: Array<{ name: string; path: string; mtimeMs: number; size: number }> = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
+    const validEntries = entries.filter((entry) => {
+      if (!entry.isFile()) return false;
       const filePath = path.join(root, entry.name);
-      if (!isWithinDir(root, filePath)) continue;
-      const stat = await fs.stat(filePath).catch(() => null);
-      if (!stat) continue;
-      files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+      return isWithinDir(root, filePath);
+    });
+
+    // ⚡ Bolt Optimization: Use batched concurrent Promise.all for fs.stat
+    // to speed up directory traversal while avoiding EMFILE errors.
+    for (let i = 0; i < validEntries.length; i += 10) {
+      const chunk = validEntries.slice(i, i + 10);
+      const stats = await Promise.all(
+        chunk.map(async (entry) => {
+          const filePath = path.join(root, entry.name);
+          const stat = await fs.stat(filePath).catch(() => null);
+          if (!stat) return null;
+          return { name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size };
+        })
+      );
+      for (const stat of stats) {
+        if (stat) files.push(stat);
+      }
     }
 
     const maxAgeMs = options?.maxAgeMs ?? LIMITS.artifactTtlMs;
