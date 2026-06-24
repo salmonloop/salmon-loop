@@ -1,0 +1,3 @@
+## 2024-10-24 - Screen Reader Friendly Keyboard Shortcuts
+**Learning:** For complex command-line selection interfaces using Ink, descriptive navigation words (like 'Up/Down', 'Enter') are required instead of purely symbolic text (e.g., `↑↓`, `⏎`). Screen readers in CLI environments rely on raw text output and fail to announce these symbols properly.
+**Action:** Use visually concise but screen-reader-friendly text instead of symbolic text for keyboard navigation hints.
