@@ -135,7 +135,6 @@ export class ContextService {
     missReason?: 'key_miss' | 'signature_mismatch' | 'target_signature_mismatch' | 'expired';
     targetSetSignature?: string;
   }> {
-    await this.evictExpiredEntries();
     const entry = await this.cacheStore.get(cacheKey);
     if (!entry) {
       this.cacheMetrics.misses += 1;
@@ -255,20 +254,6 @@ export class ContextService {
     this.deleteUpdater(cacheKey);
     this.cacheMetrics.evictions += 1;
     return true;
-  }
-
-  private async evictExpiredEntries(): Promise<void> {
-    const entries = Array.from(await this.cacheStore.entries());
-    const now = Date.now();
-    const expiredEntries = entries.filter(([, entry]) => {
-      const last = this.getEntryTimestamp(entry);
-      return last && now - last > this.cacheTtlMs;
-    });
-
-    for (let i = 0; i < expiredEntries.length; i += 10) {
-      const chunk = expiredEntries.slice(i, i + 10);
-      await Promise.all(chunk.map(([key, entry]) => this.isExpired(key, entry)));
-    }
   }
 
   private async evictLruIfNeeded(): Promise<void> {
