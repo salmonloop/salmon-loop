@@ -1,0 +1,4 @@
+## 2024-05-18 - Fix Timing Attack Vulnerability in Auth Token Comparison
+**Vulnerability:** The authentication middleware exposed a timing attack vulnerability by comparing lengths of the provided token and the expected token (`tokenBuffer.length === authTokenBuffer.length`) before calling `crypto.timingSafeEqual`. This allowed an attacker to guess the exact length of the valid authentication token.
+**Learning:** Checking the lengths of two buffers before evaluating them via a timing-safe function breaks the constant-time guarantee. Length comparisons execute faster when lengths differ, thereby leaking the secret's length to an observer measuring response times.
+**Prevention:** To safely compare two strings of unknown or variable lengths, both the provided input and the valid secret must first be hashed to a fixed length (e.g., using `crypto.createHash('sha256')`) before calling `crypto.timingSafeEqual`.
