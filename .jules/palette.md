@@ -1,0 +1,3 @@
+## 2024-06-28 - Replace symbols with screen-reader friendly text for CLI navigation hints
+**Learning:** For complex command-line selection interfaces or overlays using Ink, while concise microcopy saves horizontal space, do NOT replace descriptive navigation words (like 'Up/Down', 'Enter') with purely symbolic text (e.g., `↑↓`, `⏎`). Screen readers in CLI environments rely on raw text output and fail to announce these symbols properly, causing an accessibility regression.
+**Action:** Use visually concise but screen-reader-friendly text. Replaced symbols `↑↓`, `⏎` with `Up/Down`, `Enter` in the command suggestion list component to restore accessibility.
