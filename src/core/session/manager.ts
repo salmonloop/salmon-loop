@@ -377,15 +377,22 @@ export class ChatSessionManager {
     }
 
     // Archive medium-priority sessions
+    const sessionMap = new Map(sessions.map((s) => [s.meta.id, s]));
     for (let i = 0; i < analysis.sessionsToArchive.length; i += CHUNK_SIZE) {
       const chunk = analysis.sessionsToArchive.slice(i, i + CHUNK_SIZE);
       await Promise.all(
         chunk.map(async (sessionId) => {
-          const session = sessions.find((s) => s.meta.id === sessionId);
+          const session = sessionMap.get(sessionId);
           if (session) {
-            await this.archiveSession(session);
-            await this.deleteSession(sessionId);
-            archived++;
+            try {
+              await this.archiveSession(session);
+              await this.deleteSession(sessionId);
+              archived++;
+            } catch (err) {
+              getLogger().warn(
+                `[SessionManager] Failed to archive session ${sessionId}: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
           }
         }),
       );
