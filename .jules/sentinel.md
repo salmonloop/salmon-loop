@@ -1,0 +1,4 @@
+## 2025-02-23 - Timing Attack Vulnerability in Secret Validation
+**Vulnerability:** A timing attack vulnerability in A2A token authentication where the code checked if `tokenBuffer.length === authTokenBuffer.length` before calling `crypto.timingSafeEqual`.
+**Learning:** Using a short-circuit length check before a constant-time comparison leaks the length of the expected secret via observable timing differences, allowing an attacker to deduce the secret's length and reducing the search space for brute force attacks.
+**Prevention:** When validating secrets, always hash both the provided input and the expected secret using a cryptographically secure hash function (e.g., SHA-256) before passing them to a constant-time comparison function like `timingSafeEqual`. This ensures the inputs to `timingSafeEqual` are always of the same fixed length, eliminating the need for length checks entirely.
