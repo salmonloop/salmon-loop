@@ -1,0 +1,3 @@
+## 2024-05-24 - Batch concurrent I/O in RejectionManager.list
+**Learning:** Sequential await loops on disk I/O are a severe performance bottleneck for listing files. By implementing a standard batched concurrent map approach (Promise.all with a chunk size of 10), we can significantly improve listing performance while preventing EMFILE limits.
+**Action:** Always batch file reading and modification across the codebase with chunked `Promise.all` when iterating over collections of files.

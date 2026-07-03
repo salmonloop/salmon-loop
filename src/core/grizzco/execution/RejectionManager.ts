@@ -50,23 +50,33 @@ export class RejectionManager {
   async list(): Promise<Rejection[]> {
     try {
       const files = await fs.readdir(this.rejectDir);
+      const rejFiles = files.filter((f) => f.endsWith('.rej'));
       const rejections: Rejection[] = [];
 
-      for (const file of files) {
-        if (!file.endsWith('.rej')) continue;
+      // Chunk size of 10 to prevent EMFILE limits while improving throughput
+      for (let i = 0; i < rejFiles.length; i += 10) {
+        const chunk = rejFiles.slice(i, i + 10);
+        const results = await Promise.all(
+          chunk.map(async (file) => {
+            try {
+              const content = await fs.readFile(path.join(this.rejectDir, file), 'utf-8');
+              const headerPart = content.split('\n\n')[0];
+              const header = JSON.parse(headerPart);
+              return {
+                filePath: file.replace('.rej', '').replace(/_/g, '/'), // Approximate restoration
+                ...header,
+              };
+            } catch (error) {
+              getLogger().debug(
+                `[RejectionManager] Malformed rejection file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+              return null;
+            }
+          }),
+        );
 
-        try {
-          const content = await fs.readFile(path.join(this.rejectDir, file), 'utf-8');
-          const headerPart = content.split('\n\n')[0];
-          const header = JSON.parse(headerPart);
-          rejections.push({
-            filePath: file.replace('.rej', '').replace(/_/g, '/'), // Approximate restoration
-            ...header,
-          });
-        } catch (error) {
-          getLogger().debug(
-            `[RejectionManager] Malformed rejection file ${file}: ${error instanceof Error ? error.message : String(error)}`,
-          );
+        for (const res of results) {
+          if (res) rejections.push(res);
         }
       }
 
