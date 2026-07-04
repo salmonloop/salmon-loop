@@ -93,13 +93,26 @@ export class ArtifactStore {
     const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
 
     const files: Array<{ name: string; path: string; mtimeMs: number; size: number }> = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const filePath = path.join(root, entry.name);
-      if (!isWithinDir(root, filePath)) continue;
-      const stat = await fs.stat(filePath).catch(() => null);
-      if (!stat) continue;
-      files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+    const validEntries = entries.filter((e) => {
+      if (!e.isFile()) return false;
+      const filePath = path.join(root, e.name);
+      return isWithinDir(root, filePath);
+    });
+
+    for (let i = 0; i < validEntries.length; i += 10) {
+      const chunk = validEntries.slice(i, i + 10);
+      const stats = await Promise.all(
+        chunk.map(async (entry) => {
+          const filePath = path.join(root, entry.name);
+          const stat = await fs.stat(filePath).catch(() => null);
+          return { entry, filePath, stat };
+        }),
+      );
+      for (const { entry, filePath, stat } of stats) {
+        if (stat) {
+          files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+        }
+      }
     }
 
     const maxAgeMs = options?.maxAgeMs ?? LIMITS.artifactTtlMs;
@@ -118,8 +131,9 @@ export class ArtifactStore {
       removedBytes += file.size;
     };
 
-    for (const file of expired) {
-      await removeFile(file);
+    for (let i = 0; i < expired.length; i += 10) {
+      const chunk = expired.slice(i, i + 10);
+      await Promise.all(chunk.map((file) => removeFile(file)));
     }
 
     // Recompute remaining after TTL removal (newest first).
