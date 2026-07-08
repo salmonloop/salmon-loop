@@ -191,18 +191,27 @@ export class ContextService {
 
   private async computeTrackedFilesSignature(repoPath: string, files: string[]): Promise<string> {
     const parts: string[] = [];
-    for (const relativeFile of files) {
-      const absoluteFile = defaultPathAdapter.resolve(repoPath, relativeFile);
-      try {
-        const stat = await this.fileAdapter.stat(absoluteFile);
-        parts.push(this.formatStatSignature(relativeFile, stat));
-      } catch (error) {
-        getLogger().debug(
-          `[ContextService] stat failed for ${relativeFile}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        parts.push(`${relativeFile}:missing`);
-      }
+
+    // Process files in chunks to avoid opening too many file descriptors concurrently
+    for (let i = 0; i < files.length; i += 10) {
+      const chunk = files.slice(i, i + 10);
+      const chunkParts = await Promise.all(
+        chunk.map(async (relativeFile) => {
+          const absoluteFile = defaultPathAdapter.resolve(repoPath, relativeFile);
+          try {
+            const stat = await this.fileAdapter.stat(absoluteFile);
+            return this.formatStatSignature(relativeFile, stat);
+          } catch (error) {
+            getLogger().debug(
+              `[ContextService] stat failed for ${relativeFile}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            return `${relativeFile}:missing`;
+          }
+        }),
+      );
+      parts.push(...chunkParts);
     }
+
     if (files.length === 0) {
       parts.push('files:none');
     }
@@ -212,19 +221,22 @@ export class ContextService {
 
   private async computeRepoStateSignatureParts(repoPath: string): Promise<string[]> {
     const gitFiles = ['.git/HEAD', '.git/index'];
-    const parts: string[] = [];
-    for (const rel of gitFiles) {
-      const gitPath = defaultPathAdapter.resolve(repoPath, rel);
-      try {
-        const stat = await this.fileAdapter.stat(gitPath);
-        parts.push(this.formatStatSignature(rel, stat));
-      } catch (error) {
-        getLogger().debug(
-          `[ContextService] stat failed for ${rel}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        parts.push(`${rel}:missing`);
-      }
-    }
+
+    const parts = await Promise.all(
+      gitFiles.map(async (rel) => {
+        const gitPath = defaultPathAdapter.resolve(repoPath, rel);
+        try {
+          const stat = await this.fileAdapter.stat(gitPath);
+          return this.formatStatSignature(rel, stat);
+        } catch (error) {
+          getLogger().debug(
+            `[ContextService] stat failed for ${rel}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return `${rel}:missing`;
+        }
+      }),
+    );
+
     return parts;
   }
 
