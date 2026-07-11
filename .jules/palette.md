@@ -1,0 +1,3 @@
+## 2024-07-11 - Screen-reader friendly navigation microcopy
+**Learning:** For complex command-line selection interfaces or overlays using Ink, purely symbolic text (e.g., ↑↓, ⏎) causes accessibility regressions because screen readers in CLI environments fail to announce these symbols properly.
+**Action:** Use visually concise but descriptive and screen-reader-friendly navigation words (like 'Up/Down', 'Enter', 'Esc') instead of raw symbols.
