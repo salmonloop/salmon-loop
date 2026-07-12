@@ -1,0 +1,4 @@
+## 2025-07-12 - Timing Attack in Token Validation
+**Vulnerability:** A timing attack vulnerability was found in `src/cli/commands/serve.ts` where token validation used a buffer length check (`tokenBuffer.length === authTokenBuffer.length`) before calling `crypto.timingSafeEqual`.
+**Learning:** Checking the length of the buffers before using `crypto.timingSafeEqual` creates a short-circuit fast path. This leaks the secret's length via timing differences because an incorrect length returns immediately, bypassing the constant-time check.
+**Prevention:** Always hash both secrets to a fixed length (e.g., using `crypto.createHash('sha256').update(secret).digest()`) before comparison to ensure true constant-time evaluation, regardless of the original secret lengths.
