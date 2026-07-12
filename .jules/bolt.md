@@ -1,0 +1,3 @@
+## 2024-05-18 - Concurrent File Operation Limits
+**Learning:** Sequentially awaiting `fs.stat` and `fs.rm` in `ArtifactStore.gc` caused performance bottlenecks on directories with many files. While operations can be optimized with `Promise.all` mapping, dynamic limits (like checking byte count after each removal) must be evaluated sequentially to build a safe removal queue before concurrent chunked deletion to prevent race conditions.
+**Action:** When optimizing batch file operations dependent on cumulative totals, separate the sequential state-calculation phase (building a queue) from the concurrent I/O execution phase.

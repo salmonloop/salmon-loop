@@ -83,3 +83,4 @@ harbor-agent/Dockerfile
 harbor-agent/docker-compose-override.yaml
 harbor-agent/host_environment.py
 scripts/sub-agent-eval-report.json
+.harbor/
