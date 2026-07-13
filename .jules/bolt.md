@@ -1,0 +1,3 @@
+## 2024-05-18 - Optimized ArtifactStore GC sequential I/O bottleneck
+**Learning:** Sequential `fs.stat` and `fs.rm` calls inside loops create significant performance bottlenecks when dealing with a large number of files (e.g. Artifacts GC limit checks), blocking the main thread from scheduling effectively over huge arrays.
+**Action:** Replace sequential loops for file metadata gathering and deletion with bounded concurrent batch processing (e.g. chunk sizes of 10 with `Promise.all`), greatly reducing overall execution time and avoiding `EMFILE` limits while being safe for synchronous state aggregation due to Node.js single-threaded event loop.
