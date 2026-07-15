@@ -1,0 +1,4 @@
+## 2025-02-23 - Timing attack vulnerability in Auth Token validation
+**Vulnerability:** The token length was compared before performing the comparison with `timingSafeEqual`, which leaks the secret token length via an early return timing difference.
+**Learning:** `timingSafeEqual` throws an error if buffer lengths are different, which leads to developers creating a short-circuit fast path that leaks the secret's length.
+**Prevention:** Instead of checking buffer lengths, always hash both the user input and the stored secret using SHA-256 (or another secure hash algorithm) before using `timingSafeEqual`. This ensures that both values are a fixed length, avoiding timing differences.

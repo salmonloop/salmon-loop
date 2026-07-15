@@ -349,10 +349,9 @@ export async function handleServeCommand(_options: unknown, command: Command) {
             const tokenBuffer = Buffer.from(token);
             for (const authToken of authTokens) {
               const authTokenBuffer = Buffer.from(authToken);
-              if (
-                tokenBuffer.length === authTokenBuffer.length &&
-                crypto.timingSafeEqual(tokenBuffer, authTokenBuffer)
-              ) {
+              const hash1 = crypto.createHash('sha256').update(tokenBuffer).digest();
+              const hash2 = crypto.createHash('sha256').update(authTokenBuffer).digest();
+              if (crypto.timingSafeEqual(hash1, hash2)) {
                 isAuthenticated = true;
                 break;
               }
