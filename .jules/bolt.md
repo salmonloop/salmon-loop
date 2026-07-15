@@ -1,0 +1,3 @@
+## 2025-07-15 - Optimizing File Deletion with Dynamic State
+**Learning:** Garbage collection functions that rely on cumulative dynamic totals (e.g. `removedBytes` vs `maxTotalBytes`) must sequentially build a removal queue first. Calculating dynamic state during chunked concurrent file deletions causes race conditions and breaks the limits.
+**Action:** Always build removal queues sequentially for dynamic state limits, then use chunked `Promise.all` (`fs.rm`) over the queue for performance.
