@@ -1,0 +1,4 @@
+## 2024-07-25 - Timing Attack Fast Path in Token Comparison
+**Vulnerability:** The authentication validation used a short-circuit buffer length check (`tokenBuffer.length === authTokenBuffer.length`) before calling `crypto.timingSafeEqual()`.
+**Learning:** Checking the length of secrets before a constant-time comparison creates a fast path that leaks the length of the expected secret via timing differences, rendering the constant-time check partially ineffective.
+**Prevention:** Always hash both secrets to a fixed length (e.g., using `crypto.createHash('sha256')`) before comparison to ensure true constant-time evaluation and avoid short-circuiting logic based on length.
