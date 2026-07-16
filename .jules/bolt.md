@@ -1,0 +1,3 @@
+## 2024-05-24 - Batching concurrent fs operations for ArtifactStore.gc
+**Learning:** Sequential fs operations (e.g. fs.stat, fs.rm) over a large number of files within `ArtifactStore.gc` introduces a significant performance bottleneck due to excessive async-await blocking. This leads to slow artifact cleanup.
+**Action:** When performing file operations sequentially over many files, batch the fs operations using `Promise.all` in chunks of 10 to speed up throughput and circumvent EMFILE limits.
