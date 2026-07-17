@@ -1,0 +1,3 @@
+## 2024-05-24 - Screen reader accessibility of CLI symbols
+**Learning:** Screen readers in CLI environments rely on raw text output and fail to announce purely symbolic navigation hints (like `↑↓` or `⏎`) properly, causing an accessibility regression for users navigating the interface without sight.
+**Action:** Use visually concise but descriptive and screen-reader-friendly text (like 'Up/Down' and 'Enter') instead of purely symbolic characters for navigation hints in CLI UI overlays.
