@@ -92,14 +92,27 @@ export class ArtifactStore {
     const root = getArtifactsRoot();
     const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
 
+    // ⚡ Bolt: Optimize stat collection with batched concurrency
+    // This reduces GC time significantly when many artifacts exist by running IO operations in parallel chunks
+    const validEntries = entries
+      .filter((e) => e.isFile())
+      .map((e) => ({ name: e.name, path: path.join(root, e.name) }))
+      .filter((e) => isWithinDir(root, e.path));
+
     const files: Array<{ name: string; path: string; mtimeMs: number; size: number }> = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const filePath = path.join(root, entry.name);
-      if (!isWithinDir(root, filePath)) continue;
-      const stat = await fs.stat(filePath).catch(() => null);
-      if (!stat) continue;
-      files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+    const chunkSize = 10;
+    for (let i = 0; i < validEntries.length; i += chunkSize) {
+      const chunk = validEntries.slice(i, i + chunkSize);
+      const results = await Promise.all(
+        chunk.map(async (entry) => {
+          const stat = await fs.stat(entry.path).catch(() => null);
+          if (!stat) return null;
+          return { name: entry.name, path: entry.path, mtimeMs: stat.mtimeMs, size: stat.size };
+        }),
+      );
+      for (const res of results) {
+        if (res) files.push(res);
+      }
     }
 
     const maxAgeMs = options?.maxAgeMs ?? LIMITS.artifactTtlMs;
@@ -107,20 +120,9 @@ export class ArtifactStore {
     const maxTotalBytes = options?.maxTotalBytes ?? LIMITS.artifactMaxTotalBytes;
 
     const nowMs = Date.now();
-    const expired = files.filter((f) => nowMs - f.mtimeMs > maxAgeMs);
-
-    let removedFiles = 0;
-    let removedBytes = 0;
-
-    const removeFile = async (file: { path: string; size: number }) => {
-      await fs.rm(file.path, { force: true }).catch(() => null);
-      removedFiles += 1;
-      removedBytes += file.size;
-    };
-
-    for (const file of expired) {
-      await removeFile(file);
-    }
+    const toRemove: Array<{ path: string; size: number }> = files.filter(
+      (f) => nowMs - f.mtimeMs > maxAgeMs,
+    );
 
     // Recompute remaining after TTL removal (newest first).
     const remaining = files
@@ -130,15 +132,31 @@ export class ArtifactStore {
     let currentFiles = remaining.length;
     let currentBytes = remaining.reduce((acc, f) => acc + f.size, 0);
 
+    // Evaluate remaining files sequentially to build a safe removal queue
     for (let i = remaining.length - 1; i >= 0; i--) {
       const tooManyFiles = currentFiles > maxFiles;
       const tooManyBytes = currentBytes > maxTotalBytes;
       if (!tooManyFiles && !tooManyBytes) break;
 
       const oldest = remaining[i];
-      await removeFile(oldest);
+      toRemove.push(oldest);
       currentFiles -= 1;
       currentBytes -= oldest.size;
+    }
+
+    let removedFiles = 0;
+    let removedBytes = 0;
+
+    // Execute actual file deletions concurrently in chunks to prevent race conditions during state calculation and avoid EMFILE
+    for (let i = 0; i < toRemove.length; i += chunkSize) {
+      const chunk = toRemove.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map(async (file) => {
+          await fs.rm(file.path, { force: true }).catch(() => null);
+          removedFiles += 1;
+          removedBytes += file.size;
+        }),
+      );
     }
 
     return { removedFiles, removedBytes };
