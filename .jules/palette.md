@@ -1,0 +1,3 @@
+## 2026-07-21 - Accessible CLI Navigation Hints
+**Learning:** Screen readers in CLI environments rely on raw text output and fail to announce symbolic navigation characters like `↑↓` or `⏎` properly, causing an accessibility regression in Ink overlays.
+**Action:** Use visually concise but descriptive text words (e.g., 'Up/Down', 'Enter', 'Esc') instead of pure symbols for keyboard navigation hints to ensure screen reader compatibility.
