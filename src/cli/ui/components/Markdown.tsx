@@ -260,18 +260,34 @@ function prepareMarkdownInput(content: string): string {
   const lines = trimOuterEmptyLines(content.split('\n'));
   if (lines.length === 0) return '';
 
-  const minIndent = lines.reduce((min, line) => {
-    if (!line.trim()) return min;
-    const match = line.match(/^[ \t]*/);
-    const indent = match ? match[0].replace(/\t/g, '    ').length : 0;
-    return Math.min(min, indent);
-  }, Infinity);
+  const minIndent = calculateMinIndent(lines);
 
   if (minIndent === Infinity || minIndent <= 0) {
     return lines.join('\n');
   }
 
   return lines.map((line) => removeIndent(line, minIndent)).join('\n');
+}
+
+function calculateMinIndent(lines: string[]): number {
+  let min = Infinity;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    let isOnlyWhitespace = true;
+    let indent = 0;
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j];
+      if (char === ' ') indent += 1;
+      else if (char === '\t') indent += 4;
+      else {
+        isOnlyWhitespace = false;
+        break;
+      }
+    }
+    if (isOnlyWhitespace) continue;
+    if (indent < min) min = indent;
+  }
+  return min;
 }
 
 function trimOuterEmptyLines(lines: string[]): string[] {
@@ -308,12 +324,7 @@ function removeIndent(line: string, amount: number): string {
 
 function normalizeCodeBlockForDisplay(code: string): string {
   const lines = code.split('\n');
-  const minIndent = lines.reduce((min, line) => {
-    if (!line.trim()) return min;
-    const match = line.match(/^[ \t]*/);
-    const indent = match ? match[0].replace(/\t/g, '    ').length : 0;
-    return Math.min(min, indent);
-  }, Infinity);
+  const minIndent = calculateMinIndent(lines);
 
   if (minIndent === Infinity || minIndent <= 0) {
     return code;
@@ -338,12 +349,7 @@ function splitRenderedCodeLines(code: string): { lines: string[]; suffix: string
 }
 
 function removeRenderedCommonIndent(lines: string[]): string[] {
-  const minIndent = lines.reduce((min, line) => {
-    if (!line.trim()) return min;
-    const match = line.match(/^[ \t]*/);
-    const indent = match ? match[0].replace(/\t/g, '    ').length : 0;
-    return Math.min(min, indent);
-  }, Infinity);
+  const minIndent = calculateMinIndent(lines);
 
   if (minIndent === Infinity || minIndent <= 0) return lines;
   return lines.map((line) => removeIndent(line, minIndent));
