@@ -1,0 +1,3 @@
+## 2026-07-23 - Batched FS Operations in GC
+**Learning:** Sequential `fs.stat` and `fs.rm` operations in file garbage collection (like `ArtifactStore.gc`) cause performance bottlenecks and can hit EMFILE limits when iterating over many files. Additionally, doing file deletion within the loop that calculates total size leads to race conditions.
+**Action:** Always process files sequentially to build a safe removal queue first, then execute file deletions (e.g. `fs.rm`) concurrently in chunks (e.g. `Promise.all` with chunk size 10) to prevent performance bottlenecks and race conditions during state calculation.
