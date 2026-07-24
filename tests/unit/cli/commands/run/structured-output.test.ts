@@ -15,7 +15,7 @@ mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
 
 describe('loadJsonSchema', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   it('parses inline JSON schema', async () => {

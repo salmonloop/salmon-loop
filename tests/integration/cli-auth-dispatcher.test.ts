@@ -11,7 +11,7 @@ const helper = new RealFsTestHelper();
 
 describe('CLI /allowlist dispatcher integration', () => {
   afterEach(async () => {
-    mock.clearAllMocks();
+    mock.restore();
     await helper.cleanup();
   });
 

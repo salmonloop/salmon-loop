@@ -32,7 +32,7 @@ mock.module('os', () => ({
 
 describe('WorkspaceManager teardown safety behavior', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     queryMock.mockReset();
     rmMock.mockReset();
     accessMock.mockReset();

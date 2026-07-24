@@ -9,7 +9,7 @@ describe('Multilingual Testgen', () => {
   let tempRepo: string;
 
   beforeEach(async () => {
-    mock.clearAllMocks();
+    mock.restore();
     tempRepo = await fs.mkdtemp(path.join(os.tmpdir(), 'salmon-testgen-'));
   });
 

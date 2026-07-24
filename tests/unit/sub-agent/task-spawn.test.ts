@@ -23,7 +23,7 @@ function createMockManagerFactory() {
 
 describe('sub-agent task-spawn context snapshot injection', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     clearAuditTrail();
   });
 

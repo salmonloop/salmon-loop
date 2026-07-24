@@ -21,7 +21,7 @@ describe('git.blame', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   it('should parse porcelain blame output', async () => {
@@ -78,7 +78,7 @@ describe('git.log', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   it('should parse NUL-separated log output', async () => {
@@ -117,7 +117,7 @@ describe('git.show', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   it('should return raw content', async () => {

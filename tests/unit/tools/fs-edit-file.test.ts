@@ -19,7 +19,7 @@ describe('Builtin Tool: fs.edit_file', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   it('should replace a single occurrence', async () => {

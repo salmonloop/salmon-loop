@@ -217,7 +217,7 @@ describe('allowlist', () => {
   beforeEach(() => {
     files.clear();
     mtimes.clear();
-    mock.clearAllMocks();
+    mock.restore();
     setLogger({
       error: mock(),
       warn: mock(),
