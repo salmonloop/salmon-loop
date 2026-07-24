@@ -93,13 +93,24 @@ export class ArtifactStore {
     const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
 
     const files: Array<{ name: string; path: string; mtimeMs: number; size: number }> = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const filePath = path.join(root, entry.name);
-      if (!isWithinDir(root, filePath)) continue;
-      const stat = await fs.stat(filePath).catch(() => null);
-      if (!stat) continue;
-      files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+    // OPTIMIZATION: Process stats in concurrent chunks to avoid sequential IO bottlenecks and EMFILE limits
+    const CHUNK_SIZE = 10;
+    const fileEntries = entries.filter((e) => e.isFile());
+    for (let i = 0; i < fileEntries.length; i += CHUNK_SIZE) {
+      const chunk = fileEntries.slice(i, i + CHUNK_SIZE);
+      const stats = await Promise.all(
+        chunk.map(async (entry) => {
+          const filePath = path.join(root, entry.name);
+          if (!isWithinDir(root, filePath)) return null;
+          const stat = await fs.stat(filePath).catch(() => null);
+          return stat
+            ? { name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size }
+            : null;
+        }),
+      );
+      for (const stat of stats) {
+        if (stat) files.push(stat);
+      }
     }
 
     const maxAgeMs = options?.maxAgeMs ?? LIMITS.artifactTtlMs;
@@ -108,19 +119,7 @@ export class ArtifactStore {
 
     const nowMs = Date.now();
     const expired = files.filter((f) => nowMs - f.mtimeMs > maxAgeMs);
-
-    let removedFiles = 0;
-    let removedBytes = 0;
-
-    const removeFile = async (file: { path: string; size: number }) => {
-      await fs.rm(file.path, { force: true }).catch(() => null);
-      removedFiles += 1;
-      removedBytes += file.size;
-    };
-
-    for (const file of expired) {
-      await removeFile(file);
-    }
+    const toRemove = [...expired];
 
     // Recompute remaining after TTL removal (newest first).
     const remaining = files
@@ -130,15 +129,34 @@ export class ArtifactStore {
     let currentFiles = remaining.length;
     let currentBytes = remaining.reduce((acc, f) => acc + f.size, 0);
 
+    // Build the queue of files to remove sequentially to safely track cumulative state
     for (let i = remaining.length - 1; i >= 0; i--) {
       const tooManyFiles = currentFiles > maxFiles;
       const tooManyBytes = currentBytes > maxTotalBytes;
       if (!tooManyFiles && !tooManyBytes) break;
 
       const oldest = remaining[i];
-      await removeFile(oldest);
+      toRemove.push(oldest);
       currentFiles -= 1;
       currentBytes -= oldest.size;
+    }
+
+    let removedFiles = 0;
+    let removedBytes = 0;
+
+    // OPTIMIZATION: Execute file removals concurrently in chunks to speed up GC IO
+    for (let i = 0; i < toRemove.length; i += CHUNK_SIZE) {
+      const chunk = toRemove.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (file) => {
+          await fs.rm(file.path, { force: true }).catch(() => null);
+        }),
+      );
+      // We assume removals succeeded as force: true ignores missing files, updating stats
+      for (const file of chunk) {
+        removedFiles += 1;
+        removedBytes += file.size;
+      }
     }
 
     return { removedFiles, removedBytes };
