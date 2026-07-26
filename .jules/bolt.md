@@ -1,0 +1,3 @@
+## 2026-07-26 - Concurrent GC Batching
+**Learning:** Sequential fs.stat and fs.rm across hundreds of dynamically created files block the event loop and causes slow execution times. Unbounded concurrent execution creates EMFILE issues. Performing state/capacity calculation and actual file deletions simultaneously introduces race conditions in metric accounting.
+**Action:** When handling a large variable array of file operations, use chunked batching via `Promise.all` (e.g. chunk size 10) to drastically improve speeds while preventing file descriptor exhaustion. Calculate state thresholds sequentially first to build a deletion queue, then process the deletion queue concurrently in batches.
