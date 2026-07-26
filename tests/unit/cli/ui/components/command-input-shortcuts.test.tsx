@@ -1,5 +1,5 @@
-import { mock, describe, it, expect, beforeEach } from 'bun:test';
 import { render } from '@testing-library/react';
+import { mock, describe, it, expect, beforeEach } from 'bun:test';
 import React from 'react';
 
 const hoisted = (() => ({
