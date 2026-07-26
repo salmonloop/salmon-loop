@@ -1,0 +1,3 @@
+## YYYY-MM-DD - Screen Reader Accessibility in CLI UI
+**Learning:** For complex command-line selection interfaces or overlays using Ink, replacing descriptive navigation words (like 'Up/Down', 'Enter') with purely symbolic text (e.g., `↑↓`, `⏎`) causes accessibility regressions because screen readers in CLI environments fail to announce these symbols properly.
+**Action:** Use visually concise but screen-reader-friendly text for navigation hints (e.g., 'Up/Down' instead of `↑↓`) instead of pure symbols to maintain accessibility.
