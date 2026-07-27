@@ -33,9 +33,7 @@ function createCtx(overrides: Record<string, unknown> = {}) {
 }
 
 describe('apply-back step', () => {
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('skips when verify is not ok', async () => {
     const { runApplyBack } = await import('../../../../../src/core/grizzco/steps/apply-back.js');

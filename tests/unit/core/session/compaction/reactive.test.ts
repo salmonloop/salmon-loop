@@ -13,7 +13,6 @@ mock.module('../../../../../src/core/session/summary-sync.js', () => ({
 describe('reactiveCompact', () => {
   beforeEach(() => {
     setLogger(createLogger({ silent: true }));
-    mock.clearAllMocks();
   });
 
   function createMockSessionManager() {

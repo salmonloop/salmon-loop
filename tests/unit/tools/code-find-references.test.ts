@@ -40,9 +40,7 @@ mock.module('../../../src/core/runtime/process-runner.js', () => ({
 describe('Builtin Tool: code.find_references', () => {
   const repoRoot = '/fake/repo';
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('should find definition and references across files', async () => {
     // Target file has a definition

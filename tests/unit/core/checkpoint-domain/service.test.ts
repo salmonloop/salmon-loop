@@ -29,7 +29,6 @@ import { GitSnapshotCheckpointService } from '../../../../src/core/checkpoint-do
 
 describe('GitSnapshotCheckpointService', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     garbageCollectManifestMock.mockResolvedValue({ removed: 0, removedIds: [] });
     probeCheckpointHandleMock.mockResolvedValue({ handle: null, reason: 'not_found' });
   });

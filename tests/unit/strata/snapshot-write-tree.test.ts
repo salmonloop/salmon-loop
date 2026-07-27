@@ -12,9 +12,7 @@ import {
 } from '../../../src/core/strata/checkpoint/snapshot-write-tree.js';
 
 describe('snapshot write-tree helpers', () => {
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('retries write-tree and eventually succeeds', async () => {
     let attempts = 0;

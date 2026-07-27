@@ -20,9 +20,7 @@ async function loadStoreModule() {
 }
 
 describe('PersistentContextCacheStore', () => {
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('fails fast in strict mode when cache file is malformed', async () => {
     readFileMock.mockResolvedValue('{bad-json');

@@ -26,9 +26,7 @@ mock.module('../../../../../src/core/observability/audit-trail.js', () => ({
 }));
 
 describe('runPrepareDeps', () => {
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   function createCtx(overrides: Record<string, unknown> = {}) {
     return {

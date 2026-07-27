@@ -43,9 +43,7 @@ describe('SalmonLoop setup failure cleanup', () => {
     security: { redaction: { enabled: true, mark: '[REDACTED]', maxDepth: 6 } },
   } as any;
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('tears down environment when setup fails', async () => {
     const setupError = Object.assign(new Error('setup failed'), {

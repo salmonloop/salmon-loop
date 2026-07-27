@@ -52,9 +52,7 @@ function createParams(overrides: Record<string, unknown> = {}) {
 }
 
 describe('apply-back-runtime', () => {
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('deduplicates and filters sidecar paths', async () => {
     const { collectSidecarPaths } =

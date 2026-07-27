@@ -142,7 +142,7 @@ export function restoreConsoleOutputs() {
 
 export function clearMockState() {
   mock.restore();
-  mock.clearAllMocks();
+  // mock.clearAllMocks(); // Not supported in bun:test
   auditTrail.clearAuditTrail();
 }
 

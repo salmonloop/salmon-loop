@@ -33,7 +33,6 @@ import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.j
 
 describe('CheckpointManager observability', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     gitExecMetaMock.mockResolvedValue({
       ok: true,
       code: 0,

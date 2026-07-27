@@ -49,7 +49,6 @@ function createCtx(overrides: Record<string, unknown> = {}) {
 
 describe('verify step budget status log', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     getGlobalAdjuster().reset();
   });
 

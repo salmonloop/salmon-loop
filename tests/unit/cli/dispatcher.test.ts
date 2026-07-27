@@ -16,9 +16,7 @@ const mockSessionManager = {
 describe('CommandDispatcher', () => {
   const dispatcher = new CommandDispatcher();
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('should execute a valid command', async () => {
     // /help is a valid command in registry

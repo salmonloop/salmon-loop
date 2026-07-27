@@ -10,9 +10,7 @@ mock.module('../../../src/core/runtime/process-runner.js', () => ({
 describe('glob.find', () => {
   const repoRoot = '/fake/repo';
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('should return matched files', async () => {
     (spawnCommand as any).mockImplementation(async (opts: any) => {

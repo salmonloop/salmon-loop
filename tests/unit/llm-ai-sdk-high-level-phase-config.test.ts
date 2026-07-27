@@ -74,7 +74,6 @@ function createLlm(): AiSdkLLM {
 
 describe('AiSdkLLM high-level phase mapping', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     generateTextMock.mockImplementation(async () => ({
       text: JSON.stringify({
         goal: 'Goal',

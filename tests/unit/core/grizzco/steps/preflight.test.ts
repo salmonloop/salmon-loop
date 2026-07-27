@@ -25,7 +25,6 @@ mock.module('../../../../../src/core/observability/audit-trail.js', () => ({
 
 describe('grizzco runPreflight', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     hoisted.preflight.mockResolvedValue({ ok: true });
     hoisted.resolveLlmToolCallingPolicy.mockReturnValue({ enabled: true, maxRounds: 4 });
     hoisted.createStandardToolstack.mockResolvedValue({

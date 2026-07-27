@@ -18,9 +18,7 @@ mock.module('../../../src/core/adapters/fs/atomic-file-writer.js', () => ({
 describe('Builtin Tool: fs.edit_file', () => {
   const repoRoot = '/fake/repo';
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('should replace a single occurrence', async () => {
     (readFile as any).mockResolvedValue('hello world\n');

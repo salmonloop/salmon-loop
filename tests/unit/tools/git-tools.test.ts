@@ -20,9 +20,7 @@ mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
 describe('git.blame', () => {
   const repoRoot = '/fake/repo';
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('should parse porcelain blame output', async () => {
     const porcelain = [
@@ -77,9 +75,7 @@ describe('git.blame', () => {
 describe('git.log', () => {
   const repoRoot = '/fake/repo';
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('should parse NUL-separated log output', async () => {
     const NUL = '\x00';
@@ -116,9 +112,7 @@ describe('git.log', () => {
 describe('git.show', () => {
   const repoRoot = '/fake/repo';
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('should return raw content', async () => {
     const diff = 'commit abc123\nAuthor: Alice\n\n    Fix bug\n\ndiff --git a/foo b/foo\n+bar';

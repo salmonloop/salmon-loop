@@ -41,8 +41,6 @@ describe('ContextBuilder', () => {
   const tempDir = '/fake/temp/dir';
 
   beforeEach(() => {
-    mock.clearAllMocks();
-
     // Default AST mocks
     (AstParser.parse as any).mockResolvedValue({} as any);
     (AstParser.identifyDefinitions as any).mockResolvedValue([]);

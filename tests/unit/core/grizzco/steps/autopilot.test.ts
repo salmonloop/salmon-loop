@@ -249,7 +249,6 @@ function nonGitAutopilotContext() {
 
 describe('runAutopilot', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     setPromptRegistry(createPromptRegistry());
     hoisted.resolveLlmToolCallingPolicy.mockReturnValue({ enabled: true, maxRounds: 8 });
     hoisted.gitExecMeta.mockImplementation(async () => {

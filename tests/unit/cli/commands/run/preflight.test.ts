@@ -37,7 +37,6 @@ describe('runPreflight', () => {
   });
 
   beforeEach(() => {
-    mock.clearAllMocks();
     setLogger(hoisted.logger as any);
     hoisted.spawnCommand.mockResolvedValue({
       code: 0,

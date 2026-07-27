@@ -92,9 +92,7 @@ function findComponent(components: string[], prefix: string): string | undefined
 }
 
 describe('AiSdkLLM cache contract', () => {
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('propagates request-envelope cache hint into final OpenAI-compatible request for createPlan', async () => {
     const llm = new AiSdkLLM({
