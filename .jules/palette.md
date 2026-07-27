@@ -1,0 +1,3 @@
+## YYYY-MM-DD - Screen Reader Accessibility in CLI Interfaces
+**Learning:** Screen readers in CLI environments rely on raw text output and fail to announce symbolic text properly (e.g., `↑↓`, `⏎`). Using them for concise microcopy causes accessibility regressions.
+**Action:** Use visually concise but screen-reader-friendly text (e.g., 'Up/Down', 'Enter') instead of purely symbolic text for navigation hints in CLI interfaces.
