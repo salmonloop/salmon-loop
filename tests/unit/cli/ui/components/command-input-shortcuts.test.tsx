@@ -141,7 +141,7 @@ describe('CommandInput shortcuts', () => {
       <CommandInput value="" onChange={mock()} onSubmit={mock()} getSuggestions={async () => []} />,
     );
 
-    expect(container.textContent).toContain('❯ Alpha - first');
+    expect(container.textContent).toContain('> Alpha - first');
     expect(container.textContent).toContain('  Beta - second');
   });
 });
