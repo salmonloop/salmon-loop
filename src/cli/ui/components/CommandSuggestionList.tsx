@@ -116,7 +116,7 @@ export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
         </Box>
         <Box>
           <Text color={COLORS.text.muted} dimColor>
-            ↑↓ nav · ⏎ select · esc close
+            Up/Down nav · Enter select · Esc close
           </Text>
         </Box>
       </Box>

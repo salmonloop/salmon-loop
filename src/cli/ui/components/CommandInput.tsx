@@ -294,7 +294,7 @@ export const CommandInput: React.FC<Props> = ({
                 const isSelected = idx === selectionIndex;
                 return (
                   <Text key={item.id} color={isSelected ? COLORS.semantic.cyan : COLORS.text.muted}>
-                    {isSelected ? '❯ ' : '  '}
+                    {isSelected ? '> ' : '  '}
                     {isMultiSelecting && (
                       <Text color={selectedItems.includes(item.id) ? COLORS.semantic.cyan : COLORS.text.muted}>
                         {selectedItems.includes(item.id) ? '[x] ' : '[ ] '}
