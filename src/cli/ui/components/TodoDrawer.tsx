@@ -87,6 +87,7 @@ export function TodoDrawer({
 
   const visibleTodos = useMemo(() => todos.slice(0, Math.max(0, maxVisible)), [todos, maxVisible]);
   const toggleLabel = isExpanded ? '▲' : '▼';
+  const pendingCount = useMemo(() => todos.filter((t) => t.status !== 'done').length, [todos]);
 
   return (
     <Box
@@ -100,8 +101,19 @@ export function TodoDrawer({
     >
       <Box flexDirection="row" justifyContent="space-between" paddingX={2} paddingY={0}>
         <Box>
-          <Text color={COLORS.semantic.blue} bold>
-            TODO
+          <Text>
+            <Text color={COLORS.semantic.blue} bold>
+              TODO
+            </Text>
+            {!isExpanded && todos.length > 0 && pendingCount > 0 && (
+              <Text color={COLORS.text.muted} dimColor>
+                {' '}
+                · {pendingCount} pending
+              </Text>
+            )}
+            {!isExpanded && todos.length > 0 && pendingCount === 0 && (
+              <Text color={COLORS.semantic.cyan}> · all done!</Text>
+            )}
           </Text>
         </Box>
         <Box>

@@ -1,0 +1,3 @@
+## 2024-07-29 - Improve TodoDrawer UX closed state context
+**Learning:** In a CLI UI where space is constrained and a "TodoDrawer" component is used, the closed state only shows a tiny expand icon (▼) and a keyboard shortcut. Users don't know the status of the tasks (e.g. how many are pending or done) unless they expand it. This violates the principle of providing context at a glance. Adding a small summary (like "· 2 pending") in the closed state improves usability.
+**Action:** Enhance the `TodoDrawer` component so that when it is closed, and there are tasks present, it shows a quick summary of pending/in-progress tasks to give the user context without needing interaction.
