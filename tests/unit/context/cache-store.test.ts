@@ -21,7 +21,7 @@ async function loadStoreModule() {
 
 describe('PersistentContextCacheStore', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+
   });
 
   it('fails fast in strict mode when cache file is malformed', async () => {

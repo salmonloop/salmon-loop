@@ -27,7 +27,7 @@ describe('Exploration Integrity Integration', () => {
       ],
     });
     repoPath = repo.path;
-    mock.clearAllMocks();
+
   });
 
   afterEach(async () => {

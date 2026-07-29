@@ -51,7 +51,7 @@ describe('External User Plugin Integration', () => {
   beforeEach(async () => {
     // Reset plugin loader state
     PluginLoader.reset();
-    mock.clearAllMocks();
+
     registry = createPluginRegistry();
     setPluginRegistry(registry);
 

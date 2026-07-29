@@ -11,7 +11,7 @@ describe('glob.find', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    mock.clearAllMocks();
+
   });
 
   it('should return matched files', async () => {

@@ -23,7 +23,7 @@ describe('StrataFileSystemProvider safety behavior', () => {
     new StrataFileSystemProvider({} as unknown as GitAdapter);
 
   beforeEach(() => {
-    mock.clearAllMocks();
+
     fileState.clear();
     setLogger({
       error: mock(),
