@@ -92,14 +92,25 @@ export class ArtifactStore {
     const root = getArtifactsRoot();
     const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
 
+    const validEntries = entries.filter(
+      (e) => e.isFile() && isWithinDir(root, path.join(root, e.name)),
+    );
+
     const files: Array<{ name: string; path: string; mtimeMs: number; size: number }> = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const filePath = path.join(root, entry.name);
-      if (!isWithinDir(root, filePath)) continue;
-      const stat = await fs.stat(filePath).catch(() => null);
-      if (!stat) continue;
-      files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+    for (let i = 0; i < validEntries.length; i += 10) {
+      const chunk = validEntries.slice(i, i + 10);
+      const stats = await Promise.all(
+        chunk.map(async (entry) => {
+          const filePath = path.join(root, entry.name);
+          const stat = await fs.stat(filePath).catch(() => null);
+          return { entry, filePath, stat };
+        }),
+      );
+      for (const { entry, filePath, stat } of stats) {
+        if (stat) {
+          files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+        }
+      }
     }
 
     const maxAgeMs = options?.maxAgeMs ?? LIMITS.artifactTtlMs;
@@ -109,18 +120,8 @@ export class ArtifactStore {
     const nowMs = Date.now();
     const expired = files.filter((f) => nowMs - f.mtimeMs > maxAgeMs);
 
-    let removedFiles = 0;
-    let removedBytes = 0;
-
-    const removeFile = async (file: { path: string; size: number }) => {
-      await fs.rm(file.path, { force: true }).catch(() => null);
-      removedFiles += 1;
-      removedBytes += file.size;
-    };
-
-    for (const file of expired) {
-      await removeFile(file);
-    }
+    const filesToRemove: Array<{ path: string; size: number }> = [];
+    filesToRemove.push(...expired);
 
     // Recompute remaining after TTL removal (newest first).
     const remaining = files
@@ -136,9 +137,23 @@ export class ArtifactStore {
       if (!tooManyFiles && !tooManyBytes) break;
 
       const oldest = remaining[i];
-      await removeFile(oldest);
+      filesToRemove.push(oldest);
       currentFiles -= 1;
       currentBytes -= oldest.size;
+    }
+
+    let removedFiles = 0;
+    let removedBytes = 0;
+
+    for (let i = 0; i < filesToRemove.length; i += 10) {
+      const chunk = filesToRemove.slice(i, i + 10);
+      await Promise.all(
+        chunk.map(async (file) => fs.rm(file.path, { force: true }).catch(() => null)),
+      );
+      for (const file of chunk) {
+        removedFiles += 1;
+        removedBytes += file.size;
+      }
     }
 
     return { removedFiles, removedBytes };
