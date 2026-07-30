@@ -121,8 +121,8 @@ export const WelcomeMessage: React.FC = () => {
             → PRO TIPS
           </Text>
           <Box flexDirection="column" marginTop={0}>
-            <Text color="#6e7681">• Ctrl+Space to toggle commands</Text>
-            <Text color="#6e7681">• I'll show my thinking process</Text>
+            <Text color="#6e7681">• Ctrl+T to toggle TODO list</Text>
+            <Text color="#6e7681">• Tab to complete commands</Text>
             <Text color="#6e7681">• ^C to interrupt if needed</Text>
           </Box>
         </Box>

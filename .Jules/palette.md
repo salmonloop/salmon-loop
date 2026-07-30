@@ -1,0 +1,3 @@
+## YYYY-MM-DD - [Keyboard Navigation Discoverability]
+**Learning:** [Hardcoded shortcut hints in terminal UIs (like WelcomeMessage) easily fall out of sync with actual component behaviors. Explicitly noting Tab completion and correct Ctrl shortcuts improves accessibility and feature discoverability.]
+**Action:** [Always audit hardcoded shortcut text in Welcome messages or suggestion footers when adding/modifying keyboard shortcuts in components.]
