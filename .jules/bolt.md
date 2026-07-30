@@ -1,0 +1,3 @@
+## YYYY-MM-DD - Batching Concurrent File Operations
+**Learning:** Sequential file operations like `fs.stat` and `fs.rm` in garbage collection processes over many files cause severe performance bottlenecks, but running them all concurrently without chunking can hit EMFILE limits or cause memory issues.
+**Action:** When optimizing file operations that iterate over large directories, use batched concurrent `fs.stat` and `fs.rm` checks (e.g. `Promise.all` with chunk sizes of 10-50). When depending on dynamic state calculation, first evaluate the files sequentially to build a safe removal queue, and then execute the actual deletions concurrently.
