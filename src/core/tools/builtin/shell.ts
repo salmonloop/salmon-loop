@@ -48,11 +48,17 @@ export async function executeShellExec(
 
   try {
     const shell = getPlatformShellInvocation(input.command);
+
+    const mergedEnv = { ...process.env, ...(ctx.env ?? {}) };
+
+    // Prevent leaking framework LLM API keys into the arbitrary shell execution context
+    delete mergedEnv['SALMONLOOP_API_KEY'];
+    delete mergedEnv['S8P_API_KEY'];
+
     const res = await execa(shell.file, shell.args, {
       cwd,
       env: {
-        ...process.env,
-        ...(ctx.env ?? {}),
+        ...mergedEnv,
         SALMONLOOP_REPO_ROOT: ctx.repoRoot,
         SALMONLOOP_WORKTREE_ROOT: ctx.worktreeRoot ?? '',
         SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),

@@ -1,0 +1,4 @@
+## 2025-02-14 - Prevent Framework Secrets Leak in Agent Shell Execution
+**Vulnerability:** The `shell.exec` tool passed the entire merged environment (including framework secrets like `SALMONLOOP_API_KEY`) to arbitrary shell commands invoked by the AI agent via `execa`.
+**Learning:** Automatically merging `process.env` with `ctx.env` when spawning sub-processes can unintentionally expose primary application secrets to the spawned process, which is dangerous when executing unverified or dynamic shell commands.
+**Prevention:** Explicitly delete internal framework secrets (e.g., `SALMONLOOP_API_KEY`, `S8P_API_KEY`) from the environment object passed to `execa` or similar sub-process spawning utilities. Avoid aggressively sanitizing all user-provided variables (like `GITHUB_TOKEN`) to prevent breaking legitimate shell use cases.
