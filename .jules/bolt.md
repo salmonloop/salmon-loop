@@ -1,0 +1,3 @@
+## YYYY-MM-DD - Artifact GC Bottleneck
+**Learning:** Sequential fs.stat and fs.rm iterations in ArtifactStore.gc caused severe performance bottlenecks and potential EMFILE limits when processing many artifacts. Additionally, concurrent deletions that depend on dynamically updated cumulative totals can cause race conditions during state calculation.
+**Action:** Always process large file iterations using batched concurrent checks (e.g. Promise.all with chunk sizes of 10). For deletions depending on cumulative totals, build a safe removal queue sequentially before executing the actual file deletions concurrently in chunks.
