@@ -1,4 +1,5 @@
 import { Box, Text, useInput } from 'ink';
+import Spinner from 'ink-spinner';
 import React, { useMemo } from 'react';
 
 import { COLORS } from '../styles/theme.js';
@@ -21,14 +22,19 @@ export interface TodoDrawerProps {
   maxVisible?: number;
 }
 
-function statusIcon(status: TodoStatus) {
+function StatusIcon({ status }: { status: TodoStatus }) {
+  const color = statusColor(status);
   switch (status) {
     case 'done':
-      return '[x]';
+      return <Text color={color}>[x]</Text>;
     case 'in_progress':
-      return '[/]';
+      return (
+        <Text color={color}>
+          [<Spinner type="dots" />]
+        </Text>
+      );
     case 'pending':
-      return '[ ]';
+      return <Text color={color}>[ ]</Text>;
   }
 }
 
@@ -121,7 +127,7 @@ export function TodoDrawer({
             visibleTodos.map((t) => (
               <Box key={t.id} flexDirection="row">
                 <Box width={4}>
-                  <Text color={statusColor(t.status)}>{statusIcon(t.status)}</Text>
+                  <StatusIcon status={t.status} />
                 </Box>
                 <Box width={2}>
                   <Text color={priorityColor(t.priority)}>{priorityIcon(t.priority)}</Text>
