@@ -1,0 +1,3 @@
+## 2025-08-01 - Batch processing with fs
+**Learning:** In scenarios involving dynamic states for file processing limits (e.g. maxTotalBytes and maxFiles for Artifacts) it is critical to perform the fs deletion calls separately in batches after establishing the execution queue. Evaluating file statistics in parallel with the deletion calls can result in unexpected limit checks, race conditions, or worse, hitting OS `EMFILE` limits (too many open files).
+**Action:** When refactoring file operations that check multiple files, ensure `fs.stat` loops chunk work (e.g., in sizes of 10), establish removal queues based on state cleanly, and execute large I/O processes safely via chunks with `Promise.all`.

@@ -93,13 +93,27 @@ export class ArtifactStore {
     const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
 
     const files: Array<{ name: string; path: string; mtimeMs: number; size: number }> = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
+    const entriesToProcess = entries.filter((entry) => {
+      if (!entry.isFile()) return false;
       const filePath = path.join(root, entry.name);
-      if (!isWithinDir(root, filePath)) continue;
-      const stat = await fs.stat(filePath).catch(() => null);
-      if (!stat) continue;
-      files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+      return isWithinDir(root, filePath);
+    });
+
+    // ⚡ Bolt: Evaluate files concurrently in chunks to speed up I/O and prevent EMFILE limits
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < entriesToProcess.length; i += CHUNK_SIZE) {
+      const chunk = entriesToProcess.slice(i, i + CHUNK_SIZE);
+      const stats = await Promise.all(
+        chunk.map(async (entry) => {
+          const filePath = path.join(root, entry.name);
+          const stat = await fs.stat(filePath).catch(() => null);
+          if (!stat) return null;
+          return { name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size };
+        }),
+      );
+      for (const stat of stats) {
+        if (stat) files.push(stat);
+      }
     }
 
     const maxAgeMs = options?.maxAgeMs ?? LIMITS.artifactTtlMs;
@@ -111,15 +125,13 @@ export class ArtifactStore {
 
     let removedFiles = 0;
     let removedBytes = 0;
+    const filesToRemove: Array<{ path: string; size: number }> = [];
 
-    const removeFile = async (file: { path: string; size: number }) => {
-      await fs.rm(file.path, { force: true }).catch(() => null);
+    // Queue expired files for removal
+    for (const file of expired) {
+      filesToRemove.push(file);
       removedFiles += 1;
       removedBytes += file.size;
-    };
-
-    for (const file of expired) {
-      await removeFile(file);
     }
 
     // Recompute remaining after TTL removal (newest first).
@@ -130,15 +142,24 @@ export class ArtifactStore {
     let currentFiles = remaining.length;
     let currentBytes = remaining.reduce((acc, f) => acc + f.size, 0);
 
+    // Queue oldest files for removal if over limits
     for (let i = remaining.length - 1; i >= 0; i--) {
       const tooManyFiles = currentFiles > maxFiles;
       const tooManyBytes = currentBytes > maxTotalBytes;
       if (!tooManyFiles && !tooManyBytes) break;
 
       const oldest = remaining[i];
-      await removeFile(oldest);
+      filesToRemove.push(oldest);
       currentFiles -= 1;
       currentBytes -= oldest.size;
+      removedFiles += 1;
+      removedBytes += oldest.size;
+    }
+
+    // ⚡ Bolt: Execute actual file deletions concurrently in chunks to prevent race conditions during state calculation
+    for (let i = 0; i < filesToRemove.length; i += CHUNK_SIZE) {
+      const chunk = filesToRemove.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk.map((file) => fs.rm(file.path, { force: true }).catch(() => null)));
     }
 
     return { removedFiles, removedBytes };
