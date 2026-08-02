@@ -9,12 +9,16 @@ interface CommandSuggestionListProps {
   selectedIndex: number;
   parentCommand?: Command;
   filterText?: string;
+  totalCount?: number;
+  startIndex?: number;
 }
 
 export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
   suggestions,
   selectedIndex,
   parentCommand,
+  totalCount = suggestions.length,
+  startIndex = 0,
 }) => {
   if (suggestions.length === 0) return null;
 
@@ -26,6 +30,9 @@ export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
 
   // Calculate dynamic column width
   const maxNameLength = suggestions.reduce((max, s) => Math.max(max, s.name.length), 0);
+
+  const moreAbove = startIndex;
+  const moreBelow = totalCount - (startIndex + suggestions.length);
 
   return (
     <Box
@@ -39,6 +46,13 @@ export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
     >
       {/* CONTENT: Command List */}
       <Box flexDirection="column" paddingY={0}>
+        {moreAbove > 0 && (
+          <Box paddingX={1}>
+            <Text color={COLORS.text.muted} dimColor>
+              ↑ {moreAbove} more command{moreAbove === 1 ? '' : 's'} above
+            </Text>
+          </Box>
+        )}
         {suggestions.map((item, index) => {
           const isSelected = index === selectedIndex;
           const hasSubcommands = !!item.command?.subcommands?.length;
@@ -74,6 +88,13 @@ export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
             </Box>
           );
         })}
+        {moreBelow > 0 && (
+          <Box paddingX={1}>
+            <Text color={COLORS.text.muted} dimColor>
+              ↓ {moreBelow} more command{moreBelow === 1 ? '' : 's'} below
+            </Text>
+          </Box>
+        )}
       </Box>
 
       {/* FOOTER: Contextual Hints */}

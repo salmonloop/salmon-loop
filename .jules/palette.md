@@ -1,0 +1,3 @@
+## YYYY-MM-DD - Explicit Visual Indicators for Truncated Dynamic Lists
+**Learning:** When displaying dynamic lists in terminal UIs (such as those using `ink`), if the list is truncated to fit constraints (e.g., a `maxVisible` limit), always include an explicit visual indicator (like '... and X more tasks' or '↑ X more command(s) above') to preserve user situational awareness.
+**Action:** Always check if a list component is given a slice of the full dataset, and if so, pass the total dataset size and start index to the component to render "X more items" indicators above and below the list when truncation occurs.
