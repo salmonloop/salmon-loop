@@ -4,6 +4,7 @@ import path from 'path';
 import { LIMITS } from '../../config/limits.js';
 import { getLogger } from '../../observability/logger.js';
 import { spawnCommand } from '../../runtime/process-runner.js';
+import { sanitizeEnvironment } from '../../utils/sanitizer.js';
 
 export interface GitRunLimits {
   /**
@@ -101,12 +102,12 @@ export async function runGitCommand(input: GitRunInput): Promise<GitRunResult> {
     command: 'git',
     args: input.args,
     cwd,
-    env: {
+    env: sanitizeEnvironment({
       ...process.env,
       LC_ALL: 'C',
       GIT_OPTIONAL_LOCKS: '0',
       ...(input.env || {}),
-    },
+    }),
     stdin: input.input,
     timeoutMs,
     killGraceMs,

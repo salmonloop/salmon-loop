@@ -4,6 +4,7 @@ import { text } from '../../../locales/index.js';
 import { DecisionEngine, PlanBuilder } from '../../grizzco/dsl/DecisionEngine.js';
 import { ToolRuntimeCtx } from '../../tools/types.js';
 import { getPlatformShellInvocation } from '../../utils/platform-shell.js';
+import { sanitizeEnvironment } from '../../utils/sanitizer.js';
 import { SkillParser } from '../parser.js';
 import { SkillDslContext, SkillStrategyDSL } from '../strategy.js';
 import { ExecutionContext, IExecutable, Skill, SkillData, SkillExecutionResult } from '../types.js';
@@ -113,11 +114,11 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
       const shell = getPlatformShellInvocation(command);
       const { stdout } = await execa(shell.file, shell.args, {
         cwd: ctx.repoRoot,
-        env: {
+        env: sanitizeEnvironment({
           ...process.env,
           SALMONLOOP_REPO_ROOT: ctx.repoRoot,
           SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),
-        },
+        }),
       });
       return stdout.trim();
     } catch (error: unknown) {

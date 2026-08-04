@@ -10,6 +10,7 @@ import { isCommandAvailable, spawnCommand } from '../runtime/process-runner.js';
 import { ErrorType, LoopEvent } from '../types/index.js';
 import type { ExecutionWorkspace } from '../types/index.js';
 import { getPlatformShellInvocation } from '../utils/platform-shell.js';
+import { sanitizeEnvironment } from '../utils/sanitizer.js';
 import { detectWorkspaceCapabilities } from '../workspace/capabilities.js';
 
 /**
@@ -234,7 +235,7 @@ export async function runCommand(
     cwd: repoPath,
     windowsHide: true,
     detached: process.platform !== 'win32',
-    env: env ? { ...process.env, ...env } : process.env,
+    env: sanitizeEnvironment(env ? { ...process.env, ...env } : process.env),
     timeoutMs,
     killGraceMs: 2000,
     signal,
