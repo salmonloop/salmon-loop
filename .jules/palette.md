@@ -1,0 +1,3 @@
+## 2026-08-06 - Explicit Visual Indicator for Truncated Dynamic Lists
+**Learning:** When displaying dynamic lists in terminal UIs (such as those using `ink`), truncating lists to fit constraints (e.g., a `maxVisible` limit) without a visual indicator reduces user situational awareness.
+**Action:** Always include an explicit visual indicator (like '... and X more tasks') when a dynamic list is truncated.
