@@ -118,21 +118,30 @@ export function TodoDrawer({
               No tasks yet.
             </Text>
           ) : (
-            visibleTodos.map((t) => (
-              <Box key={t.id} flexDirection="row">
-                <Box width={4}>
-                  <Text color={statusColor(t.status)}>{statusIcon(t.status)}</Text>
+            <>
+              {visibleTodos.map((t) => (
+                <Box key={t.id} flexDirection="row">
+                  <Box width={4}>
+                    <Text color={statusColor(t.status)}>{statusIcon(t.status)}</Text>
+                  </Box>
+                  <Box width={2}>
+                    <Text color={priorityColor(t.priority)}>{priorityIcon(t.priority)}</Text>
+                  </Box>
+                  <Box flexGrow={1}>
+                    <Text wrap="truncate" color={COLORS.text.primary}>
+                      {t.text}
+                    </Text>
+                  </Box>
                 </Box>
-                <Box width={2}>
-                  <Text color={priorityColor(t.priority)}>{priorityIcon(t.priority)}</Text>
-                </Box>
-                <Box flexGrow={1}>
-                  <Text wrap="truncate" color={COLORS.text.primary}>
-                    {t.text}
+              ))}
+              {todos.length > maxVisible && (
+                <Box marginTop={0} paddingLeft={6}>
+                  <Text color={COLORS.text.muted} dimColor italic>
+                    ... and {todos.length - maxVisible} more tasks
                   </Text>
                 </Box>
-              </Box>
-            ))
+              )}
+            </>
           )}
         </Box>
       )}
