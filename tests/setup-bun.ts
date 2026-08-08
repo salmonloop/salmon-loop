@@ -60,3 +60,7 @@ afterAll(() => {
   restoreConsoleOutputs();
   mock.restore();
 });
+
+import { mock } from "bun:test";
+globalThis.mock = mock;
+if (typeof globalThis.mock.clearAllMocks !== "function") globalThis.mock.clearAllMocks = () => {};
