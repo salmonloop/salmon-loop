@@ -1,0 +1,3 @@
+## 2025-03-01 - Prevent O(n) calculation on every render in CommandSuggestionList
+**Learning:** React function components in Ink (like `CommandSuggestionList`) can re-render frequently (e.g. on every keystroke or selection change from the parent). Running array iterations like `reduce` to calculate visual dimensions (like `maxNameLength`) on every render adds unnecessary overhead.
+**Action:** Use `React.useMemo` to memoize expensive derived values and wrap pure UI components in `React.memo` to prevent unnecessary re-renders when parent state (like input history) updates without changing the component's props.
