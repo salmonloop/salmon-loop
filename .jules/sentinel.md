@@ -1,4 +1,4 @@
-## YYYY-MM-DD - Timing Attack Vulnerability in Token Validation
-**Vulnerability:** A length check (`tokenBuffer.length === authTokenBuffer.length`) before `crypto.timingSafeEqual` in `src/cli/commands/serve.ts` created a fast path that leaked the length of valid tokens through timing differences.
-**Learning:** Checking buffer lengths prior to constant-time comparisons voids the constant-time guarantee by introducing an early exit.
-**Prevention:** Always hash both secrets to a fixed length (e.g., using `crypto.createHash('sha256')`) before comparison to ensure true constant-time evaluation regardless of the input lengths.
+## 2026-08-10 - Default Dangerous Patterns in SkillParser
+**Vulnerability:** The default dangerous patterns in `SkillParser.extractCommands` (`DEFAULT_DANGEROUS_PATTERNS`) caught `curl ... | sh` but missed `wget ... | sh`, which is an equivalent vector for remote code execution via piped download. Also, variants like `bash`, `zsh`, or `python` were missed.
+**Learning:** Hardcoded regexes for malicious shell patterns are prone to bypasses if they don't account for common aliases/alternatives (e.g., `wget` instead of `curl`, or `bash`/`zsh` instead of `sh`).
+**Prevention:** Include broader shell command matching for network downloaders piped to interpreters.
