@@ -134,6 +134,11 @@ export function TodoDrawer({
               </Box>
             ))
           )}
+          {todos.length > maxVisible && (
+            <Text color={COLORS.text.muted} dimColor>
+              ... and {todos.length - maxVisible} more tasks
+            </Text>
+          )}
         </Box>
       )}
     </Box>
