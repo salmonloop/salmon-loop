@@ -1,0 +1,3 @@
+## 2026-08-12 - [Optimize artifact GC by batching concurrent removals]
+**Learning:** [When optimizing file operations like garbage collection that depend on dynamically updated cumulative totals (e.g., calculating \`removedBytes\` against a \`maxTotalBytes\` limit), first evaluate the files sequentially to build a safe removal queue. Only after the queue is built should the actual file deletions (e.g., \`fs.rm\`) be executed concurrently in chunks to prevent race conditions during state calculation.]
+**Action:** [I have updated the \`ArtifactStore.gc\` method in \`src/core/sub-agent/artifacts/store.ts\` to batch compute which files to remove and then delete them all at once using \`Promise.all\`, eliminating sequential \`fs.rm\` waits and improving performance.]

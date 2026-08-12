@@ -109,18 +109,7 @@ export class ArtifactStore {
     const nowMs = Date.now();
     const expired = files.filter((f) => nowMs - f.mtimeMs > maxAgeMs);
 
-    let removedFiles = 0;
-    let removedBytes = 0;
-
-    const removeFile = async (file: { path: string; size: number }) => {
-      await fs.rm(file.path, { force: true }).catch(() => null);
-      removedFiles += 1;
-      removedBytes += file.size;
-    };
-
-    for (const file of expired) {
-      await removeFile(file);
-    }
+    const filesToRemove: Array<{ path: string; size: number }> = [...expired];
 
     // Recompute remaining after TTL removal (newest first).
     const remaining = files
@@ -136,10 +125,24 @@ export class ArtifactStore {
       if (!tooManyFiles && !tooManyBytes) break;
 
       const oldest = remaining[i];
-      await removeFile(oldest);
+      filesToRemove.push(oldest);
       currentFiles -= 1;
       currentBytes -= oldest.size;
     }
+
+    // Execute removals concurrently in chunks to prevent EMFILE errors
+    const chunkSize = 50;
+    for (let i = 0; i < filesToRemove.length; i += chunkSize) {
+      const chunk = filesToRemove.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map(async (file) => {
+          await fs.rm(file.path, { force: true }).catch(() => null);
+        }),
+      );
+    }
+
+    const removedFiles = filesToRemove.length;
+    const removedBytes = filesToRemove.reduce((sum, f) => sum + f.size, 0);
 
     return { removedFiles, removedBytes };
   }
