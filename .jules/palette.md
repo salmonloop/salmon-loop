@@ -1,0 +1,3 @@
+## 2026-08-13 - List Truncation Context
+**Learning:** When displaying dynamic lists in terminal UIs (such as those using ink), if the list is truncated to fit constraints (e.g., a maxVisible limit), always include an explicit visual indicator (like '... and X more tasks') to preserve user situational awareness.
+**Action:** Check all list-based components for truncation logic and ensure visual feedback is present when items are hidden.
