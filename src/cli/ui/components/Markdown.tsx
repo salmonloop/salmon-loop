@@ -64,6 +64,8 @@ export function __applyMarkedTerminalTaskListCompat(m: Marked) {
   });
 }
 
+const PARSER_CACHE = new Map<string, Marked>();
+
 export const Markdown = ({
   children,
   theme = DEFAULT_MARKDOWN_THEME,
@@ -74,6 +76,10 @@ export const Markdown = ({
   mode?: MarkdownRenderMode;
 }) => {
   const parser = useMemo(() => {
+    const cacheKey = `${theme}:${mode}`;
+    const cachedParser = PARSER_CACHE.get(cacheKey);
+    if (cachedParser) return cachedParser;
+
     const m = new Marked();
     const RendererClass =
       (TerminalRendererOriginal as any).TerminalRenderer || TerminalRendererOriginal;
@@ -89,6 +95,7 @@ export const Markdown = ({
 
     if (mode === 'native') {
       m.use({ renderer: rendererInstance as any });
+      PARSER_CACHE.set(cacheKey, m);
       return m;
     }
 
@@ -233,6 +240,7 @@ export const Markdown = ({
     }
 
     m.use({ renderer: cleanRenderer });
+    PARSER_CACHE.set(cacheKey, m);
     return m;
   }, [mode, theme]);
 
