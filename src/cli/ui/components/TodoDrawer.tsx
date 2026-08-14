@@ -134,6 +134,16 @@ export function TodoDrawer({
               </Box>
             ))
           )}
+          {todos.length > visibleTodos.length && (
+            <Box flexDirection="row">
+              <Box width={6} />
+              <Box flexGrow={1}>
+                <Text color={COLORS.text.muted} dimColor italic>
+                  ... and {todos.length - visibleTodos.length} more tasks
+                </Text>
+              </Box>
+            </Box>
+          )}
         </Box>
       )}
     </Box>
