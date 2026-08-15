@@ -55,6 +55,7 @@ export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
                 <Text
                   color={isSelected ? COLORS.semantic.cyan : COLORS.semantic.blue}
                   bold={isSelected}
+                  inverse={isSelected}
                 >
                   {item.name}
                 </Text>
