@@ -1,0 +1,3 @@
+## 2026-08-15 - [Optimize Markdown Spacing Compaction]
+**Learning:** Manual string iteration to filter characters or handle multiple newlines can be significantly slower than a native regular expression in V8, contrary to assumptions that regex is always slower. Native C++ string replacement mechanisms underlying Regex perform better for simple character sequential replacements than JS user-land string concatenation inside loops.
+**Action:** Use native RegExp replace for straightforward repetitive character matching and reduction (like newline squashing) instead of manual for-loops when optimizing text formatting layers.

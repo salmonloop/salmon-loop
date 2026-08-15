@@ -460,19 +460,5 @@ function isFullWidthCodePoint(codePoint: number): boolean {
 }
 
 function compactRenderedSpacing(content: string): string {
-  let output = '';
-  let newlineCount = 0;
-  for (let index = 0; index < content.length; index += 1) {
-    const ch = content[index];
-    if (ch === '\n') {
-      newlineCount += 1;
-      if (newlineCount <= 2) {
-        output += ch;
-      }
-      continue;
-    }
-    newlineCount = 0;
-    output += ch;
-  }
-  return output;
+  return content.replace(/\n{3,}/g, '\n\n');
 }
