@@ -137,7 +137,7 @@ export function TodoDrawer({
               {todos.length > visibleTodos.length && (
                 <Box flexDirection="row">
                   <Box width={4}>
-                    <Text color={COLORS.text.muted}>   </Text>
+                    <Text color={COLORS.text.muted}> </Text>
                   </Box>
                   <Box width={2}>
                     <Text color={COLORS.text.muted}> </Text>
