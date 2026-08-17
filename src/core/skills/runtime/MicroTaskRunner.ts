@@ -111,7 +111,7 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
     if (ctx.dryRun) return `[DRY_RUN] Executing: ${command}`;
     try {
       const shell = getPlatformShellInvocation(command);
-      const env = {
+      const env: Record<string, string | undefined> = {
         ...process.env,
         SALMONLOOP_REPO_ROOT: ctx.repoRoot,
         SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),
@@ -122,6 +122,7 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
       const { stdout } = await execa(shell.file, shell.args, {
         cwd: ctx.repoRoot,
         env,
+        extendEnv: false,
       });
       return stdout.trim();
     } catch (error: unknown) {

@@ -48,7 +48,7 @@ export async function executeShellExec(
 
   try {
     const shell = getPlatformShellInvocation(input.command);
-    const env = {
+    const env: Record<string, string | undefined> = {
       ...process.env,
       ...(ctx.env ?? {}),
       SALMONLOOP_REPO_ROOT: ctx.repoRoot,
@@ -61,6 +61,7 @@ export async function executeShellExec(
     const res = await execa(shell.file, shell.args, {
       cwd,
       env,
+      extendEnv: false,
       reject: false,
     });
 
