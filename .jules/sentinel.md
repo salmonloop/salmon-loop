@@ -1,0 +1,4 @@
+## 2026-08-17 - [Credential Exfiltration via Shell Environment]
+**Vulnerability:** The shell.exec tool and MicroTaskRunner passed the entire process.env object to execa without sanitizing internal framework secrets (e.g., SALMONLOOP_API_KEY).
+**Learning:** When spawning shell commands, passing process.env blindly exposes the framework's own configuration secrets to the agent's environment, creating a credential exfiltration vector. Internal secrets must be explicitly stripped from the child process environment, while user secrets should remain intact.
+**Prevention:** Always explicitly delete framework-specific secrets from the env object before passing it to execa or any process spawner.

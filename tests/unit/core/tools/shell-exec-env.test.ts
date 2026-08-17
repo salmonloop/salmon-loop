@@ -18,7 +18,10 @@ describe('executeShellExec environment injection', () => {
     });
   });
 
-  it('injects SALMONLOOP_* runtime variables', async () => {
+  it('injects SALMONLOOP_* runtime variables and strips framework secrets', async () => {
+    process.env.SALMONLOOP_API_KEY = 'secret123';
+    process.env.S8P_API_KEY = 'secret456';
+
     const { executeShellExec } = await import('../../../../src/core/tools/builtin/shell.js');
 
     await executeShellExec(
@@ -33,6 +36,12 @@ describe('executeShellExec environment injection', () => {
     );
 
     expect(hoisted.execa).toHaveBeenCalledTimes(1);
+    const execaCall = hoisted.execa.mock.calls[0];
+    const envArg = execaCall[2].env;
+
+    expect(envArg.SALMONLOOP_API_KEY).toBeUndefined();
+    expect(envArg.S8P_API_KEY).toBeUndefined();
+
     expect(hoisted.execa).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(Array),
@@ -46,6 +55,9 @@ describe('executeShellExec environment injection', () => {
         }),
       }),
     );
+
+    delete process.env.SALMONLOOP_API_KEY;
+    delete process.env.S8P_API_KEY;
   });
 
   it('keeps authorization summary cwd semantics unchanged', async () => {
