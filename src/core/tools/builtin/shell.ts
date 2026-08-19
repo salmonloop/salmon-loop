@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { text } from '../../../locales/index.js';
 import { Phase } from '../../types/runtime.js';
 import { getPlatformShellInvocation } from '../../utils/platform-shell.js';
+import { sanitizeEnvironment } from '../../utils/sanitizer.js';
 import { processResource, repoResource } from '../parallel/resource-helpers.js';
 import type { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
@@ -50,13 +51,13 @@ export async function executeShellExec(
     const shell = getPlatformShellInvocation(input.command);
     const res = await execa(shell.file, shell.args, {
       cwd,
-      env: {
+      env: sanitizeEnvironment({
         ...process.env,
         ...(ctx.env ?? {}),
         SALMONLOOP_REPO_ROOT: ctx.repoRoot,
         SALMONLOOP_WORKTREE_ROOT: ctx.worktreeRoot ?? '',
         SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),
-      },
+      }),
       reject: false,
     });
 

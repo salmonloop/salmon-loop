@@ -4,6 +4,22 @@ import { getLogger } from '../observability/logger.js';
  * Sanitizes any error input (object, string, or mixed) to prevent leakage
  * of sensitive technical data like Zod dumps or stack traces.
  */
+export function sanitizeEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sanitized = { ...env };
+  const sensitiveKeys = [
+    'SALMONLOOP_API_KEY',
+    'S8P_API_KEY',
+    'SALMONLOOP_LANGFUSE_API_KEY',
+    'SALMONLOOP_LANGFUSE_SECRET_KEY',
+    'LANGFUSE_PUBLIC_KEY',
+    'LANGFUSE_SECRET_KEY',
+  ];
+  for (const key of sensitiveKeys) {
+    delete sanitized[key];
+  }
+  return sanitized;
+}
+
 export function sanitizeErrorMessage(err: unknown): string {
   if (!err) return 'Unknown error';
 
