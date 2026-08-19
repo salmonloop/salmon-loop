@@ -1,16 +1,18 @@
 import * as fs from 'node:fs';
-import * as os from 'node:os';
+import os from 'node:os';
 import * as path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { SkillLoader } from '../../../src/core/skills/loader.js';
 
 describe('progressive disclosure', () => {
   let repoRoot: string;
+  let homedirSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
     repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'progressive-disclosure-'));
+    homedirSpy = spyOn(os, 'homedir').mockImplementation(() => repoRoot);
     const skillDir = path.join(repoRoot, '.salmonloop', 'skills', 'pd-skill');
     fs.mkdirSync(skillDir, { recursive: true });
     fs.writeFileSync(
@@ -21,6 +23,7 @@ describe('progressive disclosure', () => {
   });
 
   afterEach(() => {
+    homedirSpy.mockRestore();
     fs.rmSync(repoRoot, { recursive: true, force: true });
   });
 

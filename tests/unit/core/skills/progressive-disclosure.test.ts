@@ -14,7 +14,7 @@
 import os from 'node:os';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { SkillLoader } from '../../../../src/core/skills/loader.js';
 import type { SkillCatalogEntry } from '../../../../src/core/skills/types.js';
@@ -48,14 +48,17 @@ function estimateTokens(text: string): number {
 
 describe('Property 10: Progressive Disclosure Token Bound', () => {
   let tmpDir: string;
+  let homedirSpy: ReturnType<typeof spyOn>;
 
   beforeEach(async () => {
     const fs = await import('node:fs/promises');
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'progressive-disclosure-test-'));
+    homedirSpy = spyOn(os, 'homedir').mockImplementation(() => tmpDir);
   });
 
   afterEach(async () => {
     const fs = await import('node:fs/promises');
+    homedirSpy.mockRestore();
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -151,14 +154,17 @@ describe('Property 10: Progressive Disclosure Token Bound', () => {
 
 describe('Progressive Disclosure: Unactivated vs Activated', () => {
   let tmpDir: string;
+  let homedirSpy: ReturnType<typeof spyOn>;
 
   beforeEach(async () => {
     const fs = await import('node:fs/promises');
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'activation-test-'));
+    homedirSpy = spyOn(os, 'homedir').mockImplementation(() => tmpDir);
   });
 
   afterEach(async () => {
     const fs = await import('node:fs/promises');
+    homedirSpy.mockRestore();
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 

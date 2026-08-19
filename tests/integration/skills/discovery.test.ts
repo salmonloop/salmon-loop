@@ -1,19 +1,22 @@
 import * as fs from 'node:fs';
-import * as os from 'node:os';
+import os from 'node:os';
 import * as path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { SkillLoader } from '../../../src/core/skills/loader.js';
 
 describe('skills discovery integration', () => {
   let tempDir: string;
+  let homedirSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-discovery-int-'));
+    homedirSpy = spyOn(os, 'homedir').mockImplementation(() => tempDir);
   });
 
   afterEach(() => {
+    homedirSpy.mockRestore();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 

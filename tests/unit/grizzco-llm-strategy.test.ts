@@ -34,6 +34,6 @@ describe('Grizzco LLM strategy', () => {
     const policy = resolveLlmToolCallingPolicy(Phase.AUTOPILOT, llm);
 
     expect(policy.enabled).toBe(true);
-    expect(policy.maxRounds).toBe(12);
+    expect(policy.maxRounds).toBe(50);
   });
 });
