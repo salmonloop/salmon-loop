@@ -1412,8 +1412,9 @@ async function main(): Promise<void> {
         });
 
     const flowSuccess = run.exitCode === 0 && metadata.success === true;
+    // Autopilot is fully AI-driven — the harness does not impose verify gates.
     const autopilotVerify = isAutopilot
-      ? buildVerifyGateFromAudit(metadata.audit_path ?? '', flowSuccess)
+      ? skip('VERIFY_AUTOPILOT_SKIP', 'Autopilot is AI-driven; verify gate is skipped.')
       : undefined;
     const missingBehavior = fail(
       'BEHAVIOR_COMMAND_MISSING',

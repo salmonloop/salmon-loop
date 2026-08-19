@@ -4,8 +4,8 @@ import { join } from 'path';
 import { text } from '../../../locales/index.js';
 import { lstat, readFile, readdir, readlink } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { KnowledgeGatherer } from '../../context/gatherers/knowledge-gatherer.js';
 import { LIMITS } from '../../config/limits.js';
+import { KnowledgeGatherer } from '../../context/gatherers/knowledge-gatherer.js';
 import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { buildRelevantMemoryCandidates } from '../../memory/relevant-retrieval.js';
@@ -466,7 +466,9 @@ async function gatherAutopilotPreflightContext(
       const content = await readFile(join(repoPath, filePath), 'utf-8');
       const lines = content.split('\n').slice(0, PREFLIGHT_FILE_LINES).join('\n');
       fileParts.push(`## ${filePath}\n${lines}`);
-    } catch { /* file not found, skip */ }
+    } catch {
+      /* file not found, skip */
+    }
   }
   if (fileParts.length === 0) return '';
 
@@ -481,7 +483,7 @@ function extractMentionedFilePaths(text: string): string[] {
     if (p.includes('/') && !p.startsWith('http')) paths.add(p);
   }
   // Unquoted paths with directory separators
-  for (const m of text.matchAll(/(?:^|\s)([a-zA-Z0-9_/]+\.[a-zA-Z]{1,6})(?:\s|$|[,.\)])/g)) {
+  for (const m of text.matchAll(/(?:^|\s)([a-zA-Z0-9_/]+\.[a-zA-Z]{1,6})(?:\s|$|[,.)])/g)) {
     const p = m[1];
     if (p.includes('/') && !p.startsWith('http') && !p.match(/^\d+\.\d+/)) paths.add(p);
   }
@@ -532,7 +534,8 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   // Load project knowledge so autopilot can leverage memory from prior sessions.
   // If the context already has knowledgeBase (passed by the host), use it directly.
   // Otherwise, try loading from .salmonloop/knowledge/ on disk.
-  let memoryCandidates: Array<{ path: string; title: string; summary: string; tags?: string[] }> = [];
+  let memoryCandidates: Array<{ path: string; title: string; summary: string; tags?: string[] }> =
+    [];
   if (requestContext.knowledgeBase) {
     memoryCandidates = buildRelevantMemoryCandidates(requestContext);
   } else {

@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import path from 'path';
 
+import { truncateOutput } from '../context/truncation/index.js';
 import type { ToolCallingAuditEntry, ToolCallingAuditSink } from '../llm/audit.js';
 import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/output-policy.js';
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
@@ -20,7 +21,6 @@ import { extractNetworkCode, extractProvider, extractStatusCode } from '../utils
 import { isSafeRelativePath, normalizePath } from '../utils/path.js';
 import { isRecord } from '../utils/serialize.js';
 
-import { truncateOutput } from '../context/truncation/index.js';
 import { buildHeadlessToolInputPayload } from './headless-payload.js';
 import { toolToOpenAI } from './mapper.js';
 import { InMemoryLockManager } from './parallel/lock-manager.js';
