@@ -1,4 +1,4 @@
-## 2026-08-04 - [Prevent Secret Leakage in Spawned Processes]
-**Vulnerability:** Spawned processes (e.g., via `execa` or child_process) inherit the host's `process.env` by default, leaking internal framework secrets (API keys) to untrusted tools.
-**Learning:** Never pass the raw `process.env` down when executing third-party tools or shells.
-**Prevention:** Implement and enforce an environment sanitization function (`sanitizeEnvironment`) that strips known sensitive keys before launching external processes.
+## YYYY-MM-DD - Timing Attack Vulnerability in Token Validation
+**Vulnerability:** A length check (`tokenBuffer.length === authTokenBuffer.length`) before `crypto.timingSafeEqual` in `src/cli/commands/serve.ts` created a fast path that leaked the length of valid tokens through timing differences.
+**Learning:** Checking buffer lengths prior to constant-time comparisons voids the constant-time guarantee by introducing an early exit.
+**Prevention:** Always hash both secrets to a fixed length (e.g., using `crypto.createHash('sha256')`) before comparison to ensure true constant-time evaluation regardless of the input lengths.

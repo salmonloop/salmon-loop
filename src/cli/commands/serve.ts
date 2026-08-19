@@ -347,12 +347,14 @@ export async function handleServeCommand(_options: unknown, command: Command) {
           let isAuthenticated = false;
           if (scheme?.toLowerCase() === 'bearer' && token) {
             const tokenBuffer = Buffer.from(token);
+            const hashedTokenBuffer = crypto.createHash('sha256').update(tokenBuffer).digest();
             for (const authToken of authTokens) {
               const authTokenBuffer = Buffer.from(authToken);
-              if (
-                tokenBuffer.length === authTokenBuffer.length &&
-                crypto.timingSafeEqual(tokenBuffer, authTokenBuffer)
-              ) {
+              const hashedAuthTokenBuffer = crypto
+                .createHash('sha256')
+                .update(authTokenBuffer)
+                .digest();
+              if (crypto.timingSafeEqual(hashedTokenBuffer, hashedAuthTokenBuffer)) {
                 isAuthenticated = true;
                 break;
               }
