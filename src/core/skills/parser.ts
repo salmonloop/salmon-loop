@@ -98,7 +98,7 @@ const CONTROL_CHAR_PATTERN = /[\x00-\x08\x0e-\x1f]/;
  * | Pattern               | Threat                                          |
  * |-----------------------|-------------------------------------------------|
  * | `rm -rf /`            | Recursive root deletion                         |
- * | `curl … \| sh`        | Remote code execution via piped download         |
+ * | `(?:curl\|wget) … \| (?:sh\|bash\|zsh\|python)` | Remote code execution via piped download |
  * | `\beval\b`            | Arbitrary code evaluation in shell               |
  * | `\bexec\b.*<`         | Process replacement with redirected input        |
  *
@@ -110,7 +110,7 @@ const CONTROL_CHAR_PATTERN = /[\x00-\x08\x0e-\x1f]/;
  */
 export const DEFAULT_DANGEROUS_PATTERNS: ReadonlyArray<RegExp> = [
   /rm\s+-rf\s+\//,
-  /curl\s.*\|\s*sh/,
+  /(?:curl|wget)\s.*\|\s*(?:sh|bash|zsh|python|ruby|perl|php)/,
   /\beval\b/,
   /\bexec\b.*</,
 ];
