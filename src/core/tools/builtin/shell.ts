@@ -48,11 +48,14 @@ export async function executeShellExec(
 
   try {
     const shell = getPlatformShellInvocation(input.command);
+    const safeEnv = { ...process.env, ...(ctx.env ?? {}) };
+    delete safeEnv.SALMONLOOP_API_KEY;
+    delete safeEnv.S8P_API_KEY;
+
     const res = await execa(shell.file, shell.args, {
       cwd,
       env: {
-        ...process.env,
-        ...(ctx.env ?? {}),
+        ...safeEnv,
         SALMONLOOP_REPO_ROOT: ctx.repoRoot,
         SALMONLOOP_WORKTREE_ROOT: ctx.worktreeRoot ?? '',
         SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),
