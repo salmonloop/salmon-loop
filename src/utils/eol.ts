@@ -8,8 +8,18 @@ export class TextNormalizer {
    */
   static read(content: string): { normalized: string; eol: EOL } {
     // 1. Count frequencies to handle mixed line endings
-    const crlfCount = (content.match(/\r\n/g) || []).length;
-    const lfCount = (content.match(/(?<!\r)\n/g) || []).length;
+    let crlfCount = 0;
+    let lfCount = 0;
+
+    let index = 0;
+    while ((index = content.indexOf('\n', index)) !== -1) {
+      if (index > 0 && content[index - 1] === '\r') {
+        crlfCount++;
+      } else {
+        lfCount++;
+      }
+      index++;
+    }
 
     // 2. Determine style (default to LF if LF >= CRLF)
     const eol: EOL = crlfCount > lfCount ? '\r\n' : '\n';
