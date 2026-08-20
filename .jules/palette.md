@@ -1,0 +1,3 @@
+## 2026-08-20 - [Terminal UI truncation awareness]
+**Learning:** When displaying dynamic lists in terminal UIs (such as those using `ink`), if the list is truncated to fit constraints (e.g., a `maxVisible` limit), always include an explicit visual indicator (like '... and X more tasks') to preserve user situational awareness.
+**Action:** Always verify if dynamic list components truncate their output and ensure an explicit 'more' indicator is displayed if items are hidden.
