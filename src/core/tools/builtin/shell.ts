@@ -58,6 +58,7 @@ export async function executeShellExec(
         SALMONLOOP_WORKTREE_ROOT: ctx.worktreeRoot ?? '',
         SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),
       }),
+      extendEnv: false,
       reject: false,
     });
 

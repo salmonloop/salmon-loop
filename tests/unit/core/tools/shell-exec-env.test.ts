@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { mock, beforeEach, describe, expect, it } from 'bun:test';
 
 const hoisted = (() => ({
   execa: mock(),
@@ -10,7 +10,7 @@ mock.module('execa', () => ({
 
 describe('executeShellExec environment injection', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     hoisted.execa.mockResolvedValue({
       exitCode: 0,
       stdout: 'ok',
