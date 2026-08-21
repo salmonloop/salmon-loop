@@ -119,6 +119,7 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
           SALMONLOOP_REPO_ROOT: ctx.repoRoot,
           SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),
         }),
+        extendEnv: false,
       });
       return stdout.trim();
     } catch (error: unknown) {
