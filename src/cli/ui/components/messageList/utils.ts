@@ -1,6 +1,10 @@
+const PAD_2 = Array.from({ length: 60 }, (_, i) => (i < 10 ? `0${i}` : `${i}`));
+
 export function formatTime(timestamp: Date): string {
-  const hours = String(timestamp.getHours()).padStart(2, '0');
-  const minutes = String(timestamp.getMinutes()).padStart(2, '0');
-  const seconds = String(timestamp.getSeconds()).padStart(2, '0');
+  // Performance: Pre-computed array lookups for 0-59 are faster than String().padStart()
+  // avoiding repeated string allocations in high-throughput render paths.
+  const hours = PAD_2[timestamp.getHours()];
+  const minutes = PAD_2[timestamp.getMinutes()];
+  const seconds = PAD_2[timestamp.getSeconds()];
   return `${hours}:${minutes}:${seconds}`;
 }
