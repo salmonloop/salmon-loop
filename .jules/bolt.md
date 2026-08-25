@@ -1,0 +1,3 @@
+## 2026-08-25 - Pre-computed Lookups for Ink Terminal UIs
+**Learning:** For high-throughput render paths in React `ink` terminal UIs, prefer pre-computed array lookups for bounded data (like time formatting 0-59) over repeated string allocations (like `String().padStart()`) to reduce performance overhead.
+**Action:** Use pre-computed arrays for bounded sequential data formatting in rendering paths instead of repeatedly calling string manipulation functions.
