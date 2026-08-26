@@ -16,6 +16,7 @@ export function createControlledRunner() {
           timeout: opts?.timeoutMs,
           maxBuffer: opts?.maxStdoutBytes,
           env: opts?.env,
+          extendEnv: opts?.env !== undefined ? false : undefined,
           reject: false, // Backends should handle exit codes themselves
         });
 
