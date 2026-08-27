@@ -134,6 +134,14 @@ export function TodoDrawer({
               </Box>
             ))
           )}
+          {todos.length > maxVisible && (
+            <Box flexDirection="row" marginTop={0}>
+              <Text color={COLORS.text.muted} dimColor>
+                ... and {todos.length - maxVisible} more{' '}
+                {todos.length - maxVisible === 1 ? 'task' : 'tasks'}
+              </Text>
+            </Box>
+          )}
         </Box>
       )}
     </Box>

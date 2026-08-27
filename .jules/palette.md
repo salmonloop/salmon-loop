@@ -1,0 +1,3 @@
+## 2026-08-27 - Add Truncation Indicator for Long Lists
+**Learning:** When displaying dynamic lists in terminal UIs (such as those using `ink`), if the list is truncated to fit constraints (e.g., a `maxVisible` limit), it is important to include an explicit visual indicator to preserve user situational awareness.
+**Action:** Always add a visible indicator like '... and X more tasks' when truncating lists to ensure users know there is more data than what is currently displayed.
