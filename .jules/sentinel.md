@@ -2,3 +2,8 @@
 **Vulnerability:** The default dangerous patterns in `SkillParser.extractCommands` (`DEFAULT_DANGEROUS_PATTERNS`) caught `curl ... | sh` but missed `wget ... | sh`, which is an equivalent vector for remote code execution via piped download. Also, variants like `bash`, `zsh`, or `python` were missed.
 **Learning:** Hardcoded regexes for malicious shell patterns are prone to bypasses if they don't account for common aliases/alternatives (e.g., `wget` instead of `curl`, or `bash`/`zsh` instead of `sh`).
 **Prevention:** Include broader shell command matching for network downloaders piped to interpreters.
+
+## 2026-08-27 - Fix environment variable redaction bypass in execa
+**Vulnerability:** The `execa` library was used with a manually sanitized `env` object to hide sensitive variables, but `extendEnv` was left to its default value of `true`.
+**Learning:** When `extendEnv` is `true`, `execa` automatically merges the provided `env` object with `process.env`. If variables are deleted in the `env` object but exist in `process.env`, they are re-injected, completely defeating the sanitization.
+**Prevention:** Always explicitly set `extendEnv: false` when passing a sanitized `env` object to `execa`.
