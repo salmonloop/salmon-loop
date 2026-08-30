@@ -2,3 +2,8 @@
 **Vulnerability:** The default dangerous patterns in `SkillParser.extractCommands` (`DEFAULT_DANGEROUS_PATTERNS`) caught `curl ... | sh` but missed `wget ... | sh`, which is an equivalent vector for remote code execution via piped download. Also, variants like `bash`, `zsh`, or `python` were missed.
 **Learning:** Hardcoded regexes for malicious shell patterns are prone to bypasses if they don't account for common aliases/alternatives (e.g., `wget` instead of `curl`, or `bash`/`zsh` instead of `sh`).
 **Prevention:** Include broader shell command matching for network downloaders piped to interpreters.
+
+## 2026-08-30 - Fix Quoted Secret Redaction Bypass
+**Vulnerability:** The redaction regex `KV_PATTERN` failed to match and redact quoted secret values (e.g., `password="mysecret"`), potentially leaking credentials in audit logs.
+**Learning:** Regular expressions for sanitizing key=value pairs must account for quoted values by explicitly including `"[^"]*"` and `'[^']*'` in the matching group.
+**Prevention:** When writing regex for secrets matching, always include patterns for both quoted and unquoted strings to prevent simple bypasses.
