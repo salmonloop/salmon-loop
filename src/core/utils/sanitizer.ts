@@ -104,14 +104,20 @@ export function sanitizeObject(obj: any, maxDepth = MAX_DEPTH, depth = 0): any {
     // Blacklisted fields that contain raw request/response data that should be completely hidden
     if (
       [
-        'requestBodyValues',
-        'requestBody',
+        'requestbodyvalues',
+        'requestbody',
         'headers',
-        'responseHeaders',
+        'responseheaders',
         'request',
         'stack',
         'url',
-      ].includes(keyStr)
+        'authorization',
+        'password',
+        'token',
+        'secret',
+        'cookie',
+        'credential',
+      ].includes(keyStr.toLowerCase())
     ) {
       result[key] = '[HIDDEN FOR SECURITY]';
       continue;
