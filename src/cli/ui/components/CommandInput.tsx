@@ -261,12 +261,7 @@ export const CommandInput: React.FC<Props> = ({
       </Box>
 
       {isIntercepting && (
-        <Box
-          flexDirection="column"
-          borderStyle="round"
-          borderColor={COLORS.semantic.yellow}
-          paddingX={1}
-        >
+        <Box flexDirection="column" borderStyle="round" borderColor={COLORS.semantic.yellow} paddingX={1}>
           <Text color={COLORS.semantic.yellow} bold>
             {isSelecting
               ? pendingSelection?.title
@@ -301,11 +296,7 @@ export const CommandInput: React.FC<Props> = ({
                   <Text key={item.id} color={isSelected ? COLORS.semantic.cyan : COLORS.text.muted}>
                     {isSelected ? '❯ ' : '  '}
                     {isMultiSelecting && (
-                      <Text
-                        color={
-                          selectedItems.includes(item.id) ? COLORS.semantic.cyan : COLORS.text.muted
-                        }
-                      >
+                      <Text color={selectedItems.includes(item.id) ? COLORS.semantic.cyan : COLORS.text.muted}>
                         {selectedItems.includes(item.id) ? '[x] ' : '[ ] '}
                       </Text>
                     )}

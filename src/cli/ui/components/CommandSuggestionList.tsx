@@ -9,16 +9,16 @@ interface CommandSuggestionListProps {
   selectedIndex: number;
   parentCommand?: Command;
   filterText?: string;
-  totalSuggestions?: number;
-  startIndex?: number;
+  totalSuggestions: number;
+  startIndex: number;
 }
 
 export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
   suggestions,
   selectedIndex,
   parentCommand,
-  totalSuggestions = 0,
-  startIndex = 0,
+  totalSuggestions,
+  startIndex,
 }) => {
   if (suggestions.length === 0) return null;
 
