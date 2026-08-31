@@ -105,7 +105,8 @@ const SIMPLE_PATTERNS: Array<RegExp> = [
   /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
 ];
 
-const KV_PATTERN = /(\b(?:token|secret|password|api[_-]?key)\b\s*[:=]\s*)([^\s,'"]+)/gi;
+const KV_PATTERN =
+  /(\b(?:token|secret|password|api[_-]?key)\b\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,'"]+)/gi;
 const QUERY_PATTERN = /([?&](?:token|secret|password|api_key|apikey)=)([^&\s]+)/gi;
 
 compiledPatterns = [...SIMPLE_PATTERNS];
