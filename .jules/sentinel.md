@@ -12,3 +12,7 @@
 **Vulnerability:** The redaction regex `KV_PATTERN` failed to match and redact quoted secret values (e.g., `password="mysecret"`), potentially leaking credentials in audit logs.
 **Learning:** Regular expressions for sanitizing key=value pairs must account for quoted values by explicitly including `"[^"]*"` and `'[^']*'` in the matching group.
 **Prevention:** When writing regex for secrets matching, always include patterns for both quoted and unquoted strings to prevent simple bypasses.
+## 2026-08-30 - Fix framework secrets leakage via execa extendEnv
+**Vulnerability:** execa re-injects unsanitized process.env by default when extendEnv is true.
+**Learning:** Using sanitizeEnvironment() but missing extendEnv: false defeated the purpose. When setting `extendEnv: false`, we must also merge `process.env` with `opts.env` (e.g. `opts.env ? { ...process.env, ...opts.env } : process.env`), otherwise `PATH` and other essential system variables are stripped, causing ENOENT crashes.
+**Prevention:** Always explicitly set extendEnv: false when passing a sanitized environment object to execa, but ensure to merge the base system environment.
