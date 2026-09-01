@@ -1,3 +1,3 @@
-## 2026-08-20 - Replaced regex lookbehind with indexOf in eol.ts
-**Learning:** Using negative lookbehind regex `/(?<!\r)\n/g` to count line endings is extremely slow on large files compared to a simple `indexOf` loop, causing >15x performance degradation
-**Action:** Use `indexOf` or a similar string parsing approach instead of negative lookbehinds when processing potentially large strings
+## 2026-09-01 - Pre-computing bounded data in high-throughput render paths
+**Learning:** In React `ink` terminal UIs, repeated string allocations for bounded data (like time formatting 0-59 using `String().padStart()`) add measurable overhead on every render.
+**Action:** Prefer pre-computed array lookups for bounded data like minutes and seconds to reduce CPU overhead during rendering.
