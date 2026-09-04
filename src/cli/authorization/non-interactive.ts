@@ -1,7 +1,6 @@
 import { execa } from 'execa';
 import { z } from 'zod';
 
-import { sanitizeEnvironment } from '../../core/utils/sanitizer.js';
 import type {
   AuthorizationDecision,
   ResolvedExtensions,
@@ -14,6 +13,7 @@ import {
   McpConnectionManager,
 } from '../../core/facades/cli-authorization-non-interactive.js';
 import { isRecord } from '../../core/facades/cli-utils-serialize.js';
+import { sanitizeEnvironment } from '../../core/utils/sanitizer.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
