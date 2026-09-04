@@ -1,6 +1,7 @@
 import { execa } from 'execa';
 import { z } from 'zod';
 
+import { sanitizeEnvironment } from '../../core/utils/sanitizer.js';
 import type {
   AuthorizationDecision,
   ResolvedExtensions,
@@ -101,6 +102,8 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
         shell: true,
         timeout: timeoutMs,
         reject: false,
+        env: sanitizeEnvironment(process.env),
+        extendEnv: false,
       });
 
       if (typeof res.exitCode === 'number' && res.exitCode !== 0) {
