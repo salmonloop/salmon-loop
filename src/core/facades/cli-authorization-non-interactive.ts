@@ -6,3 +6,5 @@ export type {
   AuthorizationDecision,
   ToolAuthorizationRequest,
 } from '../tools/authorization/types.js';
+
+export { sanitizeEnvironment } from '../utils/sanitizer.js';
