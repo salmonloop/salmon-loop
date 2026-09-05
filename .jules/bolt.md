@@ -1,7 +1,3 @@
-## 2026-08-20 - Replaced regex lookbehind with indexOf in eol.ts
-**Learning:** Using negative lookbehind regex `/(?<!\r)\n/g` to count line endings is extremely slow on large files compared to a simple `indexOf` loop, causing >15x performance degradation
-**Action:** Use `indexOf` or a similar string parsing approach instead of negative lookbehinds when processing potentially large strings
-
-## 2026-09-03 - Optimize time formatting in ink UIs
-**Learning:** In high-throughput render paths like React `ink` terminal UIs, repeated string allocations (`String().padStart()`) introduce measurable overhead. Pre-computed array lookups for bounded data (like time formatting 0-59) significantly reduce execution time.
-**Action:** Prefer pre-computed array lookups for bounded data over repeated string allocations to reduce performance overhead.
+## 2025-02-14 - Optimize Markdown React Re-renders
+**Learning:** Terminal components doing heavy synchronous processing (like parsing marked-terminal strings) can drastically degrade interactive UI performance if they re-render unconditionally on every keystroke/tick.
+**Action:** Always wrap these heavy leaf components (like `Markdown`) in `React.memo` if their props are primarily stable scalars (strings/numbers), avoiding deep object equality overhead while eliminating redundant parsing.
