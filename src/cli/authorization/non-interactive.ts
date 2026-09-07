@@ -13,6 +13,7 @@ import {
   McpConnectionManager,
 } from '../../core/facades/cli-authorization-non-interactive.js';
 import { isRecord } from '../../core/facades/cli-utils-serialize.js';
+import { sanitizeEnvironment } from '../../core/utils/sanitizer.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
@@ -100,6 +101,8 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
         input: JSON.stringify({ request: params.request }),
         shell: true,
         timeout: timeoutMs,
+        env: sanitizeEnvironment(process.env),
+        extendEnv: false,
         reject: false,
       });
 
