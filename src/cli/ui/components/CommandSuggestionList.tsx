@@ -9,12 +9,14 @@ interface CommandSuggestionListProps {
   selectedIndex: number;
   parentCommand?: Command;
   filterText?: string;
+  totalCount?: number;
 }
 
 export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
   suggestions,
   selectedIndex,
   parentCommand,
+  totalCount = 0,
 }) => {
   if (suggestions.length === 0) return null;
 
@@ -75,6 +77,20 @@ export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
           );
         })}
       </Box>
+
+      {totalCount > suggestions.length && (
+        <Box flexDirection="row" paddingX={1} paddingTop={0} paddingBottom={0}>
+          <Box width={6}>
+            <Text> </Text>
+          </Box>
+          <Box flexGrow={1}>
+            <Text color={COLORS.text.muted} dimColor>
+              ... and {totalCount - suggestions.length} more command
+              {totalCount - suggestions.length === 1 ? '' : 's'}
+            </Text>
+          </Box>
+        </Box>
+      )}
 
       {/* FOOTER: Contextual Hints */}
       {suggestions[selectedIndex]?.command?.usage && (
