@@ -1,5 +1,7 @@
 import { execa } from 'execa';
 
+import { sanitizeEnvironment } from '../../utils/sanitizer.js';
+
 import { ExecOpts, ExecResult } from './types.js';
 
 /**
@@ -15,7 +17,8 @@ export function createControlledRunner() {
           cwd: opts?.cwd,
           timeout: opts?.timeoutMs,
           maxBuffer: opts?.maxStdoutBytes,
-          env: opts?.env,
+          env: sanitizeEnvironment(opts?.env ? { ...process.env, ...opts.env } : process.env),
+          extendEnv: false,
           reject: false, // Backends should handle exit codes themselves
         });
 
