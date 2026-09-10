@@ -315,6 +315,8 @@ export const CommandInput: React.FC<Props> = ({
           suggestions={visibleSuggestions}
           selectedIndex={selectedIndex - startIndex}
           parentCommand={activeCommand}
+          totalSuggestions={suggestions.length}
+          startIndex={startIndex}
         />
       )}
     </Box>
